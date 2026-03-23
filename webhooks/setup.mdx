@@ -1,0 +1,189 @@
+---
+title: "Webhook Setup"
+description: "Configure webhooks to receive call completion notifications"
+---
+
+# Webhook Setup
+
+Webhooks notify your server when events occur in Vocobase, such as a call completing. Instead of polling the API, you receive a POST request with the full event payload.
+
+## What webhooks are for
+
+When a call finishes (or fails), Vocobase sends a `session.completed` event to your configured webhook URL. The payload includes:
+
+- Full conversation transcript with timestamps
+- Latency metrics (min, max, average response time)
+- Call duration and credits used
+- Recording download URL (if recording was enabled)
+- Call metadata (phone numbers, provider, direction)
+
+## Configure your webhook
+
+Set your webhook URL using the config API:
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/config/webhook \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "webhook_url": "https://your-server.com/webhooks/vocobase"
+  }'
+```
+
+The response contains a `webhook_secret` that you must save:
+
+```json
+{
+  "success": true,
+  "data": {
+    "webhook_url": "https://your-server.com/webhooks/vocobase",
+    "webhook_secret": "whsec_a1b2c3d4e5f6g7h8i9j0...",
+    "message": "Save this secret — it will not be shown again."
+  }
+}
+```
+
+<Warning>
+  The webhook secret is only shown once. Store it in your environment variables immediately. If you lose it, call `PUT /config/webhook` again — this regenerates the secret and invalidates the old one.
+</Warning>
+
+## Requirements
+
+Your webhook endpoint must:
+
+- Accept `POST` requests
+- Use HTTPS (HTTP URLs are rejected)
+- Return a `2xx` status code within 10 seconds
+- Be publicly accessible from the internet
+
+## Signature verification
+
+Every webhook request includes an `X-Webhook-Signature` header for verifying authenticity. The signature is computed as an HMAC-SHA256 hash of `timestamp.body` using your webhook secret.
+
+### Header format
+
+```
+X-Webhook-Signature: sha256=<hex-encoded-hmac>
+X-Webhook-Timestamp: <unix-timestamp>
+```
+
+### Verification steps
+
+1. Extract the `X-Webhook-Signature` and `X-Webhook-Timestamp` headers
+2. Construct the signed payload: `{timestamp}.{raw_request_body}`
+3. Compute HMAC-SHA256 using your webhook secret
+4. Compare the computed signature with the one in the header
+
+### Node.js example
+
+```javascript
+const crypto = require("crypto");
+
+function verifyWebhookSignature(req, webhookSecret) {
+  const signature = req.headers["x-webhook-signature"];
+  const timestamp = req.headers["x-webhook-timestamp"];
+  const body = JSON.stringify(req.body);
+
+  // Reject requests older than 5 minutes to prevent replay attacks
+  const currentTime = Math.floor(Date.now() / 1000);
+  if (Math.abs(currentTime - parseInt(timestamp)) > 300) {
+    throw new Error("Webhook timestamp too old");
+  }
+
+  // Compute expected signature
+  const signedPayload = `${timestamp}.${body}`;
+  const expectedSignature =
+    "sha256=" +
+    crypto
+      .createHmac("sha256", webhookSecret)
+      .update(signedPayload)
+      .digest("hex");
+
+  // Timing-safe comparison
+  if (
+    !crypto.timingSafeEqual(
+      Buffer.from(signature),
+      Buffer.from(expectedSignature)
+    )
+  ) {
+    throw new Error("Invalid webhook signature");
+  }
+
+  return true;
+}
+
+// Express.js handler
+app.post("/webhooks/vocobase", (req, res) => {
+  try {
+    verifyWebhookSignature(req, process.env.VOCOBASE_WEBHOOK_SECRET);
+  } catch (err) {
+    return res.status(401).json({ error: err.message });
+  }
+
+  const event = req.body;
+  console.log("Received event:", event.event, event.session_id);
+
+  // Process the webhook asynchronously
+  processWebhookAsync(event);
+
+  // Return 200 immediately
+  res.status(200).json({ received: true });
+});
+```
+
+### Python example
+
+```python
+import hmac
+import hashlib
+import time
+from flask import Flask, request, jsonify
+
+app = Flask(__name__)
+
+def verify_webhook_signature(request, webhook_secret):
+    signature = request.headers.get("X-Webhook-Signature")
+    timestamp = request.headers.get("X-Webhook-Timestamp")
+    body = request.get_data(as_text=True)
+
+    # Reject requests older than 5 minutes
+    if abs(time.time() - int(timestamp)) > 300:
+        raise ValueError("Webhook timestamp too old")
+
+    # Compute expected signature
+    signed_payload = f"{timestamp}.{body}"
+    expected = "sha256=" + hmac.new(
+        webhook_secret.encode(),
+        signed_payload.encode(),
+        hashlib.sha256
+    ).hexdigest()
+
+    if not hmac.compare_digest(signature, expected):
+        raise ValueError("Invalid webhook signature")
+
+@app.post("/webhooks/vocobase")
+def handle_webhook():
+    try:
+        verify_webhook_signature(request, os.environ["VOCOBASE_WEBHOOK_SECRET"])
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 401
+
+    event = request.json
+    # Process asynchronously, return immediately
+    return jsonify({"received": True}), 200
+```
+
+<Tip>
+  Always verify signatures in production. Skipping verification exposes your endpoint to forged requests.
+</Tip>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Webhook Payloads" icon="file-code" href="/webhooks/payloads">
+    See the full payload structure for each event type.
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/webhooks/error-handling">
+    Learn about retry behavior and best practices.
+  </Card>
+</CardGroup>

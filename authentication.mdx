@@ -1,0 +1,97 @@
+---
+title: "Authentication"
+description: "API key format, headers, rate limits, and error codes"
+---
+
+# Authentication
+
+All Vocobase API requests are authenticated using API keys passed as Bearer tokens.
+
+## Base URL
+
+All API requests use the following base URL:
+
+```
+https://api.vocobase.com/api/v2
+```
+
+## API key format
+
+Vocobase API keys use the prefix `rg_live_` followed by a random string:
+
+```
+rg_live_abc123def456ghi789jkl012
+```
+
+You can create API keys from the [Vocobase Dashboard](https://app.vocobase.com) under **API Keys**.
+
+<Warning>
+  API keys are shown only once at creation time. Store them securely — they cannot be retrieved later.
+</Warning>
+
+## Including your API key
+
+Pass your API key in the `Authorization` header as a Bearer token:
+
+```bash
+curl -X GET https://api.vocobase.com/api/v2/config \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+<Note>
+  Do not include your API key in query parameters or request bodies. Only the `Authorization` header is supported.
+</Note>
+
+## Rate limits
+
+The API enforces rate limits per API key:
+
+| Endpoint category | Limit | Window |
+|---|---|---|
+| General endpoints | 60 requests | Per minute |
+| Call endpoints (`/calls/*`) | 10 requests | Per minute |
+
+When you exceed a rate limit, the API returns a `429 Too Many Requests` response. Back off and retry after the window resets.
+
+## Concurrency limits
+
+Outbound calls have a concurrency limit of **5 simultaneous active calls** per partner. If you attempt to start a call while at the limit, you will receive a `429` response.
+
+## Error responses
+
+All error responses follow this format:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "ERROR_CODE",
+    "message": "Human-readable error description"
+  }
+}
+```
+
+### Authentication error codes
+
+| HTTP Status | Code | Description |
+|---|---|---|
+| `401` | `UNAUTHORIZED` | Missing or invalid API key. Verify your `Authorization` header contains a valid `rg_live_` key. |
+| `403` | `FORBIDDEN` | Your API key is valid but you do not have permission for this action. Common causes: insufficient credits, suspended account, or partner not yet approved. |
+
+### Other common error codes
+
+| HTTP Status | Code | Description |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Request body is missing required fields or contains invalid values. Check the `message` field for details. |
+| `404` | `NOT_FOUND` | The requested resource does not exist or does not belong to your account. |
+| `409` | `CONFLICT` | A resource with the same unique identifier already exists (e.g., duplicate agent name). |
+| `429` | `LIMIT_REACHED` | Rate limit or concurrency limit exceeded. |
+| `500` | `INTERNAL_ERROR` | An unexpected server error occurred. Retry the request. If the issue persists, contact support. |
+| `502` | `INTERNAL_ERROR` | A downstream service (e.g., telephony provider) failed. Retry the request. |
+
+## Security best practices
+
+- **Never expose API keys in client-side code.** Always call the Vocobase API from your backend server.
+- **Rotate keys periodically.** Delete old keys and create new ones from the dashboard.
+- **Use separate keys** for development and production environments.
+- **Monitor usage** via the dashboard to detect unauthorized access.

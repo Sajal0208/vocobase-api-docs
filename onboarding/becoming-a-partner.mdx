@@ -1,0 +1,80 @@
+---
+title: "Becoming a Partner"
+description: "How to apply for Vocobase partner access and get your API key"
+---
+
+# Becoming a Partner
+
+Vocobase operates on a partner model. To access the API, you need an approved partner account. This guide walks you through the application process.
+
+## Overview
+
+```
+Sign up  →  Apply  →  Review  →  Approved  →  Start building
+```
+
+<Steps>
+  <Step title="Create a Vocobase account">
+    Visit [app.vocobase.com](https://app.vocobase.com) and sign up using your email or Google account. This creates your base account on the platform.
+  </Step>
+
+  <Step title="Navigate to the Partner page">
+    Once logged in, go to **Settings > Partner Program** in the dashboard sidebar. You will see the partner application form.
+  </Step>
+
+  <Step title="Fill out the application">
+    Provide the following information:
+
+    - **Company name** — Your organization's legal or trading name
+    - **Use case description** — How you plan to use the Vocobase API (e.g., customer support automation, outbound sales calls, appointment reminders)
+    - **Expected call volume** — Approximate number of monthly calls you anticipate
+
+    <Tip>
+      Be specific about your use case. Applications with clear, legitimate business purposes are approved faster.
+    </Tip>
+  </Step>
+
+  <Step title="Wait for review">
+    After submitting, a Vocobase admin reviews your application. This typically takes **1-2 business days**.
+
+    You will receive an email notification at your registered address when your application is:
+    - **Approved** — You can start using the API immediately
+    - **Rejected** — The email will include a reason; you may reapply after addressing the feedback
+  </Step>
+
+  <Step title="Get started">
+    Once approved, you can:
+
+    1. **Create API keys** — Go to **API Keys** in the dashboard and generate your first key
+    2. **Configure telephony** — Set up [Twilio](/telephony/twilio-setup) or [MCube](/telephony/mcube-setup) for outbound calling
+    3. **Set up webhooks** — Configure a [webhook URL](/webhooks/setup) to receive call completion notifications
+    4. **Create agents** — Build your first voice agent via the API or dashboard
+
+    <Note>
+      Your partner account comes with an initial credit balance and an agent limit set by the admin. Check your configuration with `GET /config` to see your limits.
+    </Note>
+  </Step>
+</Steps>
+
+## What you get as a partner
+
+| Feature | Details |
+|---|---|
+| **API access** | Full access to the V2 Partner API |
+| **Agent slots** | Configurable limit (default: 10 agents) |
+| **Telephony** | Twilio and MCube integration support |
+| **Knowledge base** | Upload documents and web links for agent context |
+| **Webhooks** | Real-time call completion notifications |
+| **Call recording** | Optional per-agent recording with download URLs |
+| **Dashboard** | Web dashboard for managing agents and viewing call history |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Configure Your Account" icon="gear" href="/onboarding/configuring-your-account">
+    Set up webhooks and telephony after approval.
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Make your first API call in 5 minutes.
+  </Card>
+</CardGroup>

@@ -1,0 +1,188 @@
+---
+title: "Twilio Setup"
+description: "Configure Twilio for outbound calling with the Vocobase API"
+---
+
+# Twilio Setup
+
+This guide walks you through connecting your Twilio account to Vocobase for outbound calling.
+
+## Prerequisites
+
+- A [Twilio account](https://www.twilio.com/try-twilio) (free trial works for testing)
+- A Twilio phone number with voice capabilities
+- An approved Vocobase partner account with an API key
+
+## Step 1: Get your Twilio credentials
+
+<Steps>
+  <Step title="Log in to the Twilio Console">
+    Go to [console.twilio.com](https://console.twilio.com) and sign in.
+  </Step>
+
+  <Step title="Find your Account SID and Auth Token">
+    On the console dashboard, you will see your **Account SID** and **Auth Token**. Click the eye icon to reveal the Auth Token.
+
+    - **Account SID** — Starts with `AC`, 34 characters total
+    - **Auth Token** — 32-character hex string
+
+    <Warning>
+      Keep your Auth Token secret. Anyone with your SID and Token can make calls using your Twilio account.
+    </Warning>
+  </Step>
+
+  <Step title="Get your phone number">
+    Navigate to **Phone Numbers > Manage > Active Numbers** in the Twilio Console. Copy the phone number you want to use as the caller ID.
+
+    The number must be in E.164 format (e.g., `+14155551234`).
+
+    <Note>
+      If you do not have a phone number, go to **Phone Numbers > Buy a Number** to purchase one. For testing, Twilio trial accounts include a free number.
+    </Note>
+  </Step>
+</Steps>
+
+## Step 2: Configure Twilio in Vocobase
+
+Send your Twilio credentials to the Vocobase config API:
+
+<CodeGroup>
+```bash cURL
+curl -X PUT https://api.vocobase.com/api/v2/config/telephony/twilio \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "account_sid": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "auth_token": "your_twilio_auth_token_here",
+    "from_number": "+14155551234"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "https://api.vocobase.com/api/v2/config/telephony/twilio",
+  {
+    method: "PUT",
+    headers: {
+      "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      account_sid: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      auth_token: "your_twilio_auth_token_here",
+      from_number: "+14155551234"
+    })
+  }
+);
+const result = await response.json();
+console.log(result);
+```
+
+```python Python
+import requests
+
+response = requests.put(
+    "https://api.vocobase.com/api/v2/config/telephony/twilio",
+    headers={
+        "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+        "Content-Type": "application/json"
+    },
+    json={
+        "account_sid": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "auth_token": "your_twilio_auth_token_here",
+        "from_number": "+14155551234"
+    }
+)
+print(response.json())
+```
+</CodeGroup>
+
+A successful response confirms your credentials were saved:
+
+```json
+{
+  "success": true,
+  "data": {
+    "account_sid": "ACxx****xxxx",
+    "from_number": "+14155551234",
+    "message": "Twilio credentials updated successfully."
+  }
+}
+```
+
+<Tip>
+  Your Auth Token is encrypted at rest and never returned in API responses. The Account SID is masked for security.
+</Tip>
+
+## Step 3: Make a test call
+
+Start an outbound call using the `twilio` provider:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/calls/start \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "to_number": "+919876543210",
+    "provider": "twilio"
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "call_id": "c1234567-abcd-1234-abcd-123456789012",
+    "session_id": "s1234567-abcd-1234-abcd-123456789012",
+    "status": "pending",
+    "provider": "twilio",
+    "from_number": "+14155551234",
+    "to_number": "+919876543210",
+    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  }
+}
+```
+
+## Troubleshooting
+
+### "Twilio not configured" error
+
+You will receive a `400` error if you try to make a call with `"provider": "twilio"` before configuring credentials. Run `PUT /config/telephony/twilio` with valid credentials.
+
+### "Invalid Twilio credentials" error
+
+Double-check your Account SID and Auth Token in the [Twilio Console](https://console.twilio.com). Common issues:
+- Copying extra whitespace around the credentials
+- Using a subaccount SID instead of the main Account SID
+- Auth Token was rotated in Twilio but not updated in Vocobase
+
+### Calls fail with no answer
+
+- Verify the `to_number` is in E.164 format (e.g., `+919876543210`)
+- Check that your Twilio account has sufficient balance
+- If using a trial account, the destination number must be verified in Twilio first
+
+### Caller ID shows "Unknown"
+
+- Ensure the `from_number` in your Twilio config is a valid Twilio number you own
+- The number must have voice capabilities enabled in the Twilio Console
+
+### Geographic restrictions
+
+Twilio trial accounts can only call verified phone numbers. Upgrade to a paid Twilio account to call any number. Additionally, some countries require regulatory compliance — check Twilio's [supported countries list](https://www.twilio.com/en-us/voice).
+
+## Updating credentials
+
+To update your Twilio credentials (e.g., after rotating your Auth Token), call `PUT /config/telephony/twilio` again with the new values. All three fields (`account_sid`, `auth_token`, `from_number`) are required each time.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="MCube Setup" icon="phone" href="/telephony/mcube-setup">
+    Configure MCube as an alternative telephony provider.
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Create an agent and make your first call.
+  </Card>
+</CardGroup>

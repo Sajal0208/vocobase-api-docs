@@ -1,0 +1,56 @@
+{
+  "$schema": "https://mintlify.com/docs.json",
+  "theme": "maple",
+  "name": "Vocobase API",
+  "description": "Voice AI Agent Platform — Partner API Documentation",
+  "colors": {
+    "primary": "#6366f1",
+    "light": "#818cf8",
+    "dark": "#4f46e5"
+  },
+  "logo": {
+    "light": "/logo-light.svg",
+    "dark": "/logo-dark.svg",
+    "href": "https://vocobase.com"
+  },
+  "navbar": {
+    "links": [
+      {
+        "label": "Dashboard",
+        "href": "https://app.vocobase.com"
+      }
+    ]
+  },
+  "navigation": {
+    "groups": [
+      {
+        "group": "Getting Started",
+        "pages": ["index", "quickstart", "authentication"]
+      },
+      {
+        "group": "Partner Onboarding",
+        "pages": [
+          "onboarding/becoming-a-partner",
+          "onboarding/configuring-your-account"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "openapi": "openapi.json"
+      },
+      {
+        "group": "Webhooks",
+        "pages": ["webhooks/setup", "webhooks/payloads", "webhooks/error-handling"]
+      },
+      {
+        "group": "Telephony",
+        "pages": ["telephony/twilio-setup", "telephony/mcube-setup"]
+      }
+    ]
+  },
+  "footer": {
+    "socials": {
+      "github": "https://github.com/vocobase"
+    }
+  }
+}

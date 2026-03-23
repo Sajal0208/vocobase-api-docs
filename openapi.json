@@ -1,0 +1,1923 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Vocobase Partner API",
+    "version": "2.0",
+    "description": "API for managing voice AI agents, documents, and calls on the Vocobase platform."
+  },
+  "servers": [
+    {
+      "url": "https://api.vocobase.com/api/v2",
+      "description": "Production"
+    }
+  ],
+  "security": [
+    {
+      "bearerAuth": []
+    }
+  ],
+  "tags": [
+    {
+      "name": "Config",
+      "description": "Read and update partner configuration, webhook settings, and telephony credentials."
+    },
+    {
+      "name": "Agents",
+      "description": "Create, read, update, and delete voice AI agents."
+    },
+    {
+      "name": "Voices",
+      "description": "List available voices for agent configuration."
+    },
+    {
+      "name": "Documents",
+      "description": "Upload, manage, and delete knowledge base documents."
+    },
+    {
+      "name": "Agent Documents",
+      "description": "Link and unlink documents to agents for knowledge base integration."
+    },
+    {
+      "name": "Calls",
+      "description": "Initiate outbound calls and view call history."
+    }
+  ],
+  "paths": {
+    "/config": {
+      "get": {
+        "operationId": "getConfig",
+        "summary": "Get partner configuration",
+        "description": "Returns the current partner configuration including webhook status, telephony setup, agent limits, and allowed voices/languages. Sensitive values are masked.",
+        "tags": ["Config"],
+        "responses": {
+          "200": {
+            "description": "Partner configuration retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": { "$ref": "#/components/schemas/PartnerConfig" }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "name": "acme-corp",
+                    "display_name": "Acme Corporation",
+                    "agent_limit": 10,
+                    "current_agent_count": 3,
+                    "allowed_voices": ["voice-id-1", "voice-id-2"],
+                    "allowed_languages": ["en", "hi", "es"],
+                    "status": "active",
+                    "webhook": {
+                      "configured": true,
+                      "url": "https://example.com/webhook",
+                      "secret": "****"
+                    },
+                    "telephony": {
+                      "twilio": {
+                        "configured": true,
+                        "account_sid": "conf****ured",
+                        "from_number": "+14155551234"
+                      },
+                      "mcube": {
+                        "configured": false,
+                        "exe_number": null
+                      }
+                    },
+                    "created_at": "2025-01-15T10:30:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/config/webhook": {
+      "put": {
+        "operationId": "updateWebhook",
+        "summary": "Set or update webhook URL",
+        "description": "Configures the webhook URL for receiving call status updates. A new webhook secret is generated on each call. Save the returned secret immediately -- it will not be shown again.",
+        "tags": ["Config"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["webhook_url"],
+                "properties": {
+                  "webhook_url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "HTTPS URL to receive webhook events.",
+                    "example": "https://example.com/webhooks/vocobase"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook configured successfully. The secret is shown only once.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "webhook_url": { "type": "string", "format": "uri" },
+                        "webhook_secret": { "type": "string", "description": "HMAC signing secret. Starts with `whsec_`." },
+                        "message": { "type": "string" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "webhook_url": "https://example.com/webhooks/vocobase",
+                    "webhook_secret": "whsec_abc123...",
+                    "message": "Save this secret — it will not be shown again."
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/config/telephony/twilio": {
+      "put": {
+        "operationId": "updateTwilioConfig",
+        "summary": "Set or update Twilio credentials",
+        "description": "Stores encrypted Twilio credentials for outbound calling. All three fields are required.",
+        "tags": ["Config"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["account_sid", "auth_token", "from_number"],
+                "properties": {
+                  "account_sid": {
+                    "type": "string",
+                    "description": "Twilio Account SID.",
+                    "example": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                  },
+                  "auth_token": {
+                    "type": "string",
+                    "description": "Twilio Auth Token.",
+                    "example": "your_auth_token"
+                  },
+                  "from_number": {
+                    "type": "string",
+                    "description": "Twilio phone number in E.164 format.",
+                    "example": "+14155551234"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Twilio credentials updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "account_sid": { "type": "string", "description": "Masked Account SID." },
+                        "from_number": { "type": "string" },
+                        "message": { "type": "string" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "account_sid": "ACxx****xxxx",
+                    "from_number": "+14155551234",
+                    "message": "Twilio credentials updated successfully."
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/config/telephony/mcube": {
+      "put": {
+        "operationId": "updateMcubeConfig",
+        "summary": "Set or update MCube credentials",
+        "description": "Stores encrypted MCube JWT token and executive number for outbound calling.",
+        "tags": ["Config"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["jwt_token", "exe_number"],
+                "properties": {
+                  "jwt_token": {
+                    "type": "string",
+                    "description": "MCube JWT authentication token."
+                  },
+                  "exe_number": {
+                    "type": "string",
+                    "description": "MCube executive number (4-15 digits, optional + prefix).",
+                    "example": "+919876543210"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "MCube credentials updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "exe_number": { "type": "string" },
+                        "message": { "type": "string" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "exe_number": "+919876543210",
+                    "message": "MCube credentials updated successfully."
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/config/display-name": {
+      "put": {
+        "operationId": "updateDisplayName",
+        "summary": "Update partner display name",
+        "description": "Changes the partner display name shown in the dashboard and API responses.",
+        "tags": ["Config"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["display_name"],
+                "properties": {
+                  "display_name": {
+                    "type": "string",
+                    "maxLength": 100,
+                    "description": "New display name (1-100 characters).",
+                    "example": "Acme Corporation"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Display name updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "display_name": { "type": "string" },
+                        "message": { "type": "string" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "display_name": "Acme Corporation",
+                    "message": "Display name updated successfully."
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/agent/all": {
+      "get": {
+        "operationId": "listAgents",
+        "summary": "List agents",
+        "description": "Returns a paginated list of the partner's agents, ordered by creation date (newest first). Deleted agents are excluded.",
+        "tags": ["Agents"],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 },
+            "description": "Number of agents to return."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 0, "default": 0 },
+            "description": "Number of agents to skip."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of agents.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "agents": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/Agent" }
+                        },
+                        "total": { "type": "integer" },
+                        "limit": { "type": "integer" },
+                        "offset": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/agent": {
+      "post": {
+        "operationId": "createAgent",
+        "summary": "Create an agent",
+        "description": "Creates a new voice AI agent. The `voice_id` must be from the partner's allowed voices list (see `GET /agent/voices`). The `language` must be from the partner's allowed languages. Agent names must be unique per partner.",
+        "tags": ["Agents"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["agent_name", "prompt", "voice_id", "language", "agent_type"],
+                "properties": {
+                  "agent_name": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "description": "Unique agent name.",
+                    "example": "Sales Assistant"
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "maxLength": 120000,
+                    "description": "System prompt defining the agent's personality and behavior."
+                  },
+                  "voice_id": {
+                    "type": "string",
+                    "description": "Cartesia voice ID from the allowed voices list.",
+                    "example": "a0e99841-438c-4a64-b679-ae501e7d6091"
+                  },
+                  "language": {
+                    "type": "string",
+                    "description": "Language code from the partner's allowed languages.",
+                    "example": "en"
+                  },
+                  "agent_type": {
+                    "type": "string",
+                    "enum": ["inbound", "outbound"],
+                    "description": "Whether the agent handles inbound or outbound calls."
+                  },
+                  "intro_message": {
+                    "type": ["string", "null"],
+                    "maxLength": 500,
+                    "description": "Optional greeting spoken when a call connects."
+                  },
+                  "enable_recording": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Whether to record calls made with this agent."
+                  },
+                  "kb_threshold": {
+                    "type": ["string", "null"],
+                    "enum": ["low", "medium", "high", null],
+                    "default": "medium",
+                    "description": "Knowledge base search relevance threshold."
+                  },
+                  "kb_include_summaries": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Include document summaries in KB search results."
+                  },
+                  "kb_result_format": {
+                    "type": ["string", "null"],
+                    "maxLength": 2000,
+                    "description": "Custom format template for KB search results."
+                  },
+                  "kb_enable_llm_processing": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Enable LLM post-processing of KB search results."
+                  },
+                  "kb_llm_system_prompt": {
+                    "type": ["string", "null"],
+                    "maxLength": 120000,
+                    "description": "System prompt for LLM KB processing."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Agent created successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": { "$ref": "#/components/schemas/Agent" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": {
+            "description": "Agent limit reached.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": { "code": "LIMIT_REACHED", "message": "Agent limit reached. Maximum 10 agents allowed." }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Agent name already exists.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": { "code": "CONFLICT", "message": "An agent with this name already exists" }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/agent/{id}": {
+      "get": {
+        "operationId": "getAgent",
+        "summary": "Get an agent",
+        "description": "Returns a single agent by ID.",
+        "tags": ["Agents"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Agent ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": { "$ref": "#/components/schemas/Agent" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "put": {
+        "operationId": "updateAgent",
+        "summary": "Update an agent",
+        "description": "Updates one or more agent fields. Only provided fields are changed. At least one field must be provided.",
+        "tags": ["Agents"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Agent ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "agent_name": {
+                    "type": "string",
+                    "maxLength": 50,
+                    "description": "New agent name."
+                  },
+                  "prompt": {
+                    "type": "string",
+                    "maxLength": 120000,
+                    "description": "New system prompt."
+                  },
+                  "voice_id": {
+                    "type": "string",
+                    "description": "New voice ID from allowed voices."
+                  },
+                  "language": {
+                    "type": "string",
+                    "description": "New language code from allowed languages."
+                  },
+                  "agent_type": {
+                    "type": "string",
+                    "enum": ["inbound", "outbound"]
+                  },
+                  "intro_message": {
+                    "type": ["string", "null"],
+                    "maxLength": 500,
+                    "description": "New greeting message. Pass `null` or empty string to remove."
+                  },
+                  "enable_recording": {
+                    "type": "boolean"
+                  },
+                  "kb_threshold": {
+                    "type": ["string", "null"],
+                    "enum": ["low", "medium", "high", null],
+                    "description": "Pass `null` to reset to default (medium)."
+                  },
+                  "kb_include_summaries": {
+                    "type": "boolean"
+                  },
+                  "kb_result_format": {
+                    "type": ["string", "null"],
+                    "maxLength": 2000
+                  },
+                  "kb_enable_llm_processing": {
+                    "type": "boolean"
+                  },
+                  "kb_llm_system_prompt": {
+                    "type": ["string", "null"],
+                    "maxLength": 120000
+                  }
+                },
+                "minProperties": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Agent updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": { "$ref": "#/components/schemas/Agent" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": {
+            "description": "Agent name conflict.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": { "code": "CONFLICT", "message": "An agent with this name already exists" }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteAgent",
+        "summary": "Delete an agent",
+        "description": "Soft-deletes an agent and removes all linked document associations. SuperMemory cleanup is handled asynchronously.",
+        "tags": ["Agents"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Agent ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": { "type": "string" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": { "message": "Agent deleted successfully" }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/agent/voices": {
+      "get": {
+        "operationId": "listVoices",
+        "summary": "List available voices",
+        "description": "Returns the voices available to this partner, filtered from the Cartesia voice catalog. Optionally filter by language.",
+        "tags": ["Voices"],
+        "parameters": [
+          {
+            "name": "language",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Filter voices by language code (e.g., `en`, `hi`). Case-insensitive partial match.",
+            "example": "en"
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of voices.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "voices": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/Voice" }
+                        },
+                        "allowed_languages": {
+                          "type": "array",
+                          "items": { "type": "string" },
+                          "description": "Language codes the partner is allowed to use."
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "voices": [
+                      {
+                        "id": "a0e99841-438c-4a64-b679-ae501e7d6091",
+                        "name": "Sarah",
+                        "description": "A warm, professional female voice.",
+                        "language": "English",
+                        "gender": "female"
+                      }
+                    ],
+                    "allowed_languages": ["en", "hi", "es"]
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/documents/upload": {
+      "post": {
+        "operationId": "getUploadUrl",
+        "summary": "Get presigned upload URL",
+        "description": "Creates a document record and returns a presigned S3 URL for uploading the file. After uploading, call `POST /documents/{id}/confirm` to finalize. The upload URL expires in 15 minutes.",
+        "tags": ["Documents"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "file_size", "mime_type"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "description": "Document display name.",
+                    "example": "Product FAQ.pdf"
+                  },
+                  "file_size": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 52428800,
+                    "description": "File size in bytes (max 50 MB).",
+                    "example": 1048576
+                  },
+                  "mime_type": {
+                    "type": "string",
+                    "enum": [
+                      "application/pdf",
+                      "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+                      "text/plain",
+                      "text/markdown",
+                      "image/png",
+                      "image/jpeg",
+                      "image/gif",
+                      "image/webp"
+                    ],
+                    "description": "MIME type of the file.",
+                    "example": "application/pdf"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Upload URL generated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "document_id": { "type": "string", "format": "uuid" },
+                        "upload_url": { "type": "string", "format": "uri", "description": "Presigned S3 PUT URL." },
+                        "expires_in": { "type": "integer", "description": "URL expiry in seconds.", "example": 900 }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "document_id": "d1234567-abcd-1234-abcd-123456789012",
+                    "upload_url": "https://s3.amazonaws.com/bucket/path?X-Amz-Signature=...",
+                    "expires_in": 900
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/documents/{id}/confirm": {
+      "post": {
+        "operationId": "confirmUpload",
+        "summary": "Confirm document upload",
+        "description": "Confirms that the file has been uploaded to S3. Verifies the file exists and transitions the document status from `uploading` to `ready`. Must be called after uploading to the presigned URL.",
+        "tags": ["Documents"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Document ID returned from the upload endpoint."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Upload confirmed, document is now ready.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": { "$ref": "#/components/schemas/Document" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": {
+            "description": "Document has already been confirmed.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": { "code": "CONFLICT", "message": "Document has already been confirmed" }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/documents/web-link": {
+      "post": {
+        "operationId": "addWebLink",
+        "summary": "Add a web link document",
+        "description": "Creates a document from a URL. The URL content will be crawled and indexed when linked to an agent. The document is immediately `ready` (no upload step needed).",
+        "tags": ["Documents"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name", "url"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "description": "Document display name.",
+                    "example": "Company Blog"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "URL to index (http or https).",
+                    "example": "https://example.com/blog"
+                  },
+                  "description": {
+                    "type": ["string", "null"],
+                    "maxLength": 500,
+                    "description": "Optional description."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Web link document created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": { "$ref": "#/components/schemas/Document" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/documents": {
+      "get": {
+        "operationId": "listDocuments",
+        "summary": "List documents",
+        "description": "Returns a paginated list of all documents, ordered by creation date (newest first). Each document includes the number of agents it is linked to.",
+        "tags": ["Documents"],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 },
+            "description": "Number of documents to return."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 0, "default": 0 },
+            "description": "Number of documents to skip."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of documents.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "documents": {
+                          "type": "array",
+                          "items": {
+                            "allOf": [
+                              { "$ref": "#/components/schemas/Document" },
+                              {
+                                "type": "object",
+                                "properties": {
+                                  "agent_count": {
+                                    "type": "integer",
+                                    "description": "Number of agents this document is linked to."
+                                  }
+                                }
+                              }
+                            ]
+                          }
+                        },
+                        "total": { "type": "integer" },
+                        "limit": { "type": "integer" },
+                        "offset": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/documents/{id}": {
+      "get": {
+        "operationId": "getDocument",
+        "summary": "Get a document",
+        "description": "Returns a single document with a temporary download URL (for file documents) or the original URL (for web links), plus a list of linked agents with their sync status.",
+        "tags": ["Documents"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Document ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document details.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/Document" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "download_url": {
+                              "type": ["string", "null"],
+                              "format": "uri",
+                              "description": "Presigned download URL (file docs) or original URL (web links)."
+                            },
+                            "agents": {
+                              "type": "array",
+                              "items": {
+                                "type": "object",
+                                "properties": {
+                                  "id": { "type": "string", "format": "uuid" },
+                                  "name": { "type": "string" },
+                                  "sync_status": {
+                                    "type": "string",
+                                    "enum": ["pending", "synced", "failed"]
+                                  }
+                                }
+                              },
+                              "description": "Agents this document is linked to."
+                            }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "put": {
+        "operationId": "updateDocument",
+        "summary": "Update a document",
+        "description": "Updates the document name and/or description. At least one field must be provided. Invalidates KB cache for all agents linked to this document.",
+        "tags": ["Documents"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Document ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "description": "New document name."
+                  },
+                  "description": {
+                    "type": ["string", "null"],
+                    "maxLength": 500,
+                    "description": "New description. Pass `null` or empty string to remove."
+                  }
+                },
+                "minProperties": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Document updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": { "$ref": "#/components/schemas/Document" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteDocument",
+        "summary": "Delete a document",
+        "description": "Permanently deletes a document, removes the file from S3 (if applicable), and unlinks it from all agents. SuperMemory cleanup is handled asynchronously.",
+        "tags": ["Documents"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Document ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": { "type": "string" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": { "message": "Document deleted successfully" }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/agent/{id}/documents": {
+      "get": {
+        "operationId": "listAgentDocuments",
+        "summary": "List linked documents",
+        "description": "Returns all documents linked to an agent, including their sync status.",
+        "tags": ["Agent Documents"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Agent ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of linked documents.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "documents": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/AgentDocument" }
+                        },
+                        "total": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "post": {
+        "operationId": "linkDocuments",
+        "summary": "Link documents to an agent",
+        "description": "Links one or more documents to an agent for knowledge base integration. Documents must be in `ready` status. Duplicate links are silently skipped (idempotent). Maximum 20 document IDs per request, 100 total linked documents per agent. Queues background sync jobs for newly linked documents.",
+        "tags": ["Agent Documents"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Agent ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["document_ids"],
+                "properties": {
+                  "document_ids": {
+                    "type": "array",
+                    "items": { "type": "string", "format": "uuid" },
+                    "minItems": 1,
+                    "maxItems": 20,
+                    "description": "Array of document IDs to link."
+                  }
+                }
+              },
+              "example": {
+                "document_ids": [
+                  "d1234567-abcd-1234-abcd-123456789012",
+                  "d2345678-abcd-1234-abcd-123456789012"
+                ]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Documents linked (or skipped if already linked).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "linked": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "document_id": { "type": "string", "format": "uuid" },
+                              "sync_status": { "type": "string", "example": "pending" }
+                            }
+                          },
+                          "description": "Newly linked documents."
+                        },
+                        "skipped": {
+                          "type": "array",
+                          "items": { "type": "string", "format": "uuid" },
+                          "description": "Document IDs that were already linked."
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "linked": [
+                      { "document_id": "d1234567-abcd-1234-abcd-123456789012", "sync_status": "pending" }
+                    ],
+                    "skipped": ["d2345678-abcd-1234-abcd-123456789012"]
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": {
+            "description": "Document link limit reached (max 100 per agent).",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "LIMIT_REACHED",
+                    "message": "Cannot link documents. Agent would have 105 documents, exceeding the limit of 100."
+                  }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/agent/{agentId}/documents/{documentId}": {
+      "delete": {
+        "operationId": "unlinkDocument",
+        "summary": "Unlink a document from an agent",
+        "description": "Removes the association between a document and an agent. The document itself is not deleted. SuperMemory cleanup is handled asynchronously.",
+        "tags": ["Agent Documents"],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Agent ID."
+          },
+          {
+            "name": "documentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Document ID to unlink."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Document unlinked.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": { "type": "string" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": { "message": "Document unlinked from agent" }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/calls/start": {
+      "post": {
+        "operationId": "startCall",
+        "summary": "Start an outbound call",
+        "description": "Initiates an outbound phone call via Twilio or MCube. Requires sufficient credits and available concurrency (max 5 concurrent calls). The call is placed asynchronously -- use webhooks or polling to track status updates.",
+        "tags": ["Calls"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["agent_id", "to_number"],
+                "properties": {
+                  "agent_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "ID of the agent to use for this call."
+                  },
+                  "to_number": {
+                    "type": "string",
+                    "description": "Destination phone number in E.164 format.",
+                    "example": "+919876543210"
+                  },
+                  "provider": {
+                    "type": "string",
+                    "enum": ["mcube", "twilio"],
+                    "default": "mcube",
+                    "description": "Telephony provider. Defaults to `mcube` if not specified."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Call initiated successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "call_id": { "type": "string", "format": "uuid" },
+                        "session_id": { "type": "string", "format": "uuid" },
+                        "status": { "type": "string", "example": "pending" },
+                        "provider": { "type": "string", "enum": ["mcube", "twilio"] },
+                        "from_number": { "type": "string" },
+                        "to_number": { "type": "string" },
+                        "agent_id": { "type": "string", "format": "uuid" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "call_id": "c1234567-abcd-1234-abcd-123456789012",
+                    "session_id": "s1234567-abcd-1234-abcd-123456789012",
+                    "status": "pending",
+                    "provider": "twilio",
+                    "from_number": "+14155551234",
+                    "to_number": "+919876543210",
+                    "agent_id": "a1234567-abcd-1234-abcd-123456789012"
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": {
+            "description": "Insufficient credits.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": { "code": "FORBIDDEN", "message": "Insufficient credits" }
+                }
+              }
+            }
+          },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": {
+            "description": "Concurrent call limit reached.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": { "code": "LIMIT_REACHED", "message": "Maximum 5 concurrent calls allowed. 5 calls currently active." }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" },
+          "502": {
+            "description": "Telephony provider call failed.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": { "code": "INTERNAL_ERROR", "message": "Failed to initiate call. Please try again." }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/calls": {
+      "get": {
+        "operationId": "listCalls",
+        "summary": "List calls",
+        "description": "Returns a paginated list of calls, ordered by start time (newest first). Optionally filter by status.",
+        "tags": ["Calls"],
+        "parameters": [
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 10 },
+            "description": "Number of calls to return."
+          },
+          {
+            "name": "offset",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 0, "default": 0 },
+            "description": "Number of calls to skip."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["pending", "ringing", "in_progress", "completed", "failed", "no_answer", "busy", "canceled"]
+            },
+            "description": "Filter by call status (case-insensitive)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of calls.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "calls": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/Call" }
+                        },
+                        "total": { "type": "integer" },
+                        "limit": { "type": "integer" },
+                        "offset": { "type": "integer" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/calls/{id}": {
+      "get": {
+        "operationId": "getCall",
+        "summary": "Get call details",
+        "description": "Returns full call details including the associated session with transcript, latency metrics, credits used, and a temporary recording download URL (if recording was enabled).",
+        "tags": ["Calls"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Call ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Call details with session data.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/Call" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "session": { "$ref": "#/components/schemas/CallSession" }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/calls/dismiss-stale": {
+      "post": {
+        "operationId": "dismissStaleCalls",
+        "summary": "Dismiss stale calls",
+        "description": "Cancels all calls in `pending` or `ringing` status for the authenticated partner. Useful for cleaning up calls that did not connect.",
+        "tags": ["Calls"],
+        "responses": {
+          "200": {
+            "description": "Stale calls dismissed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "dismissed": {
+                          "type": "integer",
+                          "description": "Number of calls that were canceled."
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": { "dismissed": 2 }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    }
+  },
+  "components": {
+    "securitySchemes": {
+      "bearerAuth": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "API key in format: `rg_live_xxxx`. Pass as a Bearer token in the Authorization header."
+      }
+    },
+    "schemas": {
+      "PartnerConfig": {
+        "type": "object",
+        "properties": {
+          "name": { "type": "string", "description": "Internal partner name (slug)." },
+          "display_name": { "type": ["string", "null"], "description": "Human-readable display name." },
+          "agent_limit": { "type": "integer", "description": "Maximum number of agents allowed." },
+          "current_agent_count": { "type": "integer", "description": "Current number of active agents." },
+          "allowed_voices": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Voice IDs available to this partner."
+          },
+          "allowed_languages": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Language codes available to this partner."
+          },
+          "status": { "type": "string", "enum": ["active", "suspended"] },
+          "webhook": {
+            "type": "object",
+            "properties": {
+              "configured": { "type": "boolean" },
+              "url": { "type": ["string", "null"], "format": "uri" },
+              "secret": { "type": ["string", "null"], "description": "Always masked as `****` when configured." }
+            }
+          },
+          "telephony": {
+            "type": "object",
+            "properties": {
+              "twilio": {
+                "type": "object",
+                "properties": {
+                  "configured": { "type": "boolean" },
+                  "account_sid": { "type": ["string", "null"], "description": "Masked when configured." },
+                  "from_number": { "type": ["string", "null"] }
+                }
+              },
+              "mcube": {
+                "type": "object",
+                "properties": {
+                  "configured": { "type": "boolean" },
+                  "exe_number": { "type": ["string", "null"] }
+                }
+              }
+            }
+          },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Agent": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "agent_name": { "type": "string" },
+          "prompt": { "type": "string" },
+          "voice_id": { "type": ["string", "null"] },
+          "language": { "type": "string" },
+          "agent_type": { "type": ["string", "null"], "enum": ["inbound", "outbound", null] },
+          "intro_message": { "type": ["string", "null"] },
+          "enable_recording": { "type": "boolean" },
+          "kb_threshold": { "type": "string", "enum": ["low", "medium", "high"] },
+          "kb_include_summaries": { "type": "boolean" },
+          "kb_result_format": { "type": ["string", "null"] },
+          "kb_enable_llm_processing": { "type": "boolean" },
+          "kb_llm_system_prompt": { "type": ["string", "null"] },
+          "document_count": { "type": "integer", "description": "Number of linked documents." },
+          "status": { "type": "string", "enum": ["active", "inactive"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Voice": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string" },
+          "name": { "type": "string" },
+          "description": { "type": ["string", "null"] },
+          "language": { "type": "string" },
+          "gender": { "type": ["string", "null"] }
+        }
+      },
+      "Document": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "description": { "type": ["string", "null"] },
+          "type": {
+            "type": "string",
+            "enum": ["pdf", "docx", "txt", "md", "image", "web_link"],
+            "description": "Document type."
+          },
+          "status": {
+            "type": "string",
+            "enum": ["uploading", "ready", "failed"],
+            "description": "Document processing status."
+          },
+          "file_size": { "type": ["integer", "null"], "description": "File size in bytes (null for web links)." },
+          "mime_type": { "type": ["string", "null"], "description": "MIME type (null for web links)." },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "AgentDocument": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "description": "Document ID." },
+          "name": { "type": "string" },
+          "type": { "type": "string", "enum": ["pdf", "docx", "txt", "md", "image", "web_link"] },
+          "status": { "type": "string", "enum": ["uploading", "ready", "failed"] },
+          "file_size": { "type": ["integer", "null"] },
+          "sync_status": {
+            "type": "string",
+            "enum": ["pending", "synced", "failed"],
+            "description": "Whether this document has been indexed into the agent's knowledge base."
+          },
+          "synced_at": { "type": ["string", "null"], "format": "date-time" },
+          "linked_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Call": {
+        "type": "object",
+        "properties": {
+          "call_id": { "type": "string", "format": "uuid" },
+          "agent_id": { "type": "string", "format": "uuid" },
+          "session_id": { "type": ["string", "null"], "format": "uuid" },
+          "direction": { "type": "string", "enum": ["outbound", "inbound"] },
+          "from_number": { "type": "string" },
+          "to_number": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["pending", "ringing", "in_progress", "completed", "failed", "no_answer", "busy", "canceled"]
+          },
+          "provider": { "type": ["string", "null"], "enum": ["mcube", "twilio", null] },
+          "duration_seconds": { "type": ["integer", "null"] },
+          "error_message": { "type": ["string", "null"] },
+          "started_at": { "type": "string", "format": "date-time" },
+          "ended_at": { "type": ["string", "null"], "format": "date-time" },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "CallSession": {
+        "type": "object",
+        "description": "Session data associated with a call. Included in call detail responses.",
+        "properties": {
+          "session_id": { "type": "string", "format": "uuid" },
+          "duration_seconds": { "type": ["integer", "null"] },
+          "credits_used": { "type": "number", "description": "Credits consumed (display units, e.g., 1.5)." },
+          "transcript": {
+            "type": ["array", "null"],
+            "items": {
+              "type": "object",
+              "properties": {
+                "role": { "type": "string", "enum": ["user", "bot"] },
+                "content": { "type": "string" },
+                "timestamp": { "type": "string", "format": "date-time" },
+                "latency_ms": { "type": "integer", "description": "Response latency in milliseconds (bot turns only)." }
+              }
+            },
+            "description": "Full conversation transcript with timestamps."
+          },
+          "latency": {
+            "type": "object",
+            "properties": {
+              "min_ms": { "type": ["integer", "null"] },
+              "max_ms": { "type": ["integer", "null"] },
+              "avg_ms": { "type": ["integer", "null"] }
+            },
+            "description": "Latency summary across all turns."
+          },
+          "recording_url": {
+            "type": ["string", "null"],
+            "format": "uri",
+            "description": "Presigned URL to download the call recording (expires after a few hours)."
+          },
+          "status": { "type": "string" },
+          "started_at": { "type": "string", "format": "date-time" },
+          "ended_at": { "type": ["string", "null"], "format": "date-time" }
+        }
+      },
+      "ErrorResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "const": false },
+          "error": {
+            "type": "object",
+            "properties": {
+              "code": { "type": "string" },
+              "message": { "type": "string" }
+            },
+            "required": ["code", "message"]
+          }
+        },
+        "required": ["success", "error"]
+      }
+    },
+    "responses": {
+      "ValidationError": {
+        "description": "Validation error in request body or parameters.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": {
+              "success": false,
+              "error": { "code": "VALIDATION_ERROR", "message": "agent_name is required and must be max 50 characters" }
+            }
+          }
+        }
+      },
+      "Unauthorized": {
+        "description": "Missing or invalid API key.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": {
+              "success": false,
+              "error": { "code": "UNAUTHORIZED", "message": "Invalid or missing API key" }
+            }
+          }
+        }
+      },
+      "NotFound": {
+        "description": "Resource not found.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": {
+              "success": false,
+              "error": { "code": "NOT_FOUND", "message": "Resource not found" }
+            }
+          }
+        }
+      },
+      "InternalError": {
+        "description": "Unexpected server error.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": {
+              "success": false,
+              "error": { "code": "INTERNAL_ERROR", "message": "An unexpected error occurred" }
+            }
+          }
+        }
+      }
+    }
+  }
+}

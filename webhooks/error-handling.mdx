@@ -1,0 +1,152 @@
+---
+title: "Webhook Error Handling"
+description: "Retry policy, timeout behavior, and best practices for handling webhook deliveries"
+---
+
+# Webhook Error Handling
+
+Vocobase automatically retries webhook deliveries that fail. This page explains the retry policy and best practices for building a reliable webhook handler.
+
+## Retry policy
+
+When a webhook delivery fails, Vocobase retries up to **3 times** with exponential backoff:
+
+| Attempt | Delay after failure |
+|---|---|
+| 1st retry | 1 second |
+| 2nd retry | 2 seconds |
+| 3rd retry | 4 seconds |
+
+After all retries are exhausted, the webhook delivery is abandoned. The event data is still available via the API — use `GET /calls/{id}` to fetch call details including the transcript and recording URL.
+
+## What counts as a failure
+
+A webhook delivery is considered failed if:
+
+- Your endpoint returns a **non-2xx status code** (e.g., 400, 500)
+- The request **times out** (no response within 10 seconds)
+- A **network error** occurs (DNS resolution failure, connection refused, TLS error)
+
+A `2xx` response (200, 201, 202, 204, etc.) is treated as a successful delivery regardless of the response body.
+
+## Timeout
+
+Each webhook request has a **10-second timeout**. If your server does not respond within 10 seconds, the delivery is marked as failed and retried.
+
+<Warning>
+  If your webhook processing takes longer than 10 seconds, you will see repeated retries. Always return a response immediately and process the event asynchronously.
+</Warning>
+
+## Best practices
+
+### Respond immediately
+
+Return a `200 OK` response as soon as you receive the webhook. Do not perform heavy processing before responding.
+
+```javascript
+// Good: respond first, process later
+app.post("/webhooks/vocobase", (req, res) => {
+  // Verify signature
+  verifySignature(req);
+
+  // Return immediately
+  res.status(200).json({ received: true });
+
+  // Process asynchronously
+  processEventAsync(req.body);
+});
+```
+
+```javascript
+// Bad: processing blocks the response
+app.post("/webhooks/vocobase", async (req, res) => {
+  verifySignature(req);
+
+  // This might take > 10 seconds and cause a timeout
+  await saveToDatabase(req.body);
+  await sendSlackNotification(req.body);
+  await updateCRM(req.body);
+
+  res.status(200).json({ received: true });
+});
+```
+
+### Handle duplicates (idempotency)
+
+Due to retries, your endpoint may receive the same event more than once. Use the `session_id` as an idempotency key:
+
+```javascript
+app.post("/webhooks/vocobase", async (req, res) => {
+  verifySignature(req);
+  res.status(200).json({ received: true });
+
+  const { session_id } = req.body;
+
+  // Check if we already processed this event
+  const exists = await db.processedEvents.findUnique({
+    where: { session_id }
+  });
+  if (exists) {
+    console.log(`Duplicate event for session ${session_id}, skipping`);
+    return;
+  }
+
+  // Mark as processed before handling
+  await db.processedEvents.create({ data: { session_id } });
+
+  // Now process the event
+  await handleSessionCompleted(req.body);
+});
+```
+
+### Verify signatures
+
+Always verify the `X-Webhook-Signature` header in production to ensure the request is from Vocobase. See [Webhook Setup](/webhooks/setup) for implementation details.
+
+### Use a message queue
+
+For high-volume integrations, push webhook events into a message queue (e.g., Redis, RabbitMQ, SQS) and process them with workers:
+
+```javascript
+app.post("/webhooks/vocobase", (req, res) => {
+  verifySignature(req);
+  res.status(200).json({ received: true });
+
+  // Push to queue for reliable processing
+  queue.add("process-webhook", req.body);
+});
+```
+
+### Monitor failures
+
+If webhooks fail repeatedly, check:
+
+1. **Your endpoint is reachable** — Verify the URL is publicly accessible and not behind a firewall
+2. **TLS certificate is valid** — Expired or self-signed certificates cause connection failures
+3. **Response time is under 10 seconds** — Profile your handler to find bottlenecks
+4. **Your server is running** — Check logs for crashes or out-of-memory errors
+
+### Fallback: poll the API
+
+If you miss webhook events, you can always fetch call data directly:
+
+```bash
+# List recent calls
+curl -X GET "https://api.vocobase.com/api/v2/calls?limit=10" \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+
+# Get full details for a specific call
+curl -X GET "https://api.vocobase.com/api/v2/calls/c1234567-abcd-1234-abcd-123456789012" \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Webhook Payloads" icon="file-code" href="/webhooks/payloads">
+    See the full payload structure for each event type.
+  </Card>
+  <Card title="Webhook Setup" icon="gear" href="/webhooks/setup">
+    Configure your webhook URL and verify signatures.
+  </Card>
+</CardGroup>

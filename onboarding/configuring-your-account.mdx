@@ -1,0 +1,225 @@
+---
+title: "Configuring Your Account"
+description: "Set up webhooks, telephony, and other partner configuration after approval"
+---
+
+# Configuring Your Account
+
+After your partner application is approved, configure your account to start making calls. This guide covers webhook setup, telephony configuration, and verifying your account is ready.
+
+## View your configuration
+
+Start by checking your current partner configuration:
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.vocobase.com/api/v2/config \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```javascript JavaScript
+const response = await fetch("https://api.vocobase.com/api/v2/config", {
+  headers: {
+    "Authorization": "Bearer rg_live_abc123def456ghi789jkl012"
+  }
+});
+const config = await response.json();
+console.log(config.data);
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "https://api.vocobase.com/api/v2/config",
+    headers={"Authorization": "Bearer rg_live_abc123def456ghi789jkl012"}
+)
+print(response.json()["data"])
+```
+</CodeGroup>
+
+The response shows your agent limit, allowed voices and languages, webhook status, and telephony configuration:
+
+```json
+{
+  "success": true,
+  "data": {
+    "name": "acme-corp",
+    "display_name": "Acme Corporation",
+    "agent_limit": 10,
+    "current_agent_count": 0,
+    "allowed_voices": ["a0e99841-438c-4a64-b679-ae501e7d6091"],
+    "allowed_languages": ["en", "hi", "es"],
+    "status": "active",
+    "webhook": {
+      "configured": false,
+      "url": null,
+      "secret": null
+    },
+    "telephony": {
+      "twilio": { "configured": false },
+      "mcube": { "configured": false }
+    }
+  }
+}
+```
+
+## Set up webhooks
+
+Configure a webhook URL to receive notifications when calls complete. This is how you get transcripts, latency data, and recording URLs.
+
+<CodeGroup>
+```bash cURL
+curl -X PUT https://api.vocobase.com/api/v2/config/webhook \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "webhook_url": "https://your-server.com/webhooks/vocobase"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch("https://api.vocobase.com/api/v2/config/webhook", {
+  method: "PUT",
+  headers: {
+    "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+    "Content-Type": "application/json"
+  },
+  body: JSON.stringify({
+    webhook_url: "https://your-server.com/webhooks/vocobase"
+  })
+});
+const result = await response.json();
+console.log(result.data.webhook_secret); // Save this!
+```
+
+```python Python
+import requests
+
+response = requests.put(
+    "https://api.vocobase.com/api/v2/config/webhook",
+    headers={
+        "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+        "Content-Type": "application/json"
+    },
+    json={"webhook_url": "https://your-server.com/webhooks/vocobase"}
+)
+result = response.json()
+print(result["data"]["webhook_secret"])  # Save this!
+```
+</CodeGroup>
+
+The response includes a webhook secret for verifying signatures:
+
+```json
+{
+  "success": true,
+  "data": {
+    "webhook_url": "https://your-server.com/webhooks/vocobase",
+    "webhook_secret": "whsec_a1b2c3d4e5f6g7h8i9j0...",
+    "message": "Save this secret — it will not be shown again."
+  }
+}
+```
+
+<Warning>
+  The `webhook_secret` is only returned once. Store it securely in your environment variables. If you lose it, call `PUT /config/webhook` again to generate a new one.
+</Warning>
+
+See [Webhook Setup](/webhooks/setup) for details on signature verification.
+
+## Configure telephony
+
+You need at least one telephony provider to make outbound calls. Vocobase supports Twilio and MCube.
+
+<Tabs>
+  <Tab title="Twilio">
+    Provide your Twilio Account SID, Auth Token, and a phone number:
+
+    ```bash
+    curl -X PUT https://api.vocobase.com/api/v2/config/telephony/twilio \
+      -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "account_sid": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "auth_token": "your_twilio_auth_token",
+        "from_number": "+14155551234"
+      }'
+    ```
+
+    See [Twilio Setup](/telephony/twilio-setup) for the full guide.
+  </Tab>
+
+  <Tab title="MCube">
+    Provide your MCube JWT token and executive number:
+
+    ```bash
+    curl -X PUT https://api.vocobase.com/api/v2/config/telephony/mcube \
+      -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "jwt_token": "your_mcube_jwt_token",
+        "exe_number": "+919876543210"
+      }'
+    ```
+
+    See [MCube Setup](/telephony/mcube-setup) for the full guide.
+  </Tab>
+</Tabs>
+
+## Update your display name
+
+Optionally set a display name for your partner account:
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/config/display-name \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{ "display_name": "Acme Corporation" }'
+```
+
+## Verify your setup
+
+Run `GET /config` again to confirm everything is configured:
+
+```json
+{
+  "success": true,
+  "data": {
+    "name": "acme-corp",
+    "display_name": "Acme Corporation",
+    "status": "active",
+    "webhook": {
+      "configured": true,
+      "url": "https://your-server.com/webhooks/vocobase",
+      "secret": "****"
+    },
+    "telephony": {
+      "twilio": {
+        "configured": true,
+        "account_sid": "ACxx****xxxx",
+        "from_number": "+14155551234"
+      },
+      "mcube": {
+        "configured": true,
+        "exe_number": "+919876543210"
+      }
+    }
+  }
+}
+```
+
+<Tip>
+  Sensitive values like `auth_token`, `jwt_token`, and `webhook_secret` are always masked in `GET /config` responses.
+</Tip>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Create an agent and make your first call.
+  </Card>
+  <Card title="Webhook Payloads" icon="webhook" href="/webhooks/payloads">
+    Understand the data you receive when calls complete.
+  </Card>
+</CardGroup>

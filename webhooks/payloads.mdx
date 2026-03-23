@@ -1,0 +1,143 @@
+---
+title: "Webhook Payloads"
+description: "Reference for webhook event types and payload structure"
+---
+
+# Webhook Payloads
+
+This page documents the structure of webhook payloads sent by Vocobase when events occur.
+
+## Event: `session.completed`
+
+Sent when a call session ends — whether it completed normally, failed, or was disconnected.
+
+### Headers
+
+Every webhook request includes these headers:
+
+| Header | Description |
+|---|---|
+| `Content-Type` | `application/json` |
+| `X-Webhook-Signature` | HMAC-SHA256 signature: `sha256=<hex>` |
+| `X-Webhook-Timestamp` | Unix timestamp (seconds) when the event was sent |
+| `User-Agent` | `Vocobase-Webhook/1.0` |
+
+### Payload structure
+
+```json
+{
+  "event": "session.completed",
+  "session_id": "s1234567-abcd-1234-abcd-123456789012",
+  "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "agent_name": "Sales Assistant",
+  "duration_seconds": 127,
+  "credits_used": 2.12,
+  "transcript": [
+    {
+      "role": "bot",
+      "content": "Hello! Thanks for taking my call. How can I help you today?",
+      "timestamp": "2026-03-15T14:30:01.000Z"
+    },
+    {
+      "role": "user",
+      "content": "Hi, I'm interested in your enterprise plan.",
+      "timestamp": "2026-03-15T14:30:04.500Z",
+      "latency_ms": null
+    },
+    {
+      "role": "bot",
+      "content": "Great choice! Our enterprise plan includes unlimited agents, priority support, and custom voice training. Would you like me to walk you through the pricing?",
+      "timestamp": "2026-03-15T14:30:05.200Z",
+      "latency_ms": 700
+    },
+    {
+      "role": "user",
+      "content": "Yes please.",
+      "timestamp": "2026-03-15T14:30:08.000Z",
+      "latency_ms": null
+    },
+    {
+      "role": "bot",
+      "content": "The enterprise plan starts at $499 per month with a 14-day free trial. I can have our sales team send you a detailed proposal. Would that work?",
+      "timestamp": "2026-03-15T14:30:08.650Z",
+      "latency_ms": 650
+    }
+  ],
+  "recording_url": "https://vocobase-recordings.s3.amazonaws.com/rec_abc123.wav?X-Amz-Signature=...",
+  "latency": {
+    "min_ms": 450,
+    "max_ms": 1200,
+    "avg_ms": 680
+  },
+  "call": {
+    "call_id": "c1234567-abcd-1234-abcd-123456789012",
+    "from_number": "+14155551234",
+    "to_number": "+919876543210",
+    "direction": "outbound",
+    "status": "completed",
+    "provider": "twilio"
+  },
+  "completed_at": "2026-03-15T14:32:08.000Z"
+}
+```
+
+### Field reference
+
+| Field | Type | Description |
+|---|---|---|
+| `event` | string | Always `"session.completed"` |
+| `session_id` | string (UUID) | Unique session identifier |
+| `agent_id` | string (UUID) | The agent that handled the call |
+| `agent_name` | string | Agent display name at time of call |
+| `duration_seconds` | integer | Call duration in seconds |
+| `credits_used` | number | Credits deducted for this call |
+| `transcript` | array | Ordered list of conversation turns (see below) |
+| `recording_url` | string or null | Presigned S3 URL for the call recording. `null` if recording was not enabled. URL expires in 24 hours. |
+| `latency` | object | Response latency statistics across all bot turns |
+| `latency.min_ms` | integer | Fastest bot response time (milliseconds) |
+| `latency.max_ms` | integer | Slowest bot response time (milliseconds) |
+| `latency.avg_ms` | integer | Average bot response time (milliseconds) |
+| `call` | object | Call metadata |
+| `call.call_id` | string (UUID) | Unique call identifier |
+| `call.from_number` | string | Caller phone number (E.164) |
+| `call.to_number` | string | Destination phone number (E.164) |
+| `call.direction` | string | `"outbound"` |
+| `call.status` | string | Final call status: `completed`, `failed`, `no_answer`, `busy`, `canceled` |
+| `call.provider` | string | `"twilio"` or `"mcube"` |
+| `completed_at` | string (ISO 8601) | When the session ended |
+
+### Transcript entry format
+
+Each entry in the `transcript` array has:
+
+| Field | Type | Description |
+|---|---|---|
+| `role` | string | `"user"` or `"bot"` |
+| `content` | string | What was said |
+| `timestamp` | string (ISO 8601) | When this turn occurred |
+| `latency_ms` | integer or null | Time between user finishing speaking and bot starting to respond. Only present on `bot` turns. `null` on `user` turns. |
+
+<Note>
+  The `recording_url` is a presigned S3 URL that expires after 24 hours. Download the recording promptly if you need to store it permanently.
+</Note>
+
+### Call status values
+
+| Status | Description |
+|---|---|
+| `completed` | Call connected and ended normally |
+| `failed` | Call could not be placed (provider error) |
+| `no_answer` | Recipient did not answer |
+| `busy` | Recipient's line was busy |
+| `canceled` | Call was canceled before connecting |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Webhook Setup" icon="gear" href="/webhooks/setup">
+    Configure your webhook URL and verify signatures.
+  </Card>
+  <Card title="Error Handling" icon="triangle-exclamation" href="/webhooks/error-handling">
+    Understand retry behavior and failure handling.
+  </Card>
+</CardGroup>
