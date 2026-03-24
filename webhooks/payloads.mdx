@@ -19,65 +19,53 @@ Every webhook request includes these headers:
 |---|---|
 | `Content-Type` | `application/json` |
 | `X-Webhook-Signature` | HMAC-SHA256 signature: `sha256=<hex>` |
-| `X-Webhook-Timestamp` | Unix timestamp (seconds) when the event was sent |
-| `User-Agent` | `Vocobase-Webhook/1.0` |
+| `X-Webhook-Timestamp` | ISO 8601 timestamp when the event was sent |
 
 ### Payload structure
 
 ```json
 {
   "event": "session.completed",
-  "session_id": "s1234567-abcd-1234-abcd-123456789012",
-  "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "agent_name": "Sales Assistant",
-  "duration_seconds": 127,
-  "credits_used": 2.12,
-  "transcript": [
-    {
-      "role": "bot",
-      "content": "Hello! Thanks for taking my call. How can I help you today?",
-      "timestamp": "2026-03-15T14:30:01.000Z"
+  "timestamp": "2026-03-15T14:32:08.000Z",
+  "data": {
+    "session_id": "s1234567-abcd-1234-abcd-123456789012",
+    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "agent_name": "Sales Assistant",
+    "duration_seconds": 127,
+    "credits_used": 2.12,
+    "transcript": [
+      {
+        "role": "bot",
+        "content": "Hello! Thanks for taking my call. How can I help you today?",
+        "timestamp": "2026-03-15T14:30:01.000Z"
+      },
+      {
+        "role": "user",
+        "content": "Hi, I'm interested in your enterprise plan.",
+        "timestamp": "2026-03-15T14:30:04.500Z",
+        "latency_ms": null
+      },
+      {
+        "role": "bot",
+        "content": "Great choice! Our enterprise plan includes unlimited agents, priority support, and custom voice training.",
+        "timestamp": "2026-03-15T14:30:05.200Z",
+        "latency_ms": 700
+      }
+    ],
+    "recording_url": "https://vocobase-recordings.s3.amazonaws.com/rec_abc123.wav?X-Amz-Signature=...",
+    "latency": {
+      "min_ms": 450,
+      "max_ms": 1200,
+      "avg_ms": 680
     },
-    {
-      "role": "user",
-      "content": "Hi, I'm interested in your enterprise plan.",
-      "timestamp": "2026-03-15T14:30:04.500Z",
-      "latency_ms": null
-    },
-    {
-      "role": "bot",
-      "content": "Great choice! Our enterprise plan includes unlimited agents, priority support, and custom voice training. Would you like me to walk you through the pricing?",
-      "timestamp": "2026-03-15T14:30:05.200Z",
-      "latency_ms": 700
-    },
-    {
-      "role": "user",
-      "content": "Yes please.",
-      "timestamp": "2026-03-15T14:30:08.000Z",
-      "latency_ms": null
-    },
-    {
-      "role": "bot",
-      "content": "The enterprise plan starts at $499 per month with a 14-day free trial. I can have our sales team send you a detailed proposal. Would that work?",
-      "timestamp": "2026-03-15T14:30:08.650Z",
-      "latency_ms": 650
+    "call": {
+      "call_id": "c1234567-abcd-1234-abcd-123456789012",
+      "from_number": "+14155551234",
+      "to_number": "+919876543210",
+      "direction": "outbound",
+      "status": "completed"
     }
-  ],
-  "recording_url": "https://vocobase-recordings.s3.amazonaws.com/rec_abc123.wav?X-Amz-Signature=...",
-  "latency": {
-    "min_ms": 450,
-    "max_ms": 1200,
-    "avg_ms": 680
-  },
-  "call": {
-    "call_id": "c1234567-abcd-1234-abcd-123456789012",
-    "from_number": "+14155551234",
-    "to_number": "+919876543210",
-    "direction": "outbound",
-    "status": "completed",
-    "provider": "twilio"
-  },
-  "completed_at": "2026-03-15T14:32:08.000Z"
+  }
 }
 ```
 
@@ -86,6 +74,13 @@ Every webhook request includes these headers:
 | Field | Type | Description |
 |---|---|---|
 | `event` | string | Always `"session.completed"` |
+| `timestamp` | string (ISO 8601) | When the webhook was sent |
+| `data` | object | Event data (see below) |
+
+### Data object fields
+
+| Field | Type | Description |
+|---|---|---|
 | `session_id` | string (UUID) | Unique session identifier |
 | `agent_id` | string (UUID) | The agent that handled the call |
 | `agent_name` | string | Agent display name at time of call |
@@ -97,14 +92,12 @@ Every webhook request includes these headers:
 | `latency.min_ms` | integer | Fastest bot response time (milliseconds) |
 | `latency.max_ms` | integer | Slowest bot response time (milliseconds) |
 | `latency.avg_ms` | integer | Average bot response time (milliseconds) |
-| `call` | object | Call metadata |
+| `call` | object or null | Call metadata (present only for telephony calls) |
 | `call.call_id` | string (UUID) | Unique call identifier |
 | `call.from_number` | string | Caller phone number (E.164) |
 | `call.to_number` | string | Destination phone number (E.164) |
 | `call.direction` | string | `"outbound"` |
 | `call.status` | string | Final call status: `completed`, `failed`, `no_answer`, `busy`, `canceled` |
-| `call.provider` | string | `"twilio"` or `"mcube"` |
-| `completed_at` | string (ISO 8601) | When the session ended |
 
 ### Transcript entry format
 

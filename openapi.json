@@ -1677,7 +1677,7 @@
         "type": "object",
         "properties": {
           "name": { "type": "string", "description": "Internal partner name (slug)." },
-          "display_name": { "type": ["string", "null"], "description": "Human-readable display name." },
+          "display_name": { "type": "string", "description": "Human-readable display name." },
           "agent_limit": { "type": "integer", "description": "Maximum number of agents allowed." },
           "current_agent_count": { "type": "integer", "description": "Current number of active agents." },
           "allowed_voices": {
