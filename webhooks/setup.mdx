@@ -64,7 +64,7 @@ Every webhook request includes an `X-Webhook-Signature` header for verifying aut
 
 ```
 X-Webhook-Signature: sha256=<hex-encoded-hmac>
-X-Webhook-Timestamp: <unix-timestamp>
+X-Webhook-Timestamp: <iso-8601-timestamp>
 ```
 
 ### Verification steps
@@ -82,11 +82,12 @@ const crypto = require("crypto");
 function verifyWebhookSignature(req, webhookSecret) {
   const signature = req.headers["x-webhook-signature"];
   const timestamp = req.headers["x-webhook-timestamp"];
-  const body = JSON.stringify(req.body);
+  // Use raw body to avoid JSON re-serialization differences
+  const body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
 
   // Reject requests older than 5 minutes to prevent replay attacks
-  const currentTime = Math.floor(Date.now() / 1000);
-  if (Math.abs(currentTime - parseInt(timestamp)) > 300) {
+  const timestampMs = new Date(timestamp).getTime();
+  if (Math.abs(Date.now() - timestampMs) > 300_000) {
     throw new Error("Webhook timestamp too old");
   }
 
@@ -136,7 +137,8 @@ app.post("/webhooks/vocobase", (req, res) => {
 ```python
 import hmac
 import hashlib
-import time
+import os
+from datetime import datetime, timezone
 from flask import Flask, request, jsonify
 
 app = Flask(__name__)
@@ -147,7 +149,9 @@ def verify_webhook_signature(request, webhook_secret):
     body = request.get_data(as_text=True)
 
     # Reject requests older than 5 minutes
-    if abs(time.time() - int(timestamp)) > 300:
+    ts = datetime.fromisoformat(timestamp.replace("Z", "+00:00"))
+    age = abs((datetime.now(timezone.utc) - ts).total_seconds())
+    if age > 300:
         raise ValueError("Webhook timestamp too old")
 
     # Compute expected signature
