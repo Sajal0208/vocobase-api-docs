@@ -9,30 +9,58 @@ Projects let you group related agents together. Every agent belongs to exactly o
 
 ## Default Project
 
-When your partner account is approved, a **Default** project is automatically created. All agents created via the API are assigned to this default project unless otherwise specified.
+When your partner account is approved, a **Default** project is automatically created. All agents created via the API are assigned to this default project unless you specify a `project_id`.
 
 The default project cannot be deleted.
 
-## Managing Projects
+## API Endpoints
 
-Projects are managed through the [Vocobase Dashboard](https://app.vocobase.com/dashboard/projects):
+Full CRUD is available via the Partner API:
 
-- **Create** new projects to organize agents by use case, client, or team
-- **Edit** project name and description
-- **Delete** projects (only if they contain no agents — move or delete agents first)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/projects` | List all projects |
+| `POST` | `/projects` | Create a new project |
+| `GET` | `/projects/:id` | Get a single project |
+| `PUT` | `/projects/:id` | Update project name/description |
+| `DELETE` | `/projects/:id` | Delete a project (must have no agents) |
 
-## Agents and Projects
+### Create a project
 
-On the Agents page, you can:
+```bash
+curl -X POST https://api.vocobase.com/api/v2/projects \
+  -H "Authorization: Bearer rg_live_xxxx" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Client A", "description": "Agents for Client A"}'
+```
 
-- **Filter agents by project** using the dropdown at the top of the page
-- **See which project** each agent belongs to via the project badge on the agent card
+```json
+{
+  "success": true,
+  "data": {
+    "id": "proj_abc123",
+    "name": "Client A",
+    "description": "Agents for Client A",
+    "is_default": false,
+    "agent_count": 0,
+    "created_at": "2026-03-26T10:00:00.000Z",
+    "updated_at": "2026-03-26T10:00:00.000Z"
+  }
+}
+```
 
-When creating an agent via the Partner API, it is automatically assigned to the default project. To organize agents into specific projects, use the dashboard.
+### Delete constraints
 
-<Note>
-  Project management endpoints are not yet available in the Partner API. Projects are currently managed through the dashboard only. Contact us if you need programmatic project management.
-</Note>
+- Cannot delete the **default** project
+- Cannot delete a project that **still has agents** — move or delete them first
+
+## Dashboard
+
+Projects can also be managed from the [Vocobase Dashboard](https://app.vocobase.com/dashboard/projects):
+
+- Create, edit, and delete projects
+- Filter agents by project on the Agents page
+- Assign agents to projects when creating or editing them
 
 ## How Agents Relate to Projects
 
@@ -48,5 +76,3 @@ Partner Account
 └── Client B Project
     └── Agent: Client B Support
 ```
-
-Each agent has a `project_id` field in its metadata. When you list agents via the API, you can see which project they belong to — though filtering by project is currently a dashboard-only feature.

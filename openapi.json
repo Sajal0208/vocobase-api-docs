@@ -40,6 +40,10 @@
     {
       "name": "Calls",
       "description": "Initiate outbound calls and view call history."
+    },
+    {
+      "name": "Projects",
+      "description": "Organize agents into projects. Every agent belongs to exactly one project."
     }
   ],
   "paths": {
@@ -1662,6 +1666,210 @@
           "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
+    },
+    "/projects": {
+      "get": {
+        "operationId": "listProjects",
+        "summary": "List projects",
+        "description": "Returns all projects for the authenticated partner, including agent counts.",
+        "tags": ["Projects"],
+        "responses": {
+          "200": {
+            "description": "Projects listed successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "array",
+                      "items": { "$ref": "#/components/schemas/Project" }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": [
+                    { "id": "proj_abc123", "name": "Default", "description": null, "is_default": true, "agent_count": 3, "created_at": "2026-01-15T10:30:00.000Z", "updated_at": "2026-01-15T10:30:00.000Z" },
+                    { "id": "proj_def456", "name": "Client A", "description": "Agents for Client A", "is_default": false, "agent_count": 2, "created_at": "2026-03-01T08:00:00.000Z", "updated_at": "2026-03-01T08:00:00.000Z" }
+                  ]
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "post": {
+        "operationId": "createProject",
+        "summary": "Create project",
+        "description": "Creates a new project. Project names must be unique per partner.",
+        "tags": ["Projects"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": { "type": "string", "maxLength": 100, "description": "Project name (unique per partner)." },
+                  "description": { "type": "string", "maxLength": 500, "description": "Optional project description." }
+                }
+              },
+              "example": { "name": "Client A", "description": "Agents for Client A" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Project created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": { "$ref": "#/components/schemas/Project" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": {
+            "description": "A project with this name already exists.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "success": false, "error": { "code": "DUPLICATE", "message": "A project with this name already exists" } }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/projects/{id}": {
+      "get": {
+        "operationId": "getProject",
+        "summary": "Get project",
+        "description": "Returns a single project by ID.",
+        "tags": ["Projects"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Project ID" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project retrieved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": { "$ref": "#/components/schemas/Project" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "put": {
+        "operationId": "updateProject",
+        "summary": "Update project",
+        "description": "Updates a project's name and/or description.",
+        "tags": ["Projects"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Project ID" }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": { "type": "string", "maxLength": 100, "description": "New project name." },
+                  "description": { "type": "string", "maxLength": 500, "description": "New project description." }
+                }
+              },
+              "example": { "name": "Client A (updated)", "description": "Updated description" }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Project updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": { "$ref": "#/components/schemas/Project" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": {
+            "description": "A project with this name already exists.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "success": false, "error": { "code": "DUPLICATE", "message": "A project with this name already exists" } }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteProject",
+        "summary": "Delete project",
+        "description": "Deletes a project. Cannot delete the default project or projects that still have agents.",
+        "tags": ["Projects"],
+        "parameters": [
+          { "name": "id", "in": "path", "required": true, "schema": { "type": "string" }, "description": "Project ID" }
+        ],
+        "responses": {
+          "200": {
+            "description": "Project deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": { "success": { "type": "boolean", "const": true } }
+                },
+                "example": { "success": true }
+              }
+            }
+          },
+          "400": {
+            "description": "Cannot delete default project or project with agents.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": { "success": false, "error": { "code": "INVALID_STATE", "message": "Cannot delete a project that has agents. Move or delete agents first." } }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
     }
   },
   "components": {
@@ -1673,6 +1881,18 @@
       }
     },
     "schemas": {
+      "Project": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "description": "Unique project ID." },
+          "name": { "type": "string", "description": "Project name (unique per partner)." },
+          "description": { "type": "string", "nullable": true, "description": "Optional project description." },
+          "is_default": { "type": "boolean", "description": "Whether this is the default project. Cannot be deleted." },
+          "agent_count": { "type": "integer", "description": "Number of agents in this project." },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
       "PartnerConfig": {
         "type": "object",
         "properties": {
@@ -1846,7 +2066,7 @@
           "recording_url": {
             "type": ["string", "null"],
             "format": "uri",
-            "description": "Presigned URL to download the call recording (expires after a few hours)."
+            "description": "Presigned URL to download the call recording. Expires after 15 minutes — download immediately."
           },
           "status": { "type": "string" },
           "started_at": { "type": "string", "format": "date-time" },
