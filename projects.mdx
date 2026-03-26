@@ -1,0 +1,52 @@
+---
+title: "Projects"
+description: "Organize your agents into projects"
+---
+
+# Projects
+
+Projects let you group related agents together. Every agent belongs to exactly one project.
+
+## Default Project
+
+When your partner account is approved, a **Default** project is automatically created. All agents created via the API are assigned to this default project unless otherwise specified.
+
+The default project cannot be deleted.
+
+## Managing Projects
+
+Projects are managed through the [Vocobase Dashboard](https://app.vocobase.com/dashboard/projects):
+
+- **Create** new projects to organize agents by use case, client, or team
+- **Edit** project name and description
+- **Delete** projects (only if they contain no agents — move or delete agents first)
+
+## Agents and Projects
+
+On the Agents page, you can:
+
+- **Filter agents by project** using the dropdown at the top of the page
+- **See which project** each agent belongs to via the project badge on the agent card
+
+When creating an agent via the Partner API, it is automatically assigned to the default project. To organize agents into specific projects, use the dashboard.
+
+<Note>
+  Project management endpoints are not yet available in the Partner API. Projects are currently managed through the dashboard only. Contact us if you need programmatic project management.
+</Note>
+
+## How Agents Relate to Projects
+
+```
+Partner Account
+├── Default Project
+│   ├── Agent: Sales Bot
+│   ├── Agent: Support Bot
+│   └── Agent: Onboarding Bot
+├── Client A Project
+│   ├── Agent: Client A Inbound
+│   └── Agent: Client A Outbound
+└── Client B Project
+    └── Agent: Client B Support
+```
+
+Each agent has a `project_id` field in its metadata. When you list agents via the API, you can see which project they belong to — though filtering by project is currently a dashboard-only feature.
