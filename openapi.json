@@ -450,6 +450,11 @@
                     "maxLength": 500,
                     "description": "Optional greeting spoken when a call connects."
                   },
+                  "project_id": {
+                    "type": ["string", "null"],
+                    "format": "uuid",
+                    "description": "Assign the agent to a specific project. Defaults to the default project if omitted."
+                  },
                   "enable_recording": {
                     "type": "boolean",
                     "default": false,
@@ -613,6 +618,11 @@
                     "type": ["string", "null"],
                     "maxLength": 500,
                     "description": "New greeting message. Pass `null` or empty string to remove."
+                  },
+                  "project_id": {
+                    "type": ["string", "null"],
+                    "format": "uuid",
+                    "description": "Move the agent to a different project."
                   },
                   "enable_recording": {
                     "type": "boolean"
@@ -1958,6 +1968,7 @@
           "kb_result_format": { "type": ["string", "null"] },
           "kb_enable_llm_processing": { "type": "boolean" },
           "kb_llm_system_prompt": { "type": ["string", "null"] },
+          "project_id": { "type": ["string", "null"], "format": "uuid", "description": "ID of the project this agent belongs to. Defaults to the default project if not specified." },
           "document_count": { "type": "integer", "description": "Number of linked documents." },
           "status": { "type": "string", "enum": ["active", "inactive"] },
           "created_at": { "type": "string", "format": "date-time" },

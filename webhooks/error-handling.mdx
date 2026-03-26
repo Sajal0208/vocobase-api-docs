@@ -9,10 +9,11 @@ Vocobase automatically retries webhook deliveries that fail. This page explains 
 
 ## Retry policy
 
-When a webhook delivery fails, Vocobase retries up to **3 times** with exponential backoff:
+When a webhook delivery fails, Vocobase retries up to **3 times** (4 total delivery attempts) with exponential backoff:
 
-| Attempt | Delay after failure |
+| Attempt | Delay before attempt |
 |---|---|
+| Initial delivery | Immediate |
 | 1st retry | 1 second |
 | 2nd retry | 2 seconds |
 | 3rd retry | 4 seconds |
@@ -80,7 +81,7 @@ app.post("/webhooks/vocobase", async (req, res) => {
   verifySignature(req);
   res.status(200).json({ received: true });
 
-  const { session_id } = req.body;
+  const { session_id } = req.body.data;
 
   // Check if we already processed this event
   const exists = await db.processedEvents.findUnique({
@@ -95,7 +96,7 @@ app.post("/webhooks/vocobase", async (req, res) => {
   await db.processedEvents.create({ data: { session_id } });
 
   // Now process the event
-  await handleSessionCompleted(req.body);
+  await handleSessionCompleted(req.body.data);
 });
 ```
 

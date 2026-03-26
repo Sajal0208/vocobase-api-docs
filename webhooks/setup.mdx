@@ -79,11 +79,14 @@ X-Webhook-Timestamp: <iso-8601-timestamp>
 ```javascript
 const crypto = require("crypto");
 
+// IMPORTANT: Use express.raw() or express.text() middleware on your webhook
+// route so req.body is the raw string, not a parsed JSON object.
+// Example: app.post("/webhooks/vocobase", express.text({ type: "*/*" }), handler)
 function verifyWebhookSignature(req, webhookSecret) {
   const signature = req.headers["x-webhook-signature"];
   const timestamp = req.headers["x-webhook-timestamp"];
-  // Use raw body to avoid JSON re-serialization differences
-  const body = typeof req.body === 'string' ? req.body : JSON.stringify(req.body);
+  // req.body must be the raw request body string, not a parsed object
+  const body = typeof req.body === "string" ? req.body : req.rawBody?.toString() || JSON.stringify(req.body);
 
   // Reject requests older than 5 minutes to prevent replay attacks
   const timestampMs = new Date(timestamp).getTime();
