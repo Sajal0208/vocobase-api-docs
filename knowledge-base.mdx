@@ -1,0 +1,364 @@
+---
+title: "Knowledge Base"
+description: "Upload documents and web links to give your agents contextual knowledge"
+---
+
+# Knowledge Base
+
+The knowledge base lets you upload documents and web links that your agents can reference during conversations. When a caller asks a question, the agent searches its linked documents to provide accurate, grounded answers.
+
+## How it works
+
+```
+Upload Document ──> Link to Agent ──> Agent uses it in calls
+       │                  │
+   (file or URL)    (auto-synced)
+```
+
+1. **Upload** a file or add a web link to create a document
+2. **Link** the document to one or more agents
+3. The document is **automatically synced** to the agent's knowledge base
+4. During calls, the agent **searches** linked documents to answer questions
+
+## Supported file types
+
+| Type | MIME Type | Max Size |
+|------|-----------|----------|
+| PDF | `application/pdf` | 50 MB |
+| Word (.docx) | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | 50 MB |
+| Plain text | `text/plain` | 50 MB |
+| Markdown | `text/markdown` | 50 MB |
+| PNG image | `image/png` | 50 MB |
+| JPEG image | `image/jpeg` | 50 MB |
+| GIF image | `image/gif` | 50 MB |
+| WebP image | `image/webp` | 50 MB |
+
+---
+
+## Upload a file document
+
+Uploading a file is a three-step process: get a presigned URL, upload the file to S3, then confirm the upload.
+
+<Steps>
+  <Step title="Get a presigned upload URL">
+    Call `POST /documents/upload` with the file metadata. This creates a document record in `uploading` status and returns a presigned S3 URL.
+
+    ```bash
+    curl -X POST https://api.vocobase.com/api/v2/documents/upload \
+      -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "name": "Product FAQ.pdf",
+        "file_size": 1048576,
+        "mime_type": "application/pdf"
+      }'
+    ```
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "document_id": "d1234567-abcd-1234-abcd-123456789012",
+        "upload_url": "https://s3.amazonaws.com/bucket/path?X-Amz-Signature=...",
+        "expires_in": 900
+      }
+    }
+    ```
+
+    <Warning>
+      The `upload_url` expires in **15 minutes** (900 seconds). Upload your file before it expires.
+    </Warning>
+  </Step>
+
+  <Step title="Upload the file to S3">
+    Use the presigned URL to upload your file with a `PUT` request. Set the `Content-Type` header to match the `mime_type` you specified.
+
+    ```bash
+    curl -X PUT "https://s3.amazonaws.com/bucket/path?X-Amz-Signature=..." \
+      -H "Content-Type: application/pdf" \
+      --data-binary @"Product FAQ.pdf"
+    ```
+
+    <Note>
+      This request goes directly to S3, not to the Vocobase API. Do not include the `Authorization` header.
+    </Note>
+  </Step>
+
+  <Step title="Confirm the upload">
+    After the file is uploaded to S3, call `POST /documents/{id}/confirm` to finalize. Vocobase verifies the file exists and transitions the document status from `uploading` to `ready`.
+
+    ```bash
+    curl -X POST https://api.vocobase.com/api/v2/documents/d1234567-abcd-1234-abcd-123456789012/confirm \
+      -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+    ```
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "id": "d1234567-abcd-1234-abcd-123456789012",
+        "name": "Product FAQ.pdf",
+        "type": "file",
+        "mime_type": "application/pdf",
+        "file_size": 1048576,
+        "status": "ready",
+        "created_at": "2026-03-15T10:30:00.000Z",
+        "updated_at": "2026-03-15T10:30:05.000Z"
+      }
+    }
+    ```
+
+    The document is now `ready` and can be linked to agents.
+  </Step>
+</Steps>
+
+---
+
+## Add a web link document
+
+Web links are simpler -- no upload step is needed. The document is immediately `ready`.
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/documents/web-link \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Company Blog",
+    "url": "https://example.com/blog",
+    "description": "Our latest blog posts and announcements"
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "d2345678-abcd-1234-abcd-123456789012",
+    "name": "Company Blog",
+    "type": "web_link",
+    "url": "https://example.com/blog",
+    "description": "Our latest blog posts and announcements",
+    "status": "ready",
+    "created_at": "2026-03-15T10:35:00.000Z",
+    "updated_at": "2026-03-15T10:35:00.000Z"
+  }
+}
+```
+
+<Tip>
+  The URL content is crawled and indexed when the document is linked to an agent, not at creation time.
+</Tip>
+
+---
+
+## Link documents to an agent
+
+Once your documents are in `ready` status, link them to an agent to add them to its knowledge base:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/agent/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "document_ids": [
+      "d1234567-abcd-1234-abcd-123456789012",
+      "d2345678-abcd-1234-abcd-123456789012"
+    ]
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "linked": [
+      { "document_id": "d1234567-abcd-1234-abcd-123456789012", "sync_status": "pending" },
+      { "document_id": "d2345678-abcd-1234-abcd-123456789012", "sync_status": "pending" }
+    ],
+    "skipped": []
+  }
+}
+```
+
+The response tells you which documents were newly linked and which were skipped (already linked). A background sync job is queued for each newly linked document.
+
+<Note>
+  - You can link up to **20 documents per request**
+  - Each agent supports up to **100 linked documents** total
+  - Duplicate links are silently skipped (the operation is idempotent)
+</Note>
+
+---
+
+## Sync statuses
+
+After linking a document to an agent, it goes through a sync process. You can check the sync status by listing the agent's documents.
+
+| Status | Description |
+|--------|-------------|
+| `pending` | Document is queued for indexing. This is the initial state after linking. |
+| `synced` | Document has been successfully indexed into the agent's knowledge base. The agent can now use it during conversations. |
+| `failed` | Indexing failed. Check the document content and try unlinking and re-linking. |
+
+<Warning>
+  An agent cannot use a document during calls until its sync status is `synced`. Allow a few seconds after linking for the sync to complete.
+</Warning>
+
+---
+
+## List and manage documents
+
+### List all documents
+
+```bash
+curl -X GET "https://api.vocobase.com/api/v2/documents?limit=10&offset=0" \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "documents": [
+      {
+        "id": "d1234567-abcd-1234-abcd-123456789012",
+        "name": "Product FAQ.pdf",
+        "type": "file",
+        "status": "ready",
+        "agent_count": 2,
+        "created_at": "2026-03-15T10:30:00.000Z"
+      },
+      {
+        "id": "d2345678-abcd-1234-abcd-123456789012",
+        "name": "Company Blog",
+        "type": "web_link",
+        "status": "ready",
+        "agent_count": 1,
+        "created_at": "2026-03-15T10:35:00.000Z"
+      }
+    ],
+    "total": 2,
+    "limit": 10,
+    "offset": 0
+  }
+}
+```
+
+### Get a single document
+
+Fetching a single document also returns a download URL (for files) and the list of linked agents with their sync statuses:
+
+```bash
+curl -X GET https://api.vocobase.com/api/v2/documents/d1234567-abcd-1234-abcd-123456789012 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "d1234567-abcd-1234-abcd-123456789012",
+    "name": "Product FAQ.pdf",
+    "type": "file",
+    "status": "ready",
+    "download_url": "https://s3.amazonaws.com/bucket/path?X-Amz-Signature=...",
+    "agents": [
+      { "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "name": "Sales Assistant", "sync_status": "synced" },
+      { "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901", "name": "Support Bot", "sync_status": "pending" }
+    ]
+  }
+}
+```
+
+### List an agent's linked documents
+
+```bash
+curl -X GET https://api.vocobase.com/api/v2/agent/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+### Update a document
+
+You can rename a document or update its description:
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/documents/d1234567-abcd-1234-abcd-123456789012 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Product FAQ v2.pdf",
+    "description": "Updated product FAQ for Q1 2026"
+  }'
+```
+
+---
+
+## Unlink and delete documents
+
+### Unlink a document from an agent
+
+Unlinking removes the document from the agent's knowledge base but does not delete the document itself. You can re-link it later.
+
+```bash
+curl -X DELETE https://api.vocobase.com/api/v2/agent/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/d1234567-abcd-1234-abcd-123456789012 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Document unlinked from agent"
+  }
+}
+```
+
+### Delete a document permanently
+
+Deleting a document removes the file from S3 (if applicable), unlinks it from all agents, and deletes the record. This action is irreversible.
+
+```bash
+curl -X DELETE https://api.vocobase.com/api/v2/documents/d1234567-abcd-1234-abcd-123456789012 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Document deleted successfully"
+  }
+}
+```
+
+<Warning>
+  Deleting a document permanently removes it from all agents' knowledge bases. This action cannot be undone.
+</Warning>
+
+---
+
+## API reference
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `POST` | `/documents/upload` | Get a presigned upload URL |
+| `POST` | `/documents/{id}/confirm` | Confirm file upload |
+| `POST` | `/documents/web-link` | Add a web link document |
+| `GET` | `/documents` | List all documents |
+| `GET` | `/documents/{id}` | Get document with download URL |
+| `PUT` | `/documents/{id}` | Update name/description |
+| `DELETE` | `/documents/{id}` | Delete permanently |
+| `GET` | `/agent/{id}/documents` | List agent's linked documents |
+| `POST` | `/agent/{id}/documents` | Link documents to agent |
+| `DELETE` | `/agent/{agentId}/documents/{documentId}` | Unlink from agent |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Create an Agent" icon="robot" href="/quickstart">
+    Create an agent and link documents to it.
+  </Card>
+  <Card title="Webhook Payloads" icon="webhook" href="/webhooks/payloads">
+    See how KB search results appear in call transcripts.
+  </Card>
+</CardGroup>

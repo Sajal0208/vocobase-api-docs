@@ -1,0 +1,163 @@
+---
+title: "Credits & Billing"
+description: "Understand how credits work, how they are consumed, and how to monitor your balance"
+---
+
+# Credits & Billing
+
+Vocobase uses a credit-based billing system. Credits are consumed when your agents handle voice calls or chat sessions.
+
+## How credits work
+
+| Activity | Cost |
+|----------|------|
+| Voice conversation | **1 credit per 60 seconds** (pro-rata) |
+| Chat message | **0.01 credits** per message |
+
+Voice credits are billed pro-rata by the second. You are only charged for the actual duration of the conversation.
+
+### Voice credit examples
+
+| Call Duration | Credits Used |
+|---------------|-------------|
+| 30 seconds | 0.5 credits |
+| 60 seconds | 1.0 credit |
+| 90 seconds | 1.5 credits |
+| 5 minutes | 5.0 credits |
+| 10 minutes | 10.0 credits |
+
+<Tip>
+  Credits are rounded up to the nearest fraction. A 61-second call costs slightly more than 1 credit, not 2.
+</Tip>
+
+---
+
+## When credits are deducted
+
+Credits are deducted **automatically when a session ends** -- not when the call starts. This means:
+
+1. A call is placed to the recipient
+2. The agent handles the conversation
+3. The call ends (hang up, timeout, or disconnect)
+4. Vocobase calculates the duration and deducts credits
+5. A `session.completed` webhook fires with `credits_used` in the payload
+
+```json
+{
+  "event": "session.completed",
+  "data": {
+    "session_id": "s1234567-abcd-1234-abcd-123456789012",
+    "duration_seconds": 127,
+    "credits_used": 2.12,
+    "...": "..."
+  }
+}
+```
+
+<Note>
+  If a call fails to connect (e.g., no answer, busy), no credits are deducted.
+</Note>
+
+---
+
+## Initial credit balance
+
+When your partner account is approved by the Vocobase team, an initial credit balance is assigned. The amount depends on your plan and agreement.
+
+There is no self-service credit purchase via the API. To add more credits, contact the Vocobase team at **support@vocobase.com**.
+
+---
+
+## Checking your balance
+
+You can view your current credit balance in two ways:
+
+### Via the Dashboard
+
+Log in to the [Vocobase Dashboard](https://app.vocobase.com) and navigate to **Settings**. Your current credit balance is displayed on the account overview.
+
+### Via the API
+
+Fetch your partner configuration to see the current balance:
+
+```bash
+curl -X GET https://api.vocobase.com/api/v2/config \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+The response includes your credit balance in the partner configuration data.
+
+---
+
+## Insufficient credits
+
+If your credit balance reaches zero, API calls that start new sessions will fail with an error:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "INSUFFICIENT_CREDITS",
+    "message": "Insufficient credits to start a new session"
+  }
+}
+```
+
+<Warning>
+  Calls that are already in progress will not be interrupted. However, you will not be able to start new calls until credits are replenished.
+</Warning>
+
+---
+
+## Monitoring usage
+
+### Webhook tracking
+
+The most reliable way to track credit usage is through webhooks. Every `session.completed` event includes the `credits_used` field. Accumulate these values in your system to track spend in real time.
+
+### Campaign-level tracking
+
+If you use campaigns to batch outbound calls, the campaign status endpoint returns aggregate credit usage across all calls in the campaign.
+
+---
+
+## Credit usage in chat sessions
+
+Chat sessions (non-voice, text-based interactions with agents) cost **0.01 credits per message**. Each message sent by the user and each response from the agent are both counted.
+
+| Chat Messages | Credits Used |
+|---------------|-------------|
+| 10 messages (5 user + 5 bot) | 0.10 credits |
+| 100 messages | 1.00 credit |
+| 1,000 messages | 10.00 credits |
+
+---
+
+## Frequently asked questions
+
+### Can I set a credit limit per agent?
+
+Not currently. Credits are shared across all agents under your partner account. You can track per-agent usage via webhook payloads which include the `agent_id`.
+
+### What happens if credits run out mid-call?
+
+Active calls are never interrupted. The credit deduction happens after the call ends, so your balance may temporarily go negative. Contact the Vocobase team promptly to replenish credits if this occurs.
+
+### Can I get a refund for failed calls?
+
+Calls that fail to connect (no answer, busy, provider error) do not consume credits. If you believe credits were incorrectly deducted, contact **support@vocobase.com** with the `session_id`.
+
+### Is there a minimum credit purchase?
+
+Credit allocations are handled by the Vocobase team based on your plan. Contact your account manager to discuss top-ups.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Webhook Payloads" icon="webhook" href="/webhooks/payloads">
+    See the full session.completed payload including credits_used.
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Make your first API call and start using credits.
+  </Card>
+</CardGroup>

@@ -1,0 +1,233 @@
+---
+title: "Inbound Calls"
+description: "Configure your agents to receive and handle incoming phone calls"
+---
+
+# Inbound Calls
+
+Inbound agents answer incoming phone calls automatically. When someone calls your configured phone number, Vocobase routes the call to the assigned agent, which handles the conversation using its prompt, voice, and knowledge base.
+
+## How inbound calls work
+
+```
+Caller dials your number
+        │
+        ▼
+Twilio receives the call
+        │
+        ▼
+Twilio forwards to Vocobase
+        │
+        ▼
+Vocobase routes to your inbound agent
+        │
+        ▼
+Agent handles the conversation
+        │
+        ▼
+Call ends → session.completed webhook fires
+```
+
+1. A caller dials your Twilio phone number
+2. Twilio forwards the call to Vocobase using a TwiML webhook
+3. Vocobase identifies the inbound agent associated with the phone number
+4. The agent greets the caller and handles the conversation
+5. When the call ends, a `session.completed` webhook is sent with the transcript, duration, and credits used
+
+---
+
+## Prerequisites
+
+- An approved Vocobase partner account with an API key
+- Twilio configured in your Vocobase account ([Twilio Setup guide](/telephony/twilio-setup))
+- A Twilio phone number with voice capabilities
+
+<Note>
+  Inbound calling is currently supported with **Twilio only**. MCube inbound is not yet available.
+</Note>
+
+---
+
+## Set up inbound calling
+
+<Steps>
+  <Step title="Create an inbound agent">
+    Create an agent with `agent_type` set to `"inbound"`. This tells Vocobase that this agent should handle incoming calls rather than making outbound ones.
+
+    ```bash
+    curl -X POST https://api.vocobase.com/api/v2/agent \
+      -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "agent_name": "Customer Support",
+        "prompt": "You are a helpful customer support agent for Acme Corp. Greet the caller warmly, listen to their issue, and help resolve it. If you cannot resolve the issue, offer to transfer them to a human agent.",
+        "voice_id": "a0e99841-438c-4a64-b679-ae501e7d6091",
+        "language": "en",
+        "agent_type": "inbound",
+        "intro_message": "Thank you for calling Acme Corp. How can I help you today?"
+      }'
+    ```
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "agent_name": "Customer Support",
+        "prompt": "You are a helpful customer support agent for Acme Corp...",
+        "voice_id": "a0e99841-438c-4a64-b679-ae501e7d6091",
+        "language": "en",
+        "agent_type": "inbound",
+        "intro_message": "Thank you for calling Acme Corp. How can I help you today?",
+        "enable_recording": false,
+        "document_count": 0,
+        "status": "active",
+        "created_at": "2026-03-15T10:30:00.000Z",
+        "updated_at": "2026-03-15T10:30:00.000Z"
+      }
+    }
+    ```
+
+    <Tip>
+      The `intro_message` is what the agent says immediately when answering the call. Keep it short and welcoming -- the caller is waiting.
+    </Tip>
+  </Step>
+
+  <Step title="Configure your Twilio phone number">
+    In the [Twilio Console](https://console.twilio.com), navigate to **Phone Numbers > Manage > Active Numbers** and select the phone number you want to use for inbound calls.
+
+    Under **Voice Configuration**, set the webhook URL:
+
+    | Setting | Value |
+    |---------|-------|
+    | **When a call comes in** | Webhook |
+    | **URL** | `https://api.vocobase.com/api/twilio/inbound` |
+    | **HTTP Method** | `POST` |
+
+    <Warning>
+      The webhook URL must be exactly `https://api.vocobase.com/api/twilio/inbound`. Do not append your API key or any query parameters -- Vocobase identifies your account from the Twilio credentials you configured.
+    </Warning>
+  </Step>
+
+  <Step title="Link the agent to your phone number">
+    After creating the inbound agent and configuring the Twilio webhook, Vocobase automatically routes incoming calls on your configured Twilio number to your inbound agent.
+
+    If you have multiple inbound agents, the most recently created active inbound agent is used by default. Contact the Vocobase team if you need to route different phone numbers to different agents.
+  </Step>
+
+  <Step title="Test with a phone call">
+    Call your Twilio phone number from any phone. You should hear your agent's `intro_message`, and then you can have a conversation with it.
+
+    After the call ends, check your [webhook endpoint](/webhooks/setup) for the `session.completed` event:
+
+    ```json
+    {
+      "event": "session.completed",
+      "data": {
+        "session_id": "s1234567-abcd-1234-abcd-123456789012",
+        "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "agent_name": "Customer Support",
+        "duration_seconds": 95,
+        "credits_used": 1.59,
+        "transcript": [...],
+        "call": {
+          "call_id": "c1234567-abcd-1234-abcd-123456789012",
+          "from_number": "+919876543210",
+          "to_number": "+14155551234",
+          "direction": "inbound",
+          "status": "completed"
+        }
+      }
+    }
+    ```
+
+    Notice the `direction` field is `"inbound"` in the webhook payload, making it easy to distinguish from outbound calls.
+  </Step>
+</Steps>
+
+---
+
+## Inbound vs. outbound agents
+
+| Feature | Inbound | Outbound |
+|---------|---------|----------|
+| `agent_type` | `"inbound"` | `"outbound"` |
+| Who initiates | Caller dials your number | You call via API |
+| Telephony trigger | Twilio webhook | `POST /calls/start` |
+| `intro_message` | Spoken when agent answers | Spoken when callee picks up |
+| Webhook `direction` | `"inbound"` | `"outbound"` |
+| Credit cost | Same (1 credit / 60 seconds) | Same (1 credit / 60 seconds) |
+
+<Note>
+  An agent's type is set at creation and determines how it handles calls. You cannot use the same agent for both inbound and outbound calls. Create separate agents for each purpose.
+</Note>
+
+---
+
+## Adding a knowledge base
+
+Inbound agents benefit greatly from a knowledge base. Upload your FAQs, product documentation, and support articles so the agent can answer caller questions accurately.
+
+```bash
+# 1. Upload a document
+curl -X POST https://api.vocobase.com/api/v2/documents/upload \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{"name": "Support FAQ.pdf", "file_size": 524288, "mime_type": "application/pdf"}'
+
+# 2. Upload the file to the presigned URL (from step 1 response)
+
+# 3. Confirm the upload
+curl -X POST https://api.vocobase.com/api/v2/documents/{document_id}/confirm \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+
+# 4. Link to your inbound agent
+curl -X POST https://api.vocobase.com/api/v2/agent/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{"document_ids": ["{document_id}"]}'
+```
+
+See the [Knowledge Base guide](/knowledge-base) for the full workflow.
+
+---
+
+## Troubleshooting
+
+### Calls go to Twilio voicemail instead of the agent
+
+- Verify the webhook URL in Twilio is set to `https://api.vocobase.com/api/twilio/inbound`
+- Check that the HTTP method is `POST`
+- Ensure your Twilio credentials are configured in Vocobase ([Twilio Setup](/telephony/twilio-setup))
+
+### Agent does not answer
+
+- Confirm you have an active inbound agent (`agent_type: "inbound"`, `status: "active"`)
+- Check that your credit balance is not zero
+- Review the Twilio Console error logs for any connection failures
+
+### Caller hears silence
+
+- Make sure the `intro_message` is set on your inbound agent
+- Verify the `voice_id` is valid -- list available voices with `GET /agent/voices`
+
+### Webhook shows wrong direction
+
+- If `direction` shows `"outbound"` for an inbound call, ensure you created the agent with `agent_type: "inbound"`, not `"outbound"`
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Knowledge Base" icon="book" href="/knowledge-base">
+    Upload documents to improve your agent's answers.
+  </Card>
+  <Card title="Credits & Billing" icon="credit-card" href="/credits">
+    Understand how call credits are calculated.
+  </Card>
+  <Card title="Twilio Setup" icon="phone" href="/telephony/twilio-setup">
+    Configure Twilio credentials for your account.
+  </Card>
+  <Card title="Webhook Payloads" icon="webhook" href="/webhooks/payloads">
+    See the full payload structure for completed calls.
+  </Card>
+</CardGroup>

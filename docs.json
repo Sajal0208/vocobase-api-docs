@@ -23,6 +23,10 @@
         "pages": ["index", "quickstart", "authentication", "projects"]
       },
       {
+        "group": "Guides",
+        "pages": ["knowledge-base", "credits", "inbound-calls"]
+      },
+      {
         "group": "Partner Onboarding",
         "pages": [
           "onboarding/becoming-a-partner",
