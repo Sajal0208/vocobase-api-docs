@@ -1,0 +1,220 @@
+---
+title: "Document Folders"
+description: "Organize documents into folders and attach them to agents with live auto-sync"
+---
+
+# Document Folders
+
+Folders let you group related documents together and attach the entire folder to agents. When a folder is linked to an agent, **all documents inside are automatically synced** to the agent's knowledge base. Adding or removing documents from a linked folder propagates changes to all agents that have it.
+
+## How it works
+
+```
+Create Folder ──> Add Documents ──> Link Folder to Agent
+                                         │
+                                    (all docs auto-synced)
+                                         │
+                    Add new doc to folder ──> auto-synced to agent
+                    Remove doc from folder ──> auto-removed from agent
+```
+
+1. **Create** a folder to group related documents
+2. **Add** documents to the folder
+3. **Link** the folder to one or more agents -- all documents sync automatically
+4. As you add or remove documents from the folder, linked agents **stay in sync**
+
+<Tip>
+  You can still link individual documents directly to agents. Folders and direct links work together -- a document linked both directly and via a folder remains linked even if the folder is removed.
+</Tip>
+
+---
+
+## Create a folder
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/document-folders \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Product Docs",
+    "description": "All product-related documentation"
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "f1234567-abcd-1234-abcd-123456789012",
+    "name": "Product Docs",
+    "description": "All product-related documentation",
+    "document_count": 0,
+    "agent_count": 0,
+    "created_at": "2026-03-28T10:00:00.000Z",
+    "updated_at": "2026-03-28T10:00:00.000Z"
+  }
+}
+```
+
+<Note>
+  Folder names must be unique per account (max 100 characters).
+</Note>
+
+---
+
+## Add documents to a folder
+
+After uploading documents (see [Knowledge Base](/knowledge-base)), add them to a folder:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/document-folders/f1234567-abcd-1234-abcd-123456789012/documents \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "document_ids": [
+      "d1234567-abcd-1234-abcd-123456789012",
+      "d2345678-abcd-1234-abcd-123456789012"
+    ]
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "added": ["d1234567-abcd-1234-abcd-123456789012", "d2345678-abcd-1234-abcd-123456789012"],
+    "skipped": []
+  }
+}
+```
+
+<Warning>
+  If the folder is already linked to agents, newly added documents are **automatically synced** to those agents' knowledge bases. Allow a few seconds for the sync to complete.
+</Warning>
+
+---
+
+## Link a folder to an agent
+
+Linking a folder syncs all its documents to the agent:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/agent/a1b2c3d4-e5f6-7890-abcd-ef1234567890/folders \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "folder_ids": ["f1234567-abcd-1234-abcd-123456789012"]
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "linked": [{ "folder_id": "f1234567-abcd-1234-abcd-123456789012" }],
+    "skipped": []
+  }
+}
+```
+
+---
+
+## List and manage folders
+
+### List all folders
+
+```bash
+curl -X GET https://api.vocobase.com/api/v2/document-folders \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+### Get a folder with its documents
+
+```bash
+curl -X GET https://api.vocobase.com/api/v2/document-folders/f1234567-abcd-1234-abcd-123456789012 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+### List folders linked to an agent
+
+```bash
+curl -X GET https://api.vocobase.com/api/v2/agent/a1b2c3d4-e5f6-7890-abcd-ef1234567890/folders \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+### Update a folder
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/document-folders/f1234567-abcd-1234-abcd-123456789012 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Product Docs v2" }'
+```
+
+---
+
+## Unlink and delete
+
+### Unlink a folder from an agent
+
+Unlinking removes the folder's documents from the agent's knowledge base (unless they are also directly linked).
+
+```bash
+curl -X DELETE https://api.vocobase.com/api/v2/agent/a1b2c3d4-e5f6-7890-abcd-ef1234567890/folders/f1234567-abcd-1234-abcd-123456789012 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+### Remove a document from a folder
+
+```bash
+curl -X DELETE https://api.vocobase.com/api/v2/document-folders/f1234567-abcd-1234-abcd-123456789012/documents/d1234567-abcd-1234-abcd-123456789012 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+### Delete a folder
+
+Deleting a folder removes it from all linked agents and cleans up synced documents (unless also directly linked).
+
+```bash
+curl -X DELETE https://api.vocobase.com/api/v2/document-folders/f1234567-abcd-1234-abcd-123456789012 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+<Warning>
+  Deleting a folder removes its documents from all linked agents' knowledge bases. The documents themselves are not deleted -- they become unfoldered.
+</Warning>
+
+---
+
+## API reference
+
+### Folder endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/document-folders` | List all folders |
+| `POST` | `/document-folders` | Create a folder |
+| `GET` | `/document-folders/{id}` | Get folder with documents |
+| `PUT` | `/document-folders/{id}` | Update name/description |
+| `DELETE` | `/document-folders/{id}` | Delete folder |
+| `POST` | `/document-folders/{id}/documents` | Add documents to folder |
+| `DELETE` | `/document-folders/{id}/documents/{documentId}` | Remove document from folder |
+
+### Agent-folder endpoints
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| `GET` | `/agent/{id}/folders` | List agent's linked folders |
+| `POST` | `/agent/{id}/folders` | Link folders to agent |
+| `DELETE` | `/agent/{id}/folders/{folderId}` | Unlink folder from agent |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Knowledge Base" icon="book-open" href="/knowledge-base">
+    Upload documents and web links to populate your folders.
+  </Card>
+  <Card title="Create an Agent" icon="robot" href="/quickstart">
+    Create an agent and link folders to it.
+  </Card>
+</CardGroup>
