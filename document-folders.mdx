@@ -135,6 +135,26 @@ curl -X GET https://api.vocobase.com/api/v2/document-folders/f1234567-abcd-1234-
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
 ```
 
+```json
+{
+  "success": true,
+  "data": {
+    "id": "f1234567-abcd-1234-abcd-123456789012",
+    "name": "Product Docs",
+    "description": "All product-related documentation",
+    "documents": [
+      { "id": "d1234567-...", "name": "Product FAQ.pdf", "type": "file", "status": "ready", "file_size": 1048576, "created_at": "2026-03-28T10:00:00.000Z" },
+      { "id": "d2345678-...", "name": "Pricing Page", "type": "web_link", "status": "ready", "file_size": null, "created_at": "2026-03-28T10:05:00.000Z" }
+    ],
+    "agents": [
+      { "id": "a1b2c3d4-...", "name": "Sales Assistant" }
+    ],
+    "created_at": "2026-03-28T10:00:00.000Z",
+    "updated_at": "2026-03-28T10:05:00.000Z"
+  }
+}
+```
+
 ### List folders linked to an agent
 
 ```bash
