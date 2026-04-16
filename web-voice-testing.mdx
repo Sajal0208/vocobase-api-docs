@@ -1,0 +1,702 @@
+---
+title: "Web Voice Testing"
+description: "Test your voice agent from the browser using WebRTC"
+---
+
+# Web Voice Testing
+
+Test your Vocobase voice agent directly from a web application using real-time WebRTC audio. This guide covers everything you need to connect your frontend to a voice agent — works with any JavaScript framework or vanilla JS.
+
+## How it works
+
+Your web app starts a voice session via the Vocobase API, receives WebRTC credentials, and connects using the open-source [Pipecat](https://github.com/pipecat-ai/pipecat) client SDK. Audio flows in real time — your user speaks, the agent responds.
+
+```
+Your App                      Vocobase API                  WebRTC
+  |                               |                           |
+  |  POST /api/sessions/start     |                           |
+  |  { agent_name }               |                           |
+  | ----------------------------> |                           |
+  |                               |  (starts bot + room)      |
+  | <---------------------------- |                           |
+  |  { session_id,                |                           |
+  |    room_url, token }          |                           |
+  |                               |                           |
+  |  client.connect({ url, token })                           |
+  | --------------------------------------------------------> |
+  |                               |                           |
+  | <========= real-time voice conversation (WebRTC) =======> |
+  |                               |                           |
+  |  client.disconnect()                                      |
+  | --------------------------------------------------------> |
+  |                               |                           |
+  |                               |  (session ends,           |
+  |                               |   credits deducted)       |
+```
+
+---
+
+## Install dependencies
+
+<CodeGroup>
+```bash npm
+npm install @pipecat-ai/client-js @pipecat-ai/daily-transport
+```
+
+```bash yarn
+yarn add @pipecat-ai/client-js @pipecat-ai/daily-transport
+```
+
+```bash pnpm
+pnpm add @pipecat-ai/client-js @pipecat-ai/daily-transport
+```
+</CodeGroup>
+
+For **React** projects, also install:
+
+<CodeGroup>
+```bash npm
+npm install @pipecat-ai/client-react
+```
+
+```bash yarn
+yarn add @pipecat-ai/client-react
+```
+
+```bash pnpm
+pnpm add @pipecat-ai/client-react
+```
+</CodeGroup>
+
+| Package | Purpose |
+|---------|---------|
+| `@pipecat-ai/client-js` | Core client — manages connection, events, audio |
+| `@pipecat-ai/daily-transport` | WebRTC transport layer |
+| `@pipecat-ai/client-react` | React provider + audio component (optional) |
+
+---
+
+## Start a session
+
+Call the Vocobase API to create a voice session. The response contains WebRTC credentials you'll use to connect.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.vocobase.com/api/sessions/start \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{"agent_name": "my-agent"}'
+```
+
+```javascript JavaScript
+const response = await fetch("https://api.vocobase.com/api/sessions/start", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ agent_name: "my-agent" }),
+});
+const session = await response.json();
+// { session_id: "uuid", room_url: "https://...", token: "..." }
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://api.vocobase.com/api/sessions/start",
+    headers={
+        "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+        "Content-Type": "application/json",
+    },
+    json={"agent_name": "my-agent"},
+)
+session = response.json()
+```
+</CodeGroup>
+
+**Response:**
+
+```json
+{
+  "session_id": "550e8400-e29b-41d4-a716-446655440000",
+  "room_url": "https://vocobase.daily.co/abc123",
+  "token": "eyJhbGciOi..."
+}
+```
+
+| Field | Description |
+|-------|-------------|
+| `session_id` | Unique session identifier. Use this to fetch session details later. |
+| `room_url` | WebRTC room URL. Pass this to `client.connect()`. |
+| `token` | One-time access token for the room. Pass this to `client.connect()`. |
+
+### Error responses
+
+| Status | Cause | Action |
+|--------|-------|--------|
+| `400` | Missing or invalid `agent_name` | Check the request body |
+| `401` | Invalid API key | Verify key format (`rg_live_*`) |
+| `402` | Insufficient credits | Top up in the dashboard |
+| `403` | Account not active | Contact Vocobase support |
+| `404` | Agent not found | Verify agent name (case-sensitive) |
+| `429` | Rate or concurrency limit | Wait and retry |
+| `502` | Bot server temporarily unavailable | Retry after a few seconds |
+
+<Warning>
+  Never expose your API key in client-side code. Proxy the session start call through your own backend — your backend adds the API key, gets the credentials, and returns `room_url` + `token` to the browser. The WebRTC connection itself requires no API key.
+</Warning>
+
+---
+
+## Connect with vanilla JavaScript
+
+This approach works with any framework — plain JS, Vue, Angular, Svelte, or no framework at all.
+
+### Basic connection
+
+```javascript
+import { PipecatClient, RTVIEvent } from "@pipecat-ai/client-js";
+import { DailyTransport } from "@pipecat-ai/daily-transport";
+
+// Handle bot audio playback
+function handleBotAudio(track, participant) {
+  if (participant.local || track.kind !== "audio") return;
+  const audio = document.createElement("audio");
+  audio.srcObject = new MediaStream([track]);
+  audio.play();
+}
+
+// Create client (once per page)
+const client = new PipecatClient({
+  transport: new DailyTransport(),
+  enableMic: true,
+  enableCam: false,
+  callbacks: {
+    onTrackStarted: handleBotAudio,
+    onBotReady: () => console.log("Agent is ready"),
+  },
+});
+
+// Start session via your backend (which calls Vocobase API)
+const res = await fetch("/api/voice-session", { method: "POST" });
+const session = await res.json();
+
+// Connect to the voice agent
+await client.connect({
+  url: session.room_url,
+  token: session.token,
+});
+```
+
+### Listen to events
+
+```javascript
+// User's speech (transcribed in real time)
+client.on(RTVIEvent.UserTranscript, (data) => {
+  if (!data.final) return; // Only use final transcripts
+  console.log("User:", data.text);
+});
+
+// Agent's response (arrives in TTS chunks — see aggregation below)
+client.on(RTVIEvent.BotTtsText, (data) => {
+  console.log("Agent:", data.text);
+});
+
+// Connection lifecycle
+client.on(RTVIEvent.Connected, () => console.log("Connected"));
+client.on(RTVIEvent.Disconnected, () => console.log("Disconnected"));
+client.on(RTVIEvent.BotReady, () => console.log("Agent ready to talk"));
+
+// Errors
+client.on(RTVIEvent.Error, (message) => {
+  console.error("Error:", message?.data?.message || message);
+});
+```
+
+### End the call
+
+```javascript
+await client.disconnect();
+```
+
+### Microphone controls
+
+```javascript
+// Mute
+client.enableMic(false);
+
+// Unmute
+client.enableMic(true);
+```
+
+### Aggregating bot responses
+
+`RTVIEvent.BotTtsText` fires once per TTS chunk, not once per complete response. To build full agent messages, aggregate chunks until the next user turn:
+
+```javascript
+let currentBotMessage = "";
+
+client.on(RTVIEvent.BotTtsText, (data) => {
+  currentBotMessage += (currentBotMessage ? " " : "") + data.text;
+  updateLastAgentMessage(currentBotMessage);
+});
+
+client.on(RTVIEvent.UserTranscript, (data) => {
+  if (!data.final) return;
+  currentBotMessage = ""; // Reset for next agent turn
+  addUserMessage(data.text);
+});
+```
+
+### Complete HTML example
+
+A self-contained page you can use to test your integration:
+
+```html
+<!DOCTYPE html>
+<html>
+<head><title>Voice Agent Test</title></head>
+<body>
+  <div id="status">Ready</div>
+  <div id="transcript"></div>
+  <button id="startBtn">Start Call</button>
+  <button id="endBtn" disabled>End Call</button>
+
+  <script type="module">
+    import { PipecatClient, RTVIEvent } from "@pipecat-ai/client-js";
+    import { DailyTransport } from "@pipecat-ai/daily-transport";
+
+    const statusEl = document.getElementById("status");
+    const transcriptEl = document.getElementById("transcript");
+    const startBtn = document.getElementById("startBtn");
+    const endBtn = document.getElementById("endBtn");
+
+    function handleBotAudio(track, participant) {
+      if (participant.local || track.kind !== "audio") return;
+      const audio = document.createElement("audio");
+      audio.srcObject = new MediaStream([track]);
+      audio.play();
+    }
+
+    const client = new PipecatClient({
+      transport: new DailyTransport(),
+      enableMic: true,
+      enableCam: false,
+      callbacks: { onTrackStarted: handleBotAudio },
+    });
+
+    let currentBotMsg = "";
+
+    function addMessage(role, text) {
+      const div = document.createElement("div");
+      div.textContent = `${role}: ${text}`;
+      transcriptEl.appendChild(div);
+    }
+
+    client.on(RTVIEvent.UserTranscript, (data) => {
+      if (!data.final) return;
+      currentBotMsg = "";
+      addMessage("You", data.text);
+    });
+
+    client.on(RTVIEvent.BotTtsText, (data) => {
+      currentBotMsg += (currentBotMsg ? " " : "") + data.text;
+      // Update last agent message or add new one
+      const lastDiv = transcriptEl.lastElementChild;
+      if (lastDiv && lastDiv.textContent.startsWith("Agent:")) {
+        lastDiv.textContent = "Agent: " + currentBotMsg;
+      } else {
+        addMessage("Agent", currentBotMsg);
+      }
+    });
+
+    client.on(RTVIEvent.Connected, () => {
+      statusEl.textContent = "Connected";
+      startBtn.disabled = true;
+      endBtn.disabled = false;
+    });
+
+    client.on(RTVIEvent.Disconnected, () => {
+      statusEl.textContent = "Disconnected";
+      startBtn.disabled = false;
+      endBtn.disabled = true;
+    });
+
+    client.on(RTVIEvent.Error, (msg) => {
+      statusEl.textContent = "Error: " + (msg?.data?.message || "Unknown");
+    });
+
+    startBtn.addEventListener("click", async () => {
+      statusEl.textContent = "Connecting...";
+      startBtn.disabled = true;
+
+      try {
+        // Replace with your backend endpoint
+        const res = await fetch("/api/voice-session", { method: "POST" });
+        if (!res.ok) throw new Error(`HTTP ${res.status}`);
+        const session = await res.json();
+
+        await client.connect({
+          url: session.room_url,
+          token: session.token,
+        });
+      } catch (err) {
+        statusEl.textContent = "Error: " + err.message;
+        startBtn.disabled = false;
+      }
+    });
+
+    endBtn.addEventListener("click", async () => {
+      statusEl.textContent = "Disconnecting...";
+      await client.disconnect();
+    });
+  </script>
+</body>
+</html>
+```
+
+---
+
+## Connect with React
+
+The `@pipecat-ai/client-react` package provides `PipecatClientProvider` and `PipecatClientAudio` — a provider for context and a component that automatically handles bot audio playback (replacing the manual `onTrackStarted` approach).
+
+```tsx
+import { useState, useEffect, useCallback } from "react";
+import { PipecatClient, RTVIEvent } from "@pipecat-ai/client-js";
+import { DailyTransport } from "@pipecat-ai/daily-transport";
+import {
+  PipecatClientProvider,
+  PipecatClientAudio,
+} from "@pipecat-ai/client-react";
+
+interface TranscriptEntry {
+  role: "user" | "agent";
+  content: string;
+}
+
+function VoiceChat({ agentName }: { agentName: string }) {
+  const [client, setClient] = useState<PipecatClient | null>(null);
+  const [status, setStatus] = useState<
+    "idle" | "connecting" | "connected" | "error"
+  >("idle");
+  const [transcript, setTranscript] = useState<TranscriptEntry[]>([]);
+  const [error, setError] = useState<string | null>(null);
+  const [isMuted, setIsMuted] = useState(false);
+
+  // Create client once
+  useEffect(() => {
+    const pc = new PipecatClient({
+      transport: new DailyTransport(),
+      enableMic: true,
+      enableCam: false,
+    });
+    setClient(pc);
+    return () => { pc.disconnect().catch(() => {}); };
+  }, []);
+
+  // Subscribe to events
+  useEffect(() => {
+    if (!client) return;
+
+    const onUserTranscript = (data: any) => {
+      if (!data.final) return;
+      setTranscript((prev) => [
+        ...prev,
+        { role: "user", content: data.text },
+      ]);
+    };
+
+    const onBotTtsText = (data: any) => {
+      setTranscript((prev) => {
+        const last = prev[prev.length - 1];
+        if (last?.role === "agent") {
+          return [
+            ...prev.slice(0, -1),
+            { ...last, content: last.content + " " + data.text },
+          ];
+        }
+        return [...prev, { role: "agent", content: data.text }];
+      });
+    };
+
+    const onConnected = () => setStatus("connected");
+    const onDisconnected = () => { setStatus("idle"); setIsMuted(false); };
+    const onError = (msg: any) => {
+      setError(msg?.data?.message || msg?.data?.error || "Connection error");
+      setStatus("error");
+    };
+
+    client.on(RTVIEvent.UserTranscript, onUserTranscript);
+    client.on(RTVIEvent.BotTtsText, onBotTtsText);
+    client.on(RTVIEvent.Connected, onConnected);
+    client.on(RTVIEvent.Disconnected, onDisconnected);
+    client.on(RTVIEvent.Error, onError);
+
+    return () => {
+      client.off(RTVIEvent.UserTranscript, onUserTranscript);
+      client.off(RTVIEvent.BotTtsText, onBotTtsText);
+      client.off(RTVIEvent.Connected, onConnected);
+      client.off(RTVIEvent.Disconnected, onDisconnected);
+      client.off(RTVIEvent.Error, onError);
+    };
+  }, [client]);
+
+  const connect = useCallback(async () => {
+    if (!client || status === "connecting") return;
+    setError(null);
+    setStatus("connecting");
+    setTranscript([]);
+
+    try {
+      // Call YOUR backend, which proxies to Vocobase API
+      const res = await fetch("/api/voice-session", { method: "POST" });
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const session = await res.json();
+
+      await client.connect({
+        url: session.room_url,
+        token: session.token,
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to connect");
+      setStatus("error");
+    }
+  }, [client, status]);
+
+  const disconnect = useCallback(async () => {
+    if (!client) return;
+    await client.disconnect();
+  }, [client]);
+
+  const toggleMute = useCallback(() => {
+    if (!client) return;
+    client.enableMic(isMuted);
+    setIsMuted(!isMuted);
+  }, [client, isMuted]);
+
+  if (!client) return null;
+
+  return (
+    <PipecatClientProvider client={client}>
+      <div>
+        <p>Status: {status}</p>
+        {error && <p style={{ color: "red" }}>{error}</p>}
+
+        {transcript.map((entry, i) => (
+          <div key={i}>
+            <strong>{entry.role === "user" ? "You" : "Agent"}:</strong>{" "}
+            {entry.content}
+          </div>
+        ))}
+
+        {status === "connected" ? (
+          <>
+            <button onClick={toggleMute}>
+              {isMuted ? "Unmute" : "Mute"}
+            </button>
+            <button onClick={disconnect}>End Call</button>
+          </>
+        ) : (
+          <button
+            onClick={connect}
+            disabled={status === "connecting"}
+          >
+            {status === "connecting" ? "Connecting..." : "Start Call"}
+          </button>
+        )}
+
+        {/* Handles bot audio playback automatically */}
+        {status === "connected" && <PipecatClientAudio />}
+      </div>
+    </PipecatClientProvider>
+  );
+}
+
+export default function App() {
+  return <VoiceChat agentName="my-agent" />;
+}
+```
+
+<Tip>
+  `PipecatClientAudio` renders a hidden `&lt;audio&gt;` element that plays the agent's voice. Mount it when connected — it replaces the manual `onTrackStarted` callback used in the vanilla JS approach.
+</Tip>
+
+---
+
+## Events reference
+
+| Event | Payload | Description |
+|-------|---------|-------------|
+| `RTVIEvent.Connected` | — | WebRTC connection established |
+| `RTVIEvent.Disconnected` | — | Connection closed |
+| `RTVIEvent.BotReady` | — | Agent initialized and ready to talk |
+| `RTVIEvent.UserTranscript` | `{ text, final }` | User's speech transcribed. Only use entries where `final` is `true`. |
+| `RTVIEvent.BotTtsText` | `{ text }` | Agent's response text. Arrives in chunks — aggregate them per turn. |
+| `RTVIEvent.TransportStateChanged` | `state: string` | Low-level transport state changes |
+| `RTVIEvent.Error` | `{ data: { message, error } }` | Connection or runtime error |
+
+---
+
+## Backend proxy example
+
+Your backend should proxy the session start call to keep the API key server-side.
+
+<CodeGroup>
+```javascript Express.js
+const express = require("express");
+const app = express();
+
+app.post("/api/voice-session", async (req, res) => {
+  try {
+    const response = await fetch(
+      "https://api.vocobase.com/api/sessions/start",
+      {
+        method: "POST",
+        headers: {
+          "Authorization": `Bearer ${process.env.VOCOBASE_API_KEY}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ agent_name: "my-agent" }),
+      }
+    );
+
+    if (!response.ok) {
+      const err = await response.json();
+      return res.status(response.status).json(err);
+    }
+
+    const session = await response.json();
+    res.json(session);
+  } catch (err) {
+    res.status(500).json({ error: "Failed to start voice session" });
+  }
+});
+```
+
+```python FastAPI
+from fastapi import FastAPI, HTTPException
+import httpx
+import os
+
+app = FastAPI()
+
+@app.post("/api/voice-session")
+async def start_voice_session():
+    async with httpx.AsyncClient() as client:
+        response = await client.post(
+            "https://api.vocobase.com/api/sessions/start",
+            headers={
+                "Authorization": f"Bearer {os.environ['VOCOBASE_API_KEY']}",
+                "Content-Type": "application/json",
+            },
+            json={"agent_name": "my-agent"},
+        )
+
+    if response.status_code != 200:
+        raise HTTPException(
+            status_code=response.status_code,
+            detail=response.json(),
+        )
+
+    return response.json()
+```
+</CodeGroup>
+
+---
+
+## Get session details
+
+After a session ends, you can retrieve its transcript, duration, and credit usage.
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.vocobase.com/api/sessions/SESSION_ID \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  `https://api.vocobase.com/api/sessions/${sessionId}`,
+  {
+    headers: {
+      "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+    },
+  }
+);
+const session = await response.json();
+```
+</CodeGroup>
+
+```json
+{
+  "id": "550e8400-e29b-41d4-a716-446655440000",
+  "status": "COMPLETED",
+  "durationSecs": 45,
+  "creditsUsed": 0.75,
+  "transcript": {
+    "messages": [
+      { "role": "user", "content": "Hello" },
+      { "role": "assistant", "content": "Hi! How can I help you today?" }
+    ]
+  },
+  "startedAt": "2025-01-15T10:30:00Z",
+  "endedAt": "2025-01-15T10:30:45Z"
+}
+```
+
+---
+
+## Billing
+
+Voice sessions are billed at **1 credit per 60 seconds**, pro-rata by the second. Credits are deducted after the session ends.
+
+See [Credits & Billing](/credits) for full details.
+
+---
+
+## Rate limits
+
+| Limit | Value |
+|-------|-------|
+| Session starts | **10 per minute** per API key |
+| Concurrent sessions | Configurable per key (default: **5**) |
+
+Rate limit headers are included on all responses: `X-RateLimit-Limit`, `X-RateLimit-Remaining`, `X-RateLimit-Reset`, and `Retry-After` (on 429).
+
+See [Authentication](/authentication) for full rate limit details.
+
+---
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| No audio from agent | **Vanilla JS:** Ensure `onTrackStarted` creates an `<audio>` element and calls `.play()`. **React:** Ensure `<PipecatClientAudio />` is mounted when connected. Browsers may block autoplay — always connect via a user gesture (button click). |
+| Microphone not working | Check `navigator.mediaDevices.getUserMedia` permission. HTTPS is required in production. |
+| Connection drops immediately | Verify `room_url` and `token` from the API are passed correctly to `client.connect()`. Tokens are single-use. |
+| Multiple audio elements | In vanilla JS, track the `<audio>` element and remove the old one before creating a new one in `onTrackStarted`. |
+| `enableCam: false` but camera prompt | The WebRTC transport layer may request camera access internally. Setting `enableCam: false` ensures the camera is never activated. |
+
+<Note>
+  HTTPS is required for microphone access in all browsers except `localhost`. Your production deployment must use HTTPS.
+</Note>
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Credits & Billing" icon="coins" href="/credits">
+    Understand how voice sessions consume credits.
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    API key format, rate limits, and error codes.
+  </Card>
+  <Card title="Webhook Payloads" icon="webhook" href="/webhooks/payloads">
+    Receive session.completed events with transcripts and duration.
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Create an agent and make your first call.
+  </Card>
+</CardGroup>
