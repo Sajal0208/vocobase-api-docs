@@ -24,7 +24,7 @@
       },
       {
         "group": "Guides",
-        "pages": ["web-voice-testing", "knowledge-base", "credits", "inbound-calls"]
+        "pages": ["web-voice-testing", "custom-functions", "knowledge-base", "credits", "inbound-calls"]
       },
       {
         "group": "Partner Onboarding",
@@ -43,7 +43,7 @@
       },
       {
         "group": "Telephony",
-        "pages": ["telephony/twilio-setup", "telephony/mcube-setup"]
+        "pages": ["telephony/byop-setup", "telephony/twilio-setup", "telephony/mcube-setup"]
       }
     ]
   },
