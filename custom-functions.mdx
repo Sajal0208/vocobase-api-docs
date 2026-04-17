@@ -1,0 +1,434 @@
+---
+title: "Custom Functions"
+description: "Give your voice agents the ability to call external APIs during conversations"
+---
+
+# Custom Functions
+
+Custom functions let your voice agents call external HTTP endpoints mid-conversation. When the agent determines it needs to perform an action — check the weather, book an appointment, look up an order — it invokes a function you've defined, waits for the response, and continues the conversation with that data.
+
+## How it works
+
+1. You define a function with a **name**, **description**, **URL**, and **input/output schema**
+2. You assign it to an agent
+3. During a voice call, the agent's LLM reads the description and decides when to call it
+4. The bot sends a `POST` request to your URL with the input parameters
+5. Your endpoint responds with data
+6. The agent uses that data to continue the conversation
+
+```
+User: "What's the weather in Mumbai?"
+    ↓
+Agent LLM decides to call `get_weather` function
+    ↓
+Bot says: "Checking the weather..." (random startedMessage)
+    ↓
+POST https://your-api.com/weather
+Body: { "city": "Mumbai" }
+    ↓
+Response: { "temperature": 32, "condition": "Sunny" }
+    ↓
+Agent: "It's currently 32 degrees and sunny in Mumbai!"
+```
+
+---
+
+## Create a function
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.vocobase.com/api/functions \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "get_weather",
+    "description": "Retrieve current weather for a city. Call this when the user asks about weather conditions.",
+    "url": "https://api.weather.com/v1/current",
+    "headers": [
+      { "key": "Authorization", "value": "Bearer weather_api_key_here" }
+    ],
+    "inputSchema": [
+      {
+        "name": "city",
+        "type": "string",
+        "description": "City name",
+        "required": true
+      }
+    ],
+    "outputSchema": [
+      {
+        "name": "temperature",
+        "type": "number",
+        "description": "Temperature in Celsius",
+        "required": true
+      },
+      {
+        "name": "condition",
+        "type": "string",
+        "description": "Weather condition (e.g., Sunny, Rainy)",
+        "required": true
+      }
+    ],
+    "timeout": 10,
+    "startedMessages": ["Checking the weather...", "Let me look that up..."],
+    "errorMessage": "Sorry, I couldn't get the weather right now."
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch("https://api.vocobase.com/api/functions", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    name: "get_weather",
+    description: "Retrieve current weather for a city. Call this when the user asks about weather conditions.",
+    url: "https://api.weather.com/v1/current",
+    headers: [
+      { key: "Authorization", value: "Bearer weather_api_key_here" }
+    ],
+    inputSchema: [
+      { name: "city", type: "string", description: "City name", required: true }
+    ],
+    outputSchema: [
+      { name: "temperature", type: "number", description: "Temperature in Celsius", required: true },
+      { name: "condition", type: "string", description: "Weather condition", required: true }
+    ],
+    timeout: 10,
+    startedMessages: ["Checking the weather...", "Let me look that up..."],
+    errorMessage: "Sorry, I couldn't get the weather right now.",
+  }),
+});
+const func = await response.json();
+console.log(func.id); // Save this function ID
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://api.vocobase.com/api/functions",
+    headers={
+        "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+        "Content-Type": "application/json",
+    },
+    json={
+        "name": "get_weather",
+        "description": "Retrieve current weather for a city. Call this when the user asks about weather conditions.",
+        "url": "https://api.weather.com/v1/current",
+        "headers": [
+            {"key": "Authorization", "value": "Bearer weather_api_key_here"}
+        ],
+        "inputSchema": [
+            {"name": "city", "type": "string", "description": "City name", "required": True}
+        ],
+        "outputSchema": [
+            {"name": "temperature", "type": "number", "description": "Temperature in Celsius", "required": True},
+            {"name": "condition", "type": "string", "description": "Weather condition", "required": True}
+        ],
+        "timeout": 10,
+        "startedMessages": ["Checking the weather...", "Let me look that up..."],
+        "errorMessage": "Sorry, I couldn't get the weather right now.",
+    },
+)
+func = response.json()
+```
+</CodeGroup>
+
+```json
+{
+  "id": "f1234567-abcd-1234-abcd-123456789012",
+  "name": "get_weather",
+  "description": "Retrieve current weather for a city...",
+  "method": "POST",
+  "url": "https://api.weather.com/v1/current",
+  "hasHeaders": true,
+  "inputSchema": [...],
+  "outputSchema": [...],
+  "timeout": 10,
+  "startedMessages": ["Checking the weather...", "Let me look that up..."],
+  "errorMessage": "Sorry, I couldn't get the weather right now.",
+  "agentId": null,
+  "createdAt": "2026-04-16T10:30:00Z"
+}
+```
+
+---
+
+## Function fields
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `name` | string | Yes | Unique identifier. 1–50 chars, `snake_case` only (lowercase, numbers, underscores). Must start with a letter. |
+| `description` | string | Yes | 1–500 chars. **This is critical** — the LLM reads this to decide when to call the function. Be specific about when it should be used. |
+| `url` | string | Yes | HTTPS endpoint the bot will `POST` to. 1–2000 chars. `localhost` and private IPs are blocked in production. |
+| `headers` | array | No | Up to 10 headers. Each: `{ key: string (1–100 chars), value: string (1–2000 chars) }`. Values are **encrypted at rest**. |
+| `inputSchema` | array | No | Up to 100 fields. Describes what the bot sends in the request body. See [Schema fields](#schema-fields). |
+| `outputSchema` | array | No | Up to 100 fields. Describes the expected response structure. Helps the LLM interpret your API's response. |
+| `timeout` | number | No | 1–60 seconds. Default: 30. How long the bot waits for your endpoint to respond. |
+| `startedMessages` | array | No | Up to 5 strings (1–200 chars each). Bot picks one at random to say while the function executes. E.g., `["Looking that up..."]` |
+| `errorMessage` | string | No | Max 500 chars. What the bot says if the function fails. Default: `"Sorry, I couldn't complete that request. Please try again."` |
+
+### Schema fields
+
+Each entry in `inputSchema` or `outputSchema`:
+
+```json
+{
+  "name": "city",
+  "type": "string",
+  "description": "City name to look up",
+  "required": true
+}
+```
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | string | Field name |
+| `type` | string | `string`, `number`, `boolean`, `string[]`, `number[]`, or `custom` |
+| `description` | string | Helps the LLM understand what to pass or expect |
+| `required` | boolean | Whether the field is mandatory |
+| `jsonSchema` | object | Required when `type` is `custom`. A JSON Schema object for complex types. |
+
+<Warning>
+  The `description` field on the function is the most important part. The LLM uses it to decide **when** to call the function. A vague description means the agent won't know when to use it. Be explicit: "Call this when the user asks about order status" is better than "Get order info".
+</Warning>
+
+---
+
+## Reserved function names
+
+These names are used by built-in integrations and cannot be used:
+
+`knowledge_base_search`, `calendar_create_event`, `calendar_list_events`, `calendar_update_event`, `calendar_delete_event`, `gmail_send_email`, `gmail_search_emails`, `slack_send_message`, `slack_list_channels`, `add_to_cart`, `view_cart`, `clear_cart`, `checkout`
+
+---
+
+## Assign a function to an agent
+
+After creating a function, assign it to one or more agents:
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.vocobase.com/api/agents/AGENT_ID/functions/assign \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{ "functionId": "f1234567-abcd-1234-abcd-123456789012" }'
+```
+
+```javascript JavaScript
+await fetch(`https://api.vocobase.com/api/agents/${agentId}/functions/assign`, {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({ functionId: "f1234567-abcd-1234-abcd-123456789012" }),
+});
+```
+</CodeGroup>
+
+### Enable or disable a function for an agent
+
+```bash
+curl -X PATCH https://api.vocobase.com/api/agents/AGENT_ID/functions/assign/FUNCTION_ID \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{ "enabled": false }'
+```
+
+### Unassign a function from an agent
+
+```bash
+curl -X DELETE https://api.vocobase.com/api/agents/AGENT_ID/functions/assign/FUNCTION_ID \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+---
+
+## Agent-only functions
+
+You can also create functions scoped to a single agent. These are automatically enabled and cannot be assigned to other agents.
+
+```bash
+curl -X POST https://api.vocobase.com/api/agents/AGENT_ID/functions \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "check_order_status",
+    "description": "Look up the status of a customer order by order ID",
+    "url": "https://your-api.com/orders/status",
+    "inputSchema": [
+      { "name": "order_id", "type": "string", "description": "Order ID", "required": true }
+    ],
+    "timeout": 10
+  }'
+```
+
+---
+
+## List functions for an agent
+
+See all functions available to an agent — both agent-only and assigned user-level:
+
+```bash
+curl -X GET https://api.vocobase.com/api/agents/AGENT_ID/functions \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "agentOnly": [
+    {
+      "id": "func_uuid",
+      "name": "check_order_status",
+      "description": "Look up the status of a customer order",
+      "url": "https://your-api.com/orders/status",
+      "hasHeaders": false,
+      "inputSchema": [...],
+      "timeout": 10,
+      "createdAt": "2026-04-16T10:30:00Z"
+    }
+  ],
+  "assigned": [
+    {
+      "id": "func_uuid",
+      "name": "get_weather",
+      "description": "Get weather for a city",
+      "url": "https://api.weather.com/v1/current",
+      "enabled": true,
+      "assignmentId": "assignment_uuid"
+    }
+  ],
+  "limits": {
+    "agentOnlyUsed": 1,
+    "agentOnlyMax": 3
+  }
+}
+```
+
+---
+
+## Function limits
+
+| Plan | User-level functions | Per-agent functions |
+|------|---------------------|-------------------|
+| Basic | 5 | 3 |
+| Pro | 20 | 10 |
+| Enterprise | 1000 | 100 |
+
+Check your current usage:
+
+```bash
+curl -X GET https://api.vocobase.com/api/functions/limits \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "userLevel": 5,
+  "perAgent": 3,
+  "currentUserCount": 2
+}
+```
+
+---
+
+## Manage functions
+
+### List all your functions
+
+```bash
+curl -X GET https://api.vocobase.com/api/functions \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+### Update a function
+
+```bash
+curl -X PUT https://api.vocobase.com/api/functions/FUNCTION_ID \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "description": "Updated description for better LLM invocation",
+    "timeout": 15
+  }'
+```
+
+All fields are optional — only provided fields are updated.
+
+### Delete a function
+
+```bash
+curl -X DELETE https://api.vocobase.com/api/functions/FUNCTION_ID \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+<Note>
+  Functions are soft-deleted. Deleting a function automatically removes it from all agents.
+</Note>
+
+---
+
+## Building your function endpoint
+
+Your endpoint receives a `POST` request from the bot with the input fields in the body:
+
+```json
+{
+  "city": "Mumbai"
+}
+```
+
+Respond with a JSON object matching your `outputSchema`:
+
+```json
+{
+  "temperature": 32,
+  "condition": "Sunny"
+}
+```
+
+**Requirements:**
+- Must respond within the configured `timeout` (default 30 seconds)
+- Must return valid JSON
+- Must return a `2xx` status code
+- HTTPS required in production (HTTP allowed for local development)
+
+If your endpoint fails (timeout, non-2xx, invalid JSON), the bot will say the `errorMessage` and continue the conversation.
+
+---
+
+## Error responses
+
+| Status | Cause |
+|--------|-------|
+| `400` | Validation error — name format, URL format, schema too large, etc. |
+| `403` | Function limit reached for your plan |
+| `404` | Function or agent not found |
+| `409` | A function with this name already exists |
+
+---
+
+## Tips
+
+<Tip>
+  **Write clear descriptions.** The description is the #1 factor in whether the agent calls the function at the right time. Include specific trigger phrases: "Call this when the user asks about their order status or delivery date."
+</Tip>
+
+- **Keep timeouts short.** Users are waiting in real-time. A 10-second timeout feels like an eternity in a voice conversation.
+- **Use `startedMessages`.** They fill the silence while your endpoint processes. Without them, there's dead air.
+- **Test with the voice sandbox.** Create the function, assign it to an agent, then test it in the dashboard's voice sandbox to verify the agent invokes it correctly.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Create an agent to attach functions to.
+  </Card>
+  <Card title="Knowledge Base" icon="book" href="/knowledge-base">
+    Give your agent document context alongside custom functions.
+  </Card>
+</CardGroup>

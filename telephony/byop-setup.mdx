@@ -1,0 +1,588 @@
+---
+title: "Bring Your Own Phone"
+description: "Connect your own Twilio or Exotel account to make outbound calls with your voice agents"
+---
+
+# Bring Your Own Phone (BYOP)
+
+Connect your own Twilio or Exotel account to Vocobase and make outbound calls using your phone numbers. This gives you full control over your telephony — your account, your numbers, your billing with the provider.
+
+## How it works
+
+1. **Connect** your Twilio or Exotel account (credentials are encrypted at rest)
+2. **Import** phone numbers from your provider account
+3. **Make calls** — Vocobase routes the call through your provider and connects your voice agent
+
+```
+Your App                    Vocobase                     Twilio/Exotel
+  |                            |                              |
+  |  POST /calls/start         |                              |
+  |  { agent, toNumber }       |                              |
+  | -------------------------> |                              |
+  |                            |  Initiate call via provider  |
+  |                            | ----------------------------> |
+  |                            |                              |  Dials customer
+  |                            |                              |  ...
+  |                            |  Customer answers             |
+  |                            | <---------------------------- |
+  |                            |                              |
+  |                            |  Connect voice agent (WebRTC) |
+  |                            | <==== real-time conversation ===>
+  |                            |                              |
+  |  Call completed            |  Credits deducted            |
+  | <------------------------- |                              |
+```
+
+---
+
+## Prerequisites
+
+- A Vocobase account with **approved partner status** and the **Telephony** feature enabled
+- A Twilio or Exotel account with at least one phone number
+
+---
+
+## Step 1: Create a connection
+
+<Tabs>
+  <Tab title="Twilio">
+    You'll need your **Account SID** and **Auth Token** from the [Twilio Console](https://console.twilio.com).
+
+    <CodeGroup>
+    ```bash cURL
+    curl -X POST https://api.vocobase.com/api/telephony/connections \
+      -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "provider": "TWILIO",
+        "name": "Production Twilio",
+        "accountSid": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        "authToken": "your_auth_token_here",
+        "sipDomain": "mycompany.sip.twilio.com"
+      }'
+    ```
+
+    ```javascript JavaScript
+    const response = await fetch("https://api.vocobase.com/api/telephony/connections", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        provider: "TWILIO",
+        name: "Production Twilio",
+        accountSid: "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+        authToken: "your_auth_token_here",
+        sipDomain: "mycompany.sip.twilio.com",
+      }),
+    });
+    const connection = await response.json();
+    ```
+
+    ```python Python
+    import requests
+
+    response = requests.post(
+        "https://api.vocobase.com/api/telephony/connections",
+        headers={
+            "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+            "Content-Type": "application/json",
+        },
+        json={
+            "provider": "TWILIO",
+            "name": "Production Twilio",
+            "accountSid": "ACxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+            "authToken": "your_auth_token_here",
+            "sipDomain": "mycompany.sip.twilio.com",
+        },
+    )
+    connection = response.json()
+    ```
+    </CodeGroup>
+
+    | Field | Required | Description |
+    |-------|----------|-------------|
+    | `provider` | Yes | `"TWILIO"` |
+    | `name` | Yes | Friendly name (1–100 chars) |
+    | `accountSid` | Yes | Your Twilio Account SID |
+    | `authToken` | Yes | Your Twilio Auth Token |
+    | `sipDomain` | No | SIP domain for legacy dial-out (e.g., `mycompany.sip.twilio.com`) |
+  </Tab>
+
+  <Tab title="Exotel">
+    You'll need your **Account SID**, **API Key**, **API Token**, and **Subdomain** from the [Exotel Dashboard](https://my.exotel.com).
+
+    <CodeGroup>
+    ```bash cURL
+    curl -X POST https://api.vocobase.com/api/telephony/connections \
+      -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "provider": "EXOTEL",
+        "name": "India Campaigns",
+        "accountSid": "your_account_sid",
+        "authToken": "your_auth_token",
+        "exotelApiKey": "your_api_key",
+        "exotelSubdomain": "api.exotel.com",
+        "exotelCallerId": "+919876543210"
+      }'
+    ```
+
+    ```javascript JavaScript
+    const response = await fetch("https://api.vocobase.com/api/telephony/connections", {
+      method: "POST",
+      headers: {
+        "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        provider: "EXOTEL",
+        name: "India Campaigns",
+        accountSid: "your_account_sid",
+        authToken: "your_auth_token",
+        exotelApiKey: "your_api_key",
+        exotelSubdomain: "api.exotel.com",
+        exotelCallerId: "+919876543210",
+      }),
+    });
+    const connection = await response.json();
+    ```
+    </CodeGroup>
+
+    | Field | Required | Description |
+    |-------|----------|-------------|
+    | `provider` | Yes | `"EXOTEL"` |
+    | `name` | Yes | Friendly name (1–100 chars) |
+    | `accountSid` | Yes | Your Exotel Account SID |
+    | `authToken` | Yes | Your Exotel Auth Token |
+    | `exotelApiKey` | Yes | Your Exotel API Key |
+    | `exotelSubdomain` | Yes | API subdomain (e.g., `api.exotel.com`) |
+    | `exotelCallerId` | No | Caller ID for outbound calls |
+  </Tab>
+</Tabs>
+
+Credentials are **verified automatically** when you create the connection. If verification fails, the request returns an error and nothing is stored.
+
+**Response:**
+
+```json
+{
+  "id": "conn_1234-abcd-5678",
+  "provider": "TWILIO",
+  "name": "Production Twilio",
+  "sipDomain": "mycompany.sip.twilio.com",
+  "status": "ACTIVE",
+  "createdAt": "2026-04-16T10:30:00Z"
+}
+```
+
+<Warning>
+  Credentials are encrypted at rest and never returned in API responses. Store your credentials securely — you'll need them again if you update the connection.
+</Warning>
+
+---
+
+## Step 2: Import phone numbers
+
+### List available numbers from your provider
+
+```bash
+curl -X GET https://api.vocobase.com/api/telephony/connections/CONNECTION_ID/phone-numbers/available \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+[
+  {
+    "sid": "PNxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+    "phoneNumber": "+14155551234",
+    "friendlyName": "Main Line",
+    "capabilities": { "voice": true, "sms": true, "mms": false }
+  },
+  {
+    "sid": "PNyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyyy",
+    "phoneNumber": "+14155555678",
+    "friendlyName": "Sales",
+    "capabilities": { "voice": true, "sms": false, "mms": false }
+  }
+]
+```
+
+### Import selected numbers
+
+```bash
+curl -X POST https://api.vocobase.com/api/telephony/connections/CONNECTION_ID/phone-numbers/import \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "phoneNumbers": [
+      {
+        "phoneNumber": "+14155551234",
+        "friendlyName": "Main Line",
+        "capabilities": { "voice": true, "sms": true, "mms": false }
+      }
+    ]
+  }'
+```
+
+```json
+[
+  {
+    "id": "pn_abc123",
+    "phoneNumber": "+14155551234",
+    "friendlyName": "Main Line",
+    "capabilities": { "voice": true, "sms": true, "mms": false },
+    "status": "ACTIVE",
+    "createdAt": "2026-04-16T10:35:00Z"
+  }
+]
+```
+
+Phone numbers must be in E.164 format (e.g., `+14155551234`, `+919876543210`).
+
+---
+
+## Step 3: Make a call
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.vocobase.com/api/telephony/calls/start \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "telephonyConnectionId": "conn_1234-abcd-5678",
+    "phoneNumberId": "pn_abc123",
+    "agentId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "toNumber": "+919876543210"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch("https://api.vocobase.com/api/telephony/calls/start", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    telephonyConnectionId: "conn_1234-abcd-5678",
+    phoneNumberId: "pn_abc123",
+    agentId: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    toNumber: "+919876543210",
+  }),
+});
+const result = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://api.vocobase.com/api/telephony/calls/start",
+    headers={
+        "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+        "Content-Type": "application/json",
+    },
+    json={
+        "telephonyConnectionId": "conn_1234-abcd-5678",
+        "phoneNumberId": "pn_abc123",
+        "agentId": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "toNumber": "+919876543210",
+    },
+)
+result = response.json()
+```
+</CodeGroup>
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `telephonyConnectionId` | Yes | Connection ID from Step 1 |
+| `phoneNumberId` | Yes | Imported phone number ID from Step 2 |
+| `agentId` | Yes | Agent to run on this call |
+| `toNumber` | Yes | Destination number (E.164 format) |
+
+**Response:**
+
+```json
+{
+  "phoneCall": {
+    "id": "call_xyz789",
+    "sessionId": "s1234567-abcd-1234-abcd-123456789012",
+    "status": "RINGING"
+  }
+}
+```
+
+The call is placed asynchronously. The customer's phone rings, and when they answer, the voice agent takes over the conversation.
+
+---
+
+## Call lifecycle
+
+```
+PENDING → RINGING → IN_PROGRESS → COMPLETED
+                                 → FAILED
+                  → NO_ANSWER
+                  → BUSY
+         → CANCELED (user canceled)
+```
+
+| Status | Description |
+|--------|-------------|
+| `PENDING` | Call created, waiting for provider |
+| `RINGING` | Provider is dialing the customer |
+| `IN_PROGRESS` | Customer answered, agent is talking |
+| `COMPLETED` | Call ended normally |
+| `FAILED` | Error during the call |
+| `NO_ANSWER` | Customer didn't pick up |
+| `BUSY` | Customer's line was busy |
+| `CANCELED` | You canceled the call before it was answered |
+
+---
+
+## Get call details
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.vocobase.com/api/telephony/calls/CALL_ID \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```javascript JavaScript
+const response = await fetch(
+  `https://api.vocobase.com/api/telephony/calls/${callId}`,
+  { headers: { "Authorization": "Bearer rg_live_abc123def456ghi789jkl012" } }
+);
+const call = await response.json();
+```
+</CodeGroup>
+
+```json
+{
+  "id": "call_xyz789",
+  "direction": "OUTBOUND",
+  "fromNumber": "+14155551234",
+  "toNumber": "+919876543210",
+  "status": "COMPLETED",
+  "durationSecs": 245,
+  "summary": "Customer asked about their order. Agent confirmed delivery date.",
+  "startedAt": "2026-04-16T10:30:00Z",
+  "answeredAt": "2026-04-16T10:30:05Z",
+  "endedAt": "2026-04-16T10:34:10Z",
+  "agent": {
+    "id": "a1b2c3d4-...",
+    "name": "Customer Support"
+  },
+  "session": {
+    "id": "s1234567-...",
+    "status": "COMPLETED",
+    "durationSecs": 245,
+    "creditsUsed": 4.08,
+    "transcript": {
+      "messages": [
+        { "role": "assistant", "content": "Hello! How can I help you today?" },
+        { "role": "user", "content": "Where is my order?" },
+        { "role": "assistant", "content": "Let me check that for you..." }
+      ]
+    }
+  }
+}
+```
+
+---
+
+## List calls
+
+```bash
+curl -X GET "https://api.vocobase.com/api/telephony/calls?limit=20&offset=0" \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "calls": [...],
+  "total": 42,
+  "limit": 20,
+  "offset": 0
+}
+```
+
+| Parameter | Default | Description |
+|-----------|---------|-------------|
+| `limit` | 50 | Results per page (max 100) |
+| `offset` | 0 | Pagination offset |
+
+---
+
+## Cancel a call
+
+Cancel a call that is still `PENDING` or `RINGING` (before the customer answers):
+
+```bash
+curl -X POST https://api.vocobase.com/api/telephony/calls/CALL_ID/cancel \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{ "success": true }
+```
+
+<Note>
+  Once a call is `IN_PROGRESS`, it cannot be canceled through the API. The agent will handle the conversation until one side hangs up.
+</Note>
+
+---
+
+## Manage connections
+
+### List connections
+
+```bash
+curl -X GET https://api.vocobase.com/api/telephony/connections \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+### Update credentials
+
+```bash
+curl -X PUT https://api.vocobase.com/api/telephony/connections/CONNECTION_ID \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Updated Name",
+    "authToken": "new_auth_token_here"
+  }'
+```
+
+If credentials are updated, they're re-verified before storing.
+
+### Verify credentials
+
+Check if stored credentials are still valid:
+
+```bash
+curl -X POST https://api.vocobase.com/api/telephony/connections/CONNECTION_ID/verify \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "valid": true,
+  "lastVerifiedAt": "2026-04-16T10:30:00Z",
+  "errorMessage": null
+}
+```
+
+### Delete a connection
+
+```bash
+curl -X DELETE https://api.vocobase.com/api/telephony/connections/CONNECTION_ID \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+Returns `204 No Content`. Associated phone numbers are automatically deleted.
+
+---
+
+## Manage phone numbers
+
+### List imported numbers
+
+```bash
+curl -X GET https://api.vocobase.com/api/telephony/connections/CONNECTION_ID/phone-numbers \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+### Update a phone number
+
+```bash
+curl -X PUT https://api.vocobase.com/api/telephony/phone-numbers/PHONE_NUMBER_ID \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{ "friendlyName": "Sales Line", "status": "INACTIVE" }'
+```
+
+### Delete a phone number
+
+```bash
+curl -X DELETE https://api.vocobase.com/api/telephony/phone-numbers/PHONE_NUMBER_ID \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+Returns `204 No Content`. Can be re-imported later.
+
+---
+
+## Rate limits
+
+| Limit | Value |
+|-------|-------|
+| Call starts | **10 per minute** per user |
+| Concurrent calls | **5 active calls** (PENDING + RINGING + IN_PROGRESS) |
+
+Exceeding either limit returns `429 Too Many Requests`.
+
+---
+
+## Connection statuses
+
+| Status | Meaning |
+|--------|---------|
+| `ACTIVE` | Credentials verified, ready to make calls |
+| `INVALID_CREDENTIALS` | Credentials failed verification |
+| `DISCONNECTED` | Connection manually disconnected |
+
+---
+
+## Billing
+
+Calls are billed at the standard voice rate: **1 credit per 60 seconds**, pro-rata. Credits are deducted after the call ends.
+
+Calls that fail to connect (`NO_ANSWER`, `BUSY`, `FAILED` before the customer answers) do not consume credits.
+
+Your telephony provider (Twilio/Exotel) bills you separately for phone usage.
+
+See [Credits & Billing](/credits) for full details.
+
+---
+
+## Error responses
+
+| Status | Cause |
+|--------|-------|
+| `400` | Invalid input, phone number format, or credentials failed verification |
+| `401` | Missing or invalid authentication |
+| `403` | Partner account not approved, or provider not enabled for your account |
+| `404` | Connection, phone number, agent, or call not found |
+| `429` | Rate limit or concurrent call limit exceeded |
+
+---
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| "Credential verification failed" | Double-check Account SID and Auth Token in your provider's dashboard. Ensure the account is active. |
+| "Provider not allowed" | Contact Vocobase to enable Twilio or Exotel for your partner account. |
+| No available phone numbers | Ensure your provider account has purchased phone numbers with voice capability. |
+| Calls stuck in RINGING | The customer may not be answering. Use `POST /calls/:id/cancel` to cancel, or wait for the provider's no-answer timeout. |
+| "Insufficient credits" | Top up Vocobase credits. This is separate from your Twilio/Exotel balance. |
+| "SIP domain not configured" | If using SIP mode, add `sipDomain` when creating the Twilio connection. |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Twilio Setup (Partner)" icon="phone" href="/telephony/twilio-setup">
+    Partner-level Twilio configuration (managed by Vocobase).
+  </Card>
+  <Card title="MCube Setup (Partner)" icon="phone" href="/telephony/mcube-setup">
+    Partner-level MCube configuration (managed by Vocobase).
+  </Card>
+  <Card title="Credits & Billing" icon="coins" href="/credits">
+    Understand how calls consume credits.
+  </Card>
+  <Card title="Custom Functions" icon="code" href="/custom-functions">
+    Give your agents API superpowers during calls.
+  </Card>
+</CardGroup>
