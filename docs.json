@@ -43,7 +43,7 @@
       },
       {
         "group": "Telephony",
-        "pages": ["telephony/byop-setup", "telephony/twilio-setup", "telephony/mcube-setup"]
+        "pages": ["telephony/byop-setup", "telephony/twilio-setup", "telephony/mcube-setup", "telephony/exotel-setup"]
       }
     ]
   },

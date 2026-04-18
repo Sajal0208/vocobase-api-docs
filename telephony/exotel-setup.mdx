@@ -1,0 +1,207 @@
+---
+title: "Exotel Setup"
+description: "Configure Exotel for outbound voice calls"
+---
+
+# Exotel Setup
+
+Connect your Exotel account to make outbound calls through the Vocobase platform. Exotel is popular in India and supports local and toll-free numbers.
+
+<Note>
+  Exotel telephony must be enabled for your partner account by the Vocobase team before you can configure it. Check your `allowed_telephony_providers` in the [config endpoint](/authentication) to verify.
+</Note>
+
+## Prerequisites
+
+- A Vocobase account with **approved partner status**
+- Exotel enabled in your `allowed_telephony_providers`
+- An [Exotel](https://exotel.com) account with:
+  - Account SID
+  - API Key and API Token
+  - A configured Voicebot applet
+  - At least one caller ID (phone number)
+
+## Get your Exotel credentials
+
+1. Log in to the [Exotel Dashboard](https://my.exotel.com)
+2. Navigate to **Settings > API Settings**
+3. Note your **Account SID**, **API Key**, and **API Token**
+4. Note your **Subdomain** (e.g., `api.exotel.com` or your custom subdomain)
+5. Navigate to **Phone Numbers** and note your **Caller ID** (the number calls will originate from)
+6. Navigate to **App Bazaar > Voicebot** and note your **Applet ID**
+
+## Configure via API
+
+<CodeGroup>
+```bash cURL
+curl -X PUT https://api.vocobase.com/api/v2/config/telephony/exotel \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "account_sid": "your_exotel_sid",
+    "api_key": "your_api_key",
+    "api_token": "your_api_token",
+    "subdomain": "api.exotel.com",
+    "caller_id": "+919876543210",
+    "applet_id": "your_applet_id"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch("https://api.vocobase.com/api/v2/config/telephony/exotel", {
+  method: "PUT",
+  headers: {
+    "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    account_sid: "your_exotel_sid",
+    api_key: "your_api_key",
+    api_token: "your_api_token",
+    subdomain: "api.exotel.com",
+    caller_id: "+919876543210",
+    applet_id: "your_applet_id",
+  }),
+});
+```
+
+```python Python
+import requests
+
+response = requests.put(
+    "https://api.vocobase.com/api/v2/config/telephony/exotel",
+    headers={
+        "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+        "Content-Type": "application/json",
+    },
+    json={
+        "account_sid": "your_exotel_sid",
+        "api_key": "your_api_key",
+        "api_token": "your_api_token",
+        "subdomain": "api.exotel.com",
+        "caller_id": "+919876543210",
+        "applet_id": "your_applet_id",
+    },
+)
+```
+</CodeGroup>
+
+| Field | Required | Description |
+|-------|----------|-------------|
+| `account_sid` | Yes | Your Exotel Account SID |
+| `api_key` | Yes | API Key from Exotel dashboard |
+| `api_token` | Yes | API Token from Exotel dashboard |
+| `subdomain` | Yes | API subdomain (e.g., `api.exotel.com` or your cluster subdomain) |
+| `caller_id` | Yes | Phone number to display on outbound calls |
+| `applet_id` | Yes | Voicebot applet ID from Exotel App Bazaar |
+
+<Warning>
+  Credentials are encrypted at rest and never returned in API responses. Store them securely — you'll need them again if you update the configuration.
+</Warning>
+
+## Verify configuration
+
+After saving, confirm Exotel is configured by checking your partner config:
+
+```bash
+curl -X GET https://api.vocobase.com/api/v2/config \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+The response will include:
+
+```json
+{
+  "success": true,
+  "data": {
+    "allowed_telephony_providers": ["exotel"],
+    "telephony": {
+      "exotel": {
+        "configured": true,
+        "allowed": true,
+        "account_sid": "your_exotel_sid",
+        "subdomain": "api.exotel.com",
+        "caller_id": "+919876543210",
+        "applet_id": "your_applet_id"
+      }
+    }
+  }
+}
+```
+
+## Make a test call
+
+Once configured, initiate an outbound call with `provider: "exotel"`:
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.vocobase.com/api/v2/calls/start \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "to_number": "+919876543210",
+    "provider": "exotel"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch("https://api.vocobase.com/api/v2/calls/start", {
+  method: "POST",
+  headers: {
+    "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    agent_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    to_number: "+919876543210",
+    provider: "exotel",
+  }),
+});
+```
+</CodeGroup>
+
+```json
+{
+  "success": true,
+  "data": {
+    "call_id": "c1234567-abcd-1234-abcd-123456789012",
+    "session_id": "s1234567-abcd-1234-abcd-123456789012",
+    "status": "pending",
+    "provider": "exotel",
+    "from_number": "+919876543210",
+    "to_number": "+919876543210",
+    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  }
+}
+```
+
+## How Exotel calls work
+
+1. Vocobase calls the Exotel Connect API to initiate the call
+2. Exotel dials the customer using your caller ID
+3. When the customer answers, Exotel triggers your configured Voicebot applet
+4. The applet connects to the Vocobase voice agent via WebSocket
+5. The agent handles the conversation in real time
+6. When the call ends, a webhook fires with the transcript and duration
+
+## Troubleshooting
+
+| Issue | Solution |
+|-------|----------|
+| "Exotel not configured" error | Ensure all 6 fields are set: account_sid, api_key, api_token, subdomain, caller_id, applet_id |
+| "Provider not allowed" (403) | Contact Vocobase to enable Exotel for your partner account |
+| Calls fail to connect | Verify credentials in the Exotel dashboard. Check that the applet is active. |
+| Wrong caller ID displayed | Update the `caller_id` field with the correct E.164 number |
+| API token expired | Exotel API tokens may expire. Generate a new one and update via the API. |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Twilio Setup" icon="phone" href="/telephony/twilio-setup">
+    Configure Twilio as an alternative provider.
+  </Card>
+  <Card title="Credits & Billing" icon="coins" href="/credits">
+    Understand how calls consume credits.
+  </Card>
+</CardGroup>
