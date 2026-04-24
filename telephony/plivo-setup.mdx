@@ -1,0 +1,195 @@
+---
+title: "Plivo Setup"
+description: "Configure Plivo for outbound calling with the Vocobase API"
+---
+
+# Plivo Setup
+
+This guide walks you through connecting your Plivo account to Vocobase for outbound calling.
+
+<Note>
+  Plivo credentials are managed through the Vocobase dashboard under a single unified **Telephony Connections** panel — there is no `/config/telephony/plivo` endpoint in the Partner API. Once the connection is in place, you can start Plivo-backed calls programmatically using the standard `POST /calls/start` endpoint with `"provider": "plivo"`.
+</Note>
+
+## Prerequisites
+
+- A [Plivo account](https://www.plivo.com/) with a verified Auth ID and Auth Token
+- At least one Plivo phone number with **Voice** enabled
+- An approved Vocobase partner account with `"plivo"` present in `allowed_telephony_providers` (check `GET /config`)
+- Access to the Vocobase dashboard at [app.vocobase.com](https://app.vocobase.com)
+
+<Tip>
+  If `"plivo"` is not yet listed in your partner config's `allowed_telephony_providers`, contact your Vocobase account manager to enable it.
+</Tip>
+
+## Step 1: Get your Plivo credentials
+
+<Steps>
+  <Step title="Log in to the Plivo Console">
+    Go to [console.plivo.com](https://console.plivo.com) and sign in.
+  </Step>
+
+  <Step title="Copy your Auth ID and Auth Token">
+    From the **Overview** page, copy your **Auth ID** and **Auth Token**.
+
+    - **Auth ID** — 20-character string starting with `MA` (production) or `SA` (subaccounts)
+    - **Auth Token** — 40-character alphanumeric string
+
+    <Warning>
+      Your Auth Token grants full access to your Plivo account. Treat it like a password.
+    </Warning>
+  </Step>
+
+  <Step title="Identify the phone number you will call from">
+    Navigate to **Phone Numbers > Your Numbers**. Copy the number you plan to use as the caller ID.
+
+    The number must be in E.164 format (e.g., `+14155551234`) and must have **Voice** capabilities enabled.
+  </Step>
+</Steps>
+
+## Step 2: Add the connection in the Vocobase dashboard
+
+1. Open [app.vocobase.com](https://app.vocobase.com) and sign in.
+2. Go to **Settings > Telephony Connections**.
+3. Click **Add Connection** and pick **Plivo** from the provider list.
+4. Paste your **Auth ID** (as the Account SID) and **Auth Token**, then give the connection a name — for example, `Plivo — Production`.
+5. Click **Verify**. Vocobase calls Plivo with your credentials to confirm they are valid; on success the connection is stored encrypted at rest.
+6. Back on the connections page, open the new connection and click **Import Phone Numbers**. Select the numbers you want Vocobase to use and click **Import**.
+
+Imported numbers become first-class resources and can be assigned to specific agents or left as default caller IDs on the connection.
+
+## Step 3: Confirm the partner sees Plivo as configured
+
+Fetch your partner configuration — the response should now include Plivo in `allowed_telephony_providers`:
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.vocobase.com/api/v2/config \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+</CodeGroup>
+
+```json
+{
+  "success": true,
+  "data": {
+    "name": "acme-corp",
+    "allowed_telephony_providers": ["twilio", "plivo"],
+    "telephony": { "twilio": { "configured": true }, "mcube": { "configured": false }, "exotel": { "configured": false } },
+    "...": "..."
+  }
+}
+```
+
+<Note>
+  Plivo does not appear as a top-level key under `telephony` in the `GET /config` response today. Its credentials live on the dashboard-side Telephony Connections resource rather than inline on the partner config. Presence in `allowed_telephony_providers` is what gates your ability to start a Plivo call.
+</Note>
+
+## Step 4: Make a test call
+
+Start an outbound call with `"provider": "plivo"`:
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.vocobase.com/api/v2/calls/start \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "to_number": "+919876543210",
+    "provider": "plivo"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "https://api.vocobase.com/api/v2/calls/start",
+  {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      agent_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      to_number: "+919876543210",
+      provider: "plivo"
+    })
+  }
+);
+const result = await response.json();
+console.log(result);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://api.vocobase.com/api/v2/calls/start",
+    headers={
+        "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+        "Content-Type": "application/json"
+    },
+    json={
+        "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "to_number": "+919876543210",
+        "provider": "plivo"
+    }
+)
+print(response.json())
+```
+</CodeGroup>
+
+```json
+{
+  "success": true,
+  "data": {
+    "call_id": "c1234567-abcd-1234-abcd-123456789012",
+    "session_id": "s1234567-abcd-1234-abcd-123456789012",
+    "status": "pending",
+    "provider": "plivo",
+    "from_number": "+14155551234",
+    "to_number": "+919876543210",
+    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  }
+}
+```
+
+Under the hood, Vocobase opens a **Plivo Media Streams** session to the bot and bridges audio over a WebSocket — the same pattern as the default Twilio path. Latency and audio quality are comparable to Twilio.
+
+## Troubleshooting
+
+### "Plivo not configured" or 403 on `/calls/start`
+
+- Confirm the connection status is **Verified** in the dashboard (re-run verify if it shows as invalid).
+- Confirm `"plivo"` is in `allowed_telephony_providers` from `GET /config`. If it is not, contact your Vocobase account manager.
+
+### 401 from Plivo during verification
+
+- Auth ID or Auth Token is wrong. Re-copy from the Plivo Console.
+- If you recently rotated the Auth Token in Plivo, update the connection in the Vocobase dashboard.
+
+### Calls ring but drop immediately
+
+- The Plivo number you are calling from must have **Voice Application** enabled, not only Messaging.
+- Confirm the destination number is reachable from Plivo. Some Plivo accounts have geographic restrictions that require explicit enablement.
+- Check the Plivo console **Logs > Call Logs** — Plivo logs the exact reason a call was dropped (e.g., "Invalid from number", "No route to destination").
+
+### Caller ID shows "Unknown"
+
+Ensure the number in your Plivo account matches an imported number on your Vocobase connection. Numbers imported after initial setup need to be synced — re-open **Telephony Connections > Plivo > Import Phone Numbers** and pull the new entries.
+
+## Updating credentials
+
+Rotate the Auth Token in Plivo, then in the Vocobase dashboard open the connection, click **Edit**, and paste the new token. Re-run **Verify** to confirm Vocobase can still reach Plivo.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Twilio Setup" icon="phone" href="/telephony/twilio-setup">
+    Configure Twilio as an additional telephony provider.
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Create an agent and make your first call.
+  </Card>
+</CardGroup>
