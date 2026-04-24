@@ -48,6 +48,10 @@
     {
       "name": "Projects",
       "description": "Organize agents into projects. Every agent belongs to exactly one project."
+    },
+    {
+      "name": "Dictionaries",
+      "description": "Soniox STT dictionary CRUD and agent attachment."
     }
   ],
   "paths": {
@@ -1323,6 +1327,341 @@
         }
       }
     },
+    "/dictionaries": {
+      "get": {
+        "operationId": "listDictionaries",
+        "summary": "List dictionaries",
+        "description": "Returns every Soniox STT dictionary owned by the partner, ordered by creation date (newest first). The summary shape does not include the `terms` array -- fetch a single dictionary to see them.",
+        "tags": ["Dictionaries"],
+        "responses": {
+          "200": {
+            "description": "List of dictionaries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "dictionaries": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/DictionarySummary" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "post": {
+        "operationId": "createDictionary",
+        "summary": "Create a dictionary",
+        "description": "Creates a new Soniox STT dictionary for the partner. Terms are normalized server-side: whitespace is trimmed, empty/whitespace-only entries are dropped, non-string entries are silently skipped, and the dedupe is case-insensitive but preserves first-occurrence casing. A blank `description` is stored as `null`. Dictionary names must be unique per partner.",
+        "tags": ["Dictionaries"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "description": "Unique dictionary name (per partner)."
+                  },
+                  "description": {
+                    "type": ["string", "null"],
+                    "maxLength": 500,
+                    "description": "Optional description. Blank strings are stored as null."
+                  },
+                  "terms": {
+                    "type": "array",
+                    "items": { "type": "string" },
+                    "description": "Optional list of terms. Defaults to []. Normalized server-side."
+                  }
+                }
+              },
+              "example": {
+                "name": "Vocobase Product Catalog",
+                "description": "Product names, SKUs, and plan tiers referenced on support calls.",
+                "terms": ["Vocobase", "SKU-4471", "Pro Annual Plan", "Voice Sandbox", "Meera Iyer"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Dictionary created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": { "$ref": "#/components/schemas/Dictionary" }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "d1234567-abcd-1234-abcd-123456789012",
+                    "name": "Vocobase Product Catalog",
+                    "description": "Product names, SKUs, and plan tiers referenced on support calls.",
+                    "terms": ["Vocobase", "SKU-4471", "Pro Annual Plan", "Voice Sandbox", "Meera Iyer"],
+                    "term_count": 5,
+                    "char_count": 52,
+                    "attached_agent_count": 0,
+                    "created_at": "2026-04-24T10:30:00.000Z",
+                    "updated_at": "2026-04-24T10:30:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": {
+            "description": "Dictionary name already taken by this partner.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "DICTIONARY_NAME_TAKEN",
+                    "message": "A dictionary with this name already exists."
+                  }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/dictionaries/{id}": {
+      "get": {
+        "operationId": "getDictionary",
+        "summary": "Get a dictionary",
+        "description": "Returns the full detail for a single dictionary, including the `terms` array.",
+        "tags": ["Dictionaries"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Dictionary ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Dictionary detail.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": { "$ref": "#/components/schemas/Dictionary" }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "Dictionary not found.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "DICTIONARY_NOT_FOUND",
+                    "message": "Dictionary not found"
+                  }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "patch": {
+        "operationId": "updateDictionary",
+        "summary": "Update a dictionary",
+        "description": "Updates any subset of `name`, `description`, or `terms`. Passing `terms` replaces the whole list -- there is no incremental add/remove. If the dictionary is attached to any agent and the new `char_count` would push that agent over 10,000 combined characters, the request fails with `DICTIONARY_CHAR_LIMIT_EXCEEDED`.",
+        "tags": ["Dictionaries"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Dictionary ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100
+                  },
+                  "description": {
+                    "type": ["string", "null"],
+                    "maxLength": 500
+                  },
+                  "terms": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              },
+              "example": {
+                "terms": ["Vocobase", "SKU-4471", "SKU-4472", "Pro Annual Plan"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Dictionary updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": { "$ref": "#/components/schemas/Dictionary" }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error or character limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "examples": {
+                  "validation": {
+                    "summary": "Validation error",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "name must be between 1 and 100 characters"
+                      }
+                    }
+                  },
+                  "charLimit": {
+                    "summary": "Agent char limit exceeded",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "DICTIONARY_CHAR_LIMIT_EXCEEDED",
+                        "message": "This update would push agent a1b2c3d4-e5f6-7890-abcd-ef1234567890 over the 10,000-character limit.",
+                        "details": {
+                          "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                          "current_chars": 10820,
+                          "limit_chars": 10000
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "Dictionary not found.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "DICTIONARY_NOT_FOUND",
+                    "message": "Dictionary not found"
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "Dictionary name already taken by this partner.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "DICTIONARY_NAME_TAKEN",
+                    "message": "A dictionary with this name already exists."
+                  }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteDictionary",
+        "summary": "Delete a dictionary",
+        "description": "Permanently deletes a dictionary and cascades the attachment rows. Detaches it from every agent it was attached to. No other data is touched.",
+        "tags": ["Dictionaries"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Dictionary ID."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Dictionary deleted."
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "Dictionary not found.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "DICTIONARY_NOT_FOUND",
+                    "message": "Dictionary not found"
+                  }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
     "/agent/{id}/documents": {
       "get": {
         "operationId": "listAgentDocuments",
@@ -1515,6 +1854,163 @@
                 "example": {
                   "success": true,
                   "data": { "message": "Document unlinked from agent" }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/agent/{id}/dictionaries": {
+      "get": {
+        "operationId": "listAgentDictionaries",
+        "summary": "List attached dictionaries",
+        "description": "Returns all Soniox STT dictionaries currently attached to the agent. The summary shape does not include `description` or `terms`.",
+        "tags": ["Agents", "Dictionaries"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Agent ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "List of attached dictionaries.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "dictionaries": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/AttachedDictionarySummary" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "put": {
+        "operationId": "setAgentDictionaries",
+        "summary": "Replace the agent's attached dictionaries",
+        "description": "Idempotent set-replace: overwrites the agent's entire dictionary set with `dictionary_ids`. Duplicate ids are deduped silently. Every id must exist and belong to the calling partner, else the whole request fails with `VALIDATION_ERROR`. The combined `char_count` across the resulting set must be at most 10,000 characters; otherwise the request fails with `DICTIONARY_CHAR_LIMIT_EXCEEDED`. Pass `[]` to detach all dictionaries. The swap is wrapped in a transaction -- the attached set is never briefly partial.",
+        "tags": ["Agents", "Dictionaries"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Agent ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["dictionary_ids"],
+                "properties": {
+                  "dictionary_ids": {
+                    "type": "array",
+                    "items": { "type": "string", "format": "uuid" },
+                    "description": "Full replacement set of dictionary IDs. Pass [] to detach all."
+                  }
+                }
+              },
+              "example": {
+                "dictionary_ids": ["d1234567-abcd-1234-abcd-123456789012"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Agent's attached dictionaries after the swap.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "dictionaries": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/AttachedDictionarySummary" }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "dictionaries": [
+                      {
+                        "id": "d1234567-abcd-1234-abcd-123456789012",
+                        "name": "Vocobase Product Catalog",
+                        "term_count": 5,
+                        "char_count": 52,
+                        "attached_agent_count": 1,
+                        "created_at": "2026-04-24T10:30:00.000Z",
+                        "updated_at": "2026-04-24T10:30:00.000Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Validation error or character limit exceeded.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "examples": {
+                  "validation": {
+                    "summary": "Unknown or unowned dictionary id",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "One or more dictionary_ids do not exist or are not owned by you"
+                      }
+                    }
+                  },
+                  "charLimit": {
+                    "summary": "Combined set exceeds 10,000 chars",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "DICTIONARY_CHAR_LIMIT_EXCEEDED",
+                        "message": "Attaching these dictionaries would exceed the 10,000-character limit for this agent.",
+                        "details": {
+                          "current_chars": 11240,
+                          "limit_chars": 10000
+                        }
+                      }
+                    }
+                  }
                 }
               }
             }
@@ -2650,6 +3146,47 @@
           "status": { "type": "string" },
           "started_at": { "type": "string", "format": "date-time" },
           "ended_at": { "type": ["string", "null"], "format": "date-time" }
+        }
+      },
+      "DictionarySummary": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "description": { "type": ["string", "null"] },
+          "term_count": { "type": "integer", "description": "Number of unique terms after normalization." },
+          "char_count": { "type": "integer", "description": "Total characters across all terms." },
+          "attached_agent_count": { "type": "integer", "description": "Number of agents this dictionary is currently attached to." },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "Dictionary": {
+        "allOf": [
+          { "$ref": "#/components/schemas/DictionarySummary" },
+          {
+            "type": "object",
+            "properties": {
+              "terms": {
+                "type": "array",
+                "items": { "type": "string" },
+                "description": "Normalized list of terms (whitespace-trimmed, case-insensitively deduped, non-string entries dropped)."
+              }
+            }
+          }
+        ]
+      },
+      "AttachedDictionarySummary": {
+        "type": "object",
+        "description": "Compact dictionary view used when listing an agent's attached dictionaries. Omits `description` and `terms`.",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "name": { "type": "string" },
+          "term_count": { "type": "integer" },
+          "char_count": { "type": "integer" },
+          "attached_agent_count": { "type": "integer" },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
         }
       },
       "ErrorResponse": {

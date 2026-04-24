@@ -5,11 +5,15 @@ description: "Teach your agents the right spelling of product names, jargon, and
 
 # Speech Recognition Dictionaries
 
-Dictionaries are short lists of domain-specific terms — brand names, product SKUs, technical jargon, people, places — that you attach to an agent. The speech-to-text engine biases its transcription toward those terms, so the agent hears "Vocobase" instead of "Vocal base" and "SKU-4471" instead of "skew four thousand four hundred seventy one".
+Dictionaries are short lists of domain-specific terms -- brand names, product SKUs, technical jargon, people, places -- that you attach to an agent. The speech-to-text engine biases its transcription toward those terms, so the agent hears "Vocobase" instead of "Vocal base" and "SKU-4471" instead of "skew four thousand four hundred seventy one".
 
 <Note>
   Dictionaries only affect agents using the **Soniox** STT provider, which is the default for new agents. They have no effect on other providers.
 </Note>
+
+<Info>
+  **Partner API (v2) only.** These endpoints live under `https://api.vocobase.com/api/v2` and are reached with a `rg_live_...` Bearer token. The older `/api/dictionaries` routes are Clerk-authenticated dashboard APIs and are not reachable from a partner API key.
+</Info>
 
 ## When dictionaries help most
 
@@ -42,7 +46,7 @@ The 10,000-character cap is enforced at attachment time and on `PATCH`, so you c
 
 <CodeGroup>
 ```bash cURL
-curl -X POST https://api.vocobase.com/api/dictionaries \
+curl -X POST https://api.vocobase.com/api/v2/dictionaries \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
   -H "Content-Type: application/json" \
   -d '{
@@ -59,7 +63,7 @@ curl -X POST https://api.vocobase.com/api/dictionaries \
 ```
 
 ```javascript JavaScript
-const response = await fetch("https://api.vocobase.com/api/dictionaries", {
+const response = await fetch("https://api.vocobase.com/api/v2/dictionaries", {
   method: "POST",
   headers: {
     "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
@@ -77,7 +81,7 @@ const response = await fetch("https://api.vocobase.com/api/dictionaries", {
     ],
   }),
 });
-const dictionary = await response.json();
+const { data: dictionary } = await response.json();
 console.log(dictionary.id);
 ```
 
@@ -85,7 +89,7 @@ console.log(dictionary.id);
 import requests
 
 response = requests.post(
-    "https://api.vocobase.com/api/dictionaries",
+    "https://api.vocobase.com/api/v2/dictionaries",
     headers={
         "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
         "Content-Type": "application/json",
@@ -102,75 +106,201 @@ response = requests.post(
         ],
     },
 )
-dictionary = response.json()
+dictionary = response.json()["data"]
 ```
 </CodeGroup>
 
 ```json
 {
-  "id": "d1234567-abcd-1234-abcd-123456789012",
-  "name": "Vocobase Product Catalog",
-  "description": "Product names, SKUs, and plan tiers referenced on support calls.",
-  "terms": ["Vocobase", "SKU-4471", "Pro Annual Plan", "Voice Sandbox", "Meera Iyer"],
-  "termCount": 5,
-  "charCount": 52,
-  "createdAt": "2026-04-24T10:30:00Z",
-  "updatedAt": "2026-04-24T10:30:00Z"
+  "success": true,
+  "data": {
+    "id": "d1234567-abcd-1234-abcd-123456789012",
+    "name": "Vocobase Product Catalog",
+    "description": "Product names, SKUs, and plan tiers referenced on support calls.",
+    "terms": ["Vocobase", "SKU-4471", "Pro Annual Plan", "Voice Sandbox", "Meera Iyer"],
+    "term_count": 5,
+    "char_count": 52,
+    "attached_agent_count": 0,
+    "created_at": "2026-04-24T10:30:00.000Z",
+    "updated_at": "2026-04-24T10:30:00.000Z"
+  }
 }
 ```
 
 <Tip>
-  Terms are case-insensitive and deduplicated server-side, so `"vocobase"` and `"Vocobase"` count as one. Passing the same term twice does not inflate `termCount`.
+  Terms are normalized server-side: whitespace is trimmed, empty strings are dropped, non-string entries are silently skipped, and the dedupe is case-insensitive but preserves the first-occurrence casing. Passing `["Vocobase", "vocobase", "  Vocobase  "]` stores `["Vocobase"]`, and `term_count` reflects the normalized list.
 </Tip>
+
+A blank or whitespace-only `description` is stored as `null`.
 
 ---
 
-## Attach a dictionary to an agent
+## Attach dictionaries to an agent
 
-An agent can have any number of dictionaries attached; all of their terms are merged at session start.
+Attachment is a **set-replace**. `PUT /agent/{agent_id}/dictionaries` overwrites the agent's entire dictionary set with the `dictionary_ids` array you send. There is no separate attach/detach endpoint -- to add one, send the current ids plus the new one; to detach one, send the current ids minus the one to remove; to detach everything, send `[]`. The swap is wrapped in a transaction, so the agent is never briefly in a partial state.
 
 <CodeGroup>
 ```bash cURL
-curl -X POST https://api.vocobase.com/api/agents/{agent_id}/dictionaries \
+curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id}/dictionaries \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
   -H "Content-Type: application/json" \
-  -d '{ "dictionary_id": "d1234567-abcd-1234-abcd-123456789012" }'
+  -d '{
+    "dictionary_ids": [
+      "d1234567-abcd-1234-abcd-123456789012"
+    ]
+  }'
 ```
 
 ```javascript JavaScript
-await fetch(`https://api.vocobase.com/api/agents/${agentId}/dictionaries`, {
-  method: "POST",
+await fetch(`https://api.vocobase.com/api/v2/agent/${agentId}/dictionaries`, {
+  method: "PUT",
   headers: {
     "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
     "Content-Type": "application/json",
   },
-  body: JSON.stringify({ dictionary_id: "d1234567-abcd-1234-abcd-123456789012" }),
+  body: JSON.stringify({
+    dictionary_ids: ["d1234567-abcd-1234-abcd-123456789012"],
+  }),
 });
+```
+
+```python Python
+import requests
+
+requests.put(
+    f"https://api.vocobase.com/api/v2/agent/{agent_id}/dictionaries",
+    headers={
+        "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+        "Content-Type": "application/json",
+    },
+    json={"dictionary_ids": ["d1234567-abcd-1234-abcd-123456789012"]},
+)
 ```
 </CodeGroup>
 
-If attaching a dictionary would push the agent's combined term characters past 10,000, the request fails with `400 DictionaryCharLimitExceeded`. Detach a less-relevant dictionary, or split a large dictionary into smaller, more targeted ones.
+```json
+{
+  "success": true,
+  "data": {
+    "dictionaries": [
+      {
+        "id": "d1234567-abcd-1234-abcd-123456789012",
+        "name": "Vocobase Product Catalog",
+        "term_count": 5,
+        "char_count": 52,
+        "attached_agent_count": 1,
+        "created_at": "2026-04-24T10:30:00.000Z",
+        "updated_at": "2026-04-24T10:30:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+Every id in `dictionary_ids` must exist and belong to the calling partner; otherwise the whole request fails with `400 VALIDATION_ERROR`. Duplicate ids are deduped silently.
+
+If the combined `char_count` across the requested set would exceed 10,000 characters, the request fails with `400 DICTIONARY_CHAR_LIMIT_EXCEEDED`:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "DICTIONARY_CHAR_LIMIT_EXCEEDED",
+    "message": "Attaching these dictionaries would exceed the 10,000-character limit for this agent.",
+    "details": {
+      "current_chars": 11240,
+      "limit_chars": 10000
+    }
+  }
+}
+```
+
+Detach a less-relevant dictionary, or split a large dictionary into smaller, more targeted ones.
 
 <Warning>
   Bigger is not better. A focused 200-term dictionary biases the STT engine more effectively than a 2,000-term grab-bag because the engine has fewer distractors to weigh. Keep dictionaries narrow.
 </Warning>
 
+### List an agent's attached dictionaries
+
+```bash
+curl -X GET https://api.vocobase.com/api/v2/agent/{agent_id}/dictionaries \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+Returns the summary shape (no `description`, no `terms`) for every dictionary currently attached to the agent.
+
+---
+
+## List all dictionaries
+
+```bash
+curl -X GET https://api.vocobase.com/api/v2/dictionaries \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "dictionaries": [
+      {
+        "id": "d1234567-abcd-1234-abcd-123456789012",
+        "name": "Vocobase Product Catalog",
+        "description": "Product names, SKUs, and plan tiers referenced on support calls.",
+        "term_count": 5,
+        "char_count": 52,
+        "attached_agent_count": 1,
+        "created_at": "2026-04-24T10:30:00.000Z",
+        "updated_at": "2026-04-24T10:30:00.000Z"
+      }
+    ]
+  }
+}
+```
+
+Returns every dictionary owned by the partner, ordered by `created_at` descending. The list endpoint does not include `terms` -- fetch a single dictionary to see them.
+
+### Get a single dictionary
+
+```bash
+curl -X GET https://api.vocobase.com/api/v2/dictionaries/d1234567-abcd-1234-abcd-123456789012 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+Returns the full detail shape including `terms`.
+
 ---
 
 ## Update a dictionary
 
-`PATCH` any subset of `name`, `description`, or `terms`. Passing `terms` replaces the whole list — there is no incremental add/remove. Merge the lists client-side before sending.
+`PATCH` any subset of `name`, `description`, or `terms`. Passing `terms` **replaces the whole list** -- there is no incremental add/remove. Merge the lists client-side before sending.
 
-<CodeGroup>
-```bash cURL
-curl -X PATCH https://api.vocobase.com/api/dictionaries/d1234567-abcd-1234-abcd-123456789012 \
+```bash
+curl -X PATCH https://api.vocobase.com/api/v2/dictionaries/d1234567-abcd-1234-abcd-123456789012 \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
   -H "Content-Type: application/json" \
   -d '{
     "terms": ["Vocobase", "SKU-4471", "SKU-4472", "Pro Annual Plan"]
   }'
 ```
-</CodeGroup>
+
+If the dictionary is attached to any agent and the new `char_count` would push that agent over 10,000 combined characters, the request fails with `400 DICTIONARY_CHAR_LIMIT_EXCEEDED`. The error `details` include the offending `agent_id`:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "DICTIONARY_CHAR_LIMIT_EXCEEDED",
+    "message": "This update would push agent a1b2c3d4-e5f6-7890-abcd-ef1234567890 over the 10,000-character limit.",
+    "details": {
+      "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      "current_chars": 10820,
+      "limit_chars": 10000
+    }
+  }
+}
+```
 
 Changes take effect on the **next** session that starts. In-flight calls continue with the snapshot taken at session start.
 
@@ -178,14 +308,12 @@ Changes take effect on the **next** session that starts. In-flight calls continu
 
 ## Delete a dictionary
 
-<CodeGroup>
-```bash cURL
-curl -X DELETE https://api.vocobase.com/api/dictionaries/d1234567-abcd-1234-abcd-123456789012 \
+```bash
+curl -X DELETE https://api.vocobase.com/api/v2/dictionaries/d1234567-abcd-1234-abcd-123456789012 \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
 ```
-</CodeGroup>
 
-Returns `204 No Content`. The dictionary is removed and detached from every agent it was attached to.
+Returns `204 No Content`. The dictionary is removed and detached from every agent it was attached to. No other data is touched.
 
 ---
 
@@ -193,14 +321,15 @@ Returns `204 No Content`. The dictionary is removed and detached from every agen
 
 - **Write terms the way they are pronounced**, not the way they are written. If your product "GraphQL" is pronounced "graph Q L", add both `GraphQL` and `graph Q L`.
 - **Group by domain**, not by size. One dictionary per product line, region, or use case is more useful than one mega-dictionary.
-- **Audit with real transcripts.** Pull a week of call recordings and look for consistent mis-transcriptions — those are your dictionary candidates.
+- **Audit with real transcripts.** Pull a week of call recordings and look for consistent mis-transcriptions -- those are your dictionary candidates.
 - **Remove, don't just add.** Terms that never appear in your actual conversations add noise. Trim after two weeks of usage.
 
 ## Troubleshooting
 
 | Symptom | Likely cause |
 |---------|--------------|
-| Transcripts still wrong after attaching | Dictionary not yet effective on this call — dictionaries apply at session start. Start a new call. |
-| `400 DictionaryCharLimitExceeded` on attach | This agent's combined term characters would exceed 10,000. Detach something else or split the dictionary. |
+| Transcripts still wrong after attaching | Dictionary not yet effective on this call -- dictionaries apply at session start. Start a new call. |
+| `400 DICTIONARY_CHAR_LIMIT_EXCEEDED` on attach or update | This agent's combined term characters would exceed 10,000. Detach something else or split the dictionary. Check `error.details` for the offending `agent_id` and `current_chars`. |
+| `400 VALIDATION_ERROR` on `PUT /agent/{id}/dictionaries` with message "One or more dictionary_ids do not exist or are not owned by you" | One of the ids you sent is either wrong or belongs to another partner. The whole request is rejected; fix the list and retry. |
 | Dictionary has no effect on accuracy | You are likely not using the Soniox STT provider. Only Soniox supports biased transcription; other providers ignore attached dictionaries. |
-| 409 on create | Dictionary names must be unique per partner. Rename or update the existing one. |
+| `409 DICTIONARY_NAME_TAKEN` on create or update | Dictionary names must be unique per partner. Rename or update the existing one. |
