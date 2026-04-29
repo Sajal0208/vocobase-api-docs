@@ -87,7 +87,7 @@ Every webhook request includes these headers:
 | `duration_seconds` | integer | Call duration in seconds |
 | `credits_used` | number | Credits deducted for this call |
 | `transcript` | array | Ordered list of conversation turns (see below) |
-| `recording_url` | string or null | Presigned S3 URL for the call recording. `null` if recording was not enabled. URL expires in 24 hours. |
+| `recording_url` | string or null | Presigned URL for the call recording. `null` if recording was not enabled. URL is valid for 7 days. If it expires, mint a fresh one with `GET /calls/{call_id}/recording-url`. |
 | `latency` | object | Response latency statistics across all bot turns |
 | `latency.min_ms` | integer | Fastest bot response time (milliseconds) |
 | `latency.max_ms` | integer | Slowest bot response time (milliseconds) |
@@ -111,7 +111,7 @@ Each entry in the `transcript` array has:
 | `latency_ms` | integer or null | Time between user finishing speaking and bot starting to respond. Only present on `bot` turns. `null` on `user` turns. |
 
 <Note>
-  The `recording_url` is a presigned S3 URL that expires after 24 hours. Download the recording promptly if you need to store it permanently.
+  `recording_url` is a presigned URL valid for 7 days from the moment the webhook fires. Download and persist the recording on your side if you need long-term retention. If the URL expires before you can download it, call `GET /calls/{call_id}/recording-url` to mint a fresh one with another 7-day window.
 </Note>
 
 ### Call status values
