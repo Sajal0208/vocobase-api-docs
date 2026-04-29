@@ -2282,7 +2282,7 @@
       "get": {
         "operationId": "getCall",
         "summary": "Get call details",
-        "description": "Returns full call details including the associated session with transcript, latency metrics, credits used, and a temporary recording download URL (if recording was enabled). The `recording_url` is valid for 7 days; use `GET /calls/{id}/recording-url` to mint a fresh URL after expiry.",
+        "description": "Returns full call details including the associated session with transcript, credits used, and a temporary recording download URL (if recording was enabled). The `recording_url` is valid for 7 days; use `GET /calls/{id}/recording-url` to mint a fresh URL after expiry.",
         "tags": ["Calls"],
         "parameters": [
           {
@@ -3306,20 +3306,10 @@
               "properties": {
                 "role": { "type": "string", "enum": ["user", "bot"] },
                 "content": { "type": "string" },
-                "timestamp": { "type": "string", "format": "date-time" },
-                "latency_ms": { "type": "integer", "description": "Response latency in milliseconds (bot turns only)." }
+                "timestamp": { "type": "string", "format": "date-time" }
               }
             },
             "description": "Full conversation transcript with timestamps."
-          },
-          "latency": {
-            "type": "object",
-            "properties": {
-              "min_ms": { "type": ["integer", "null"] },
-              "max_ms": { "type": ["integer", "null"] },
-              "avg_ms": { "type": ["integer", "null"] }
-            },
-            "description": "Latency summary across all turns."
           },
           "recording_url": {
             "type": ["string", "null"],

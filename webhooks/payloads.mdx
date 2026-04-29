@@ -42,22 +42,15 @@ Every webhook request includes these headers:
       {
         "role": "user",
         "content": "Hi, I'm interested in your enterprise plan.",
-        "timestamp": "2026-03-15T14:30:04.500Z",
-        "latency_ms": null
+        "timestamp": "2026-03-15T14:30:04.500Z"
       },
       {
         "role": "bot",
         "content": "Great choice! Our enterprise plan includes unlimited agents, priority support, and custom voice training.",
-        "timestamp": "2026-03-15T14:30:05.200Z",
-        "latency_ms": 700
+        "timestamp": "2026-03-15T14:30:05.200Z"
       }
     ],
     "recording_url": "https://vocobase-recordings.s3.amazonaws.com/rec_abc123.wav?X-Amz-Signature=...",
-    "latency": {
-      "min_ms": 450,
-      "max_ms": 1200,
-      "avg_ms": 680
-    },
     "call": {
       "call_id": "c1234567-abcd-1234-abcd-123456789012",
       "from_number": "+14155551234",
@@ -88,10 +81,6 @@ Every webhook request includes these headers:
 | `credits_used` | number | Credits deducted for this call |
 | `transcript` | array | Ordered list of conversation turns (see below) |
 | `recording_url` | string or null | Presigned URL for the call recording. `null` if recording was not enabled. URL is valid for 7 days. If it expires, mint a fresh one with `GET /calls/{call_id}/recording-url`. |
-| `latency` | object | Response latency statistics across all bot turns |
-| `latency.min_ms` | integer | Fastest bot response time (milliseconds) |
-| `latency.max_ms` | integer | Slowest bot response time (milliseconds) |
-| `latency.avg_ms` | integer | Average bot response time (milliseconds) |
 | `call` | object or null | Call metadata (present only for telephony calls) |
 | `call.call_id` | string (UUID) | Unique call identifier |
 | `call.from_number` | string | Caller phone number (E.164) |
@@ -108,7 +97,6 @@ Each entry in the `transcript` array has:
 | `role` | string | `"user"` or `"bot"` |
 | `content` | string | What was said |
 | `timestamp` | string (ISO 8601) | When this turn occurred |
-| `latency_ms` | integer or null | Time between user finishing speaking and bot starting to respond. Only present on `bot` turns. `null` on `user` turns. |
 
 <Note>
   `recording_url` is a presigned URL valid for 7 days from the moment the webhook fires. Download and persist the recording on your side if you need long-term retention. If the URL expires before you can download it, call `GET /calls/{call_id}/recording-url` to mint a fresh one with another 7-day window.
