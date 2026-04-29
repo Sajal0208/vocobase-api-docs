@@ -2282,7 +2282,7 @@
       "get": {
         "operationId": "getCall",
         "summary": "Get call details",
-        "description": "Returns full call details including the associated session with transcript, latency metrics, credits used, and a temporary recording download URL (if recording was enabled).",
+        "description": "Returns full call details including the associated session with transcript, latency metrics, credits used, and a temporary recording download URL (if recording was enabled). The `recording_url` is valid for 7 days; use `GET /calls/{id}/recording-url` to mint a fresh URL after expiry.",
         "tags": ["Calls"],
         "parameters": [
           {
@@ -2320,6 +2320,101 @@
           },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/calls/{id}/recording-url": {
+      "get": {
+        "operationId": "getCallRecordingUrl",
+        "summary": "Get a fresh recording URL",
+        "description": "Mints a freshly signed download URL for the call's recording, valid for 7 days (the maximum the underlying storage allows). Use this when the `recording_url` returned by `GET /calls/{id}` or by the `session.completed` webhook has expired.\n\nReturns 404 if the call has no recording, the call is not yet complete, or the recording file is no longer available in storage.",
+        "tags": ["Calls"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Call ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "A fresh signed recording URL.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "call_id": { "type": "string", "format": "uuid", "description": "The call ID." },
+                        "recording_url": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "Time-limited signed URL for downloading the recording (audio/wav)."
+                        },
+                        "expires_in": {
+                          "type": "integer",
+                          "description": "Seconds until the URL expires.",
+                          "example": 604800
+                        },
+                        "expires_at": {
+                          "type": "string",
+                          "format": "date-time",
+                          "description": "ISO-8601 timestamp at which the URL expires."
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "call_id": "c1234567-abcd-1234-abcd-123456789012",
+                    "recording_url": "https://storage.googleapis.com/vocobase-prod/recordings/.../session.wav?X-Goog-Algorithm=...",
+                    "expires_in": 604800,
+                    "expires_at": "2026-05-06T08:55:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "Call not found, or recording is not available for this call.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/Error" },
+                "examples": {
+                  "callNotFound": {
+                    "summary": "Call not found",
+                    "value": {
+                      "success": false,
+                      "error": { "code": "NOT_FOUND", "message": "Call not found" }
+                    }
+                  },
+                  "recordingNotAttached": {
+                    "summary": "Call exists but has no recording (recording was disabled or call did not complete)",
+                    "value": {
+                      "success": false,
+                      "error": { "code": "RECORDING_NOT_AVAILABLE", "message": "No recording is attached to this call" }
+                    }
+                  },
+                  "recordingFileMissing": {
+                    "summary": "Recording was deleted from storage",
+                    "value": {
+                      "success": false,
+                      "error": { "code": "RECORDING_NOT_FOUND", "message": "Recording file is no longer available in storage" }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
@@ -3229,7 +3324,7 @@
           "recording_url": {
             "type": ["string", "null"],
             "format": "uri",
-            "description": "Presigned URL to download the call recording. Expires after 15 minutes — download immediately."
+            "description": "Presigned URL to download the call recording (audio/wav). Valid for 7 days from the time of this response. Use `GET /calls/{id}/recording-url` to mint a fresh URL after expiry. `null` if recording was not enabled or the call has not completed."
           },
           "status": { "type": "string" },
           "started_at": { "type": "string", "format": "date-time" },
