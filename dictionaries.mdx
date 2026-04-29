@@ -44,6 +44,10 @@ The 10,000-character cap is enforced at attachment time and on `PATCH`, so you c
 
 ## Create a dictionary
 
+<Note>
+  **Creation is agent-agnostic.** `POST /api/v2/dictionaries` does **not** take an `agent_id` — dictionaries are reusable across agents. To make a dictionary actually bias an agent's STT, attach it in a separate step with [`PUT /api/v2/agent/{agent_id}/dictionaries`](#attach-dictionaries-to-an-agent).
+</Note>
+
 <CodeGroup>
 ```bash cURL
 curl -X POST https://api.vocobase.com/api/v2/dictionaries \
