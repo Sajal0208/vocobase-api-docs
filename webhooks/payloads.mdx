@@ -51,6 +51,22 @@ Every webhook request includes these headers:
       }
     ],
     "recording_url": "https://vocobase-recordings.s3.amazonaws.com/rec_abc123.wav?X-Amz-Signature=...",
+    "variables": {
+      "callee_name": "Sajal",
+      "mobile_number": "+919876543210"
+    },
+    "extraction": {
+      "status": "success",
+      "values": {
+        "interested": true,
+        "callback_at": "2026-05-01T15:00:00Z",
+        "outcome": "callback_requested"
+      },
+      "model": "gemini-3-flash-preview",
+      "extractedAt": "2026-03-15T14:32:09.840Z",
+      "latencyMs": 1840,
+      "attempts": 1
+    },
     "call": {
       "call_id": "c1234567-abcd-1234-abcd-123456789012",
       "from_number": "+14155551234",
@@ -81,6 +97,8 @@ Every webhook request includes these headers:
 | `credits_used` | number | Credits deducted for this call |
 | `transcript` | array | Ordered list of conversation turns (see below) |
 | `recording_url` | string or null | Presigned URL for the call recording. `null` if recording was not enabled. URL is valid for 7 days. If it expires, mint a fresh one with `GET /calls/{call_id}/recording-url`. |
+| `variables` | object | Pre-call variable values that were substituted into the agent's prompt and greeting. Empty object `{}` when no variables were supplied. Echoed for partner-side audit. |
+| `extraction` | object or absent | Post-call extraction result, present only when the agent has a Custom Analysis config defined. Status is `success`, `failed`, or `skipped` (no transcript). Values are typed per the agent's config; missing keys are emitted as `null`. See [Post-call Extraction](#post-call-extraction) below. |
 | `call` | object or null | Call metadata (present only for telephony calls) |
 | `call.call_id` | string (UUID) | Unique call identifier |
 | `call.from_number` | string | Caller phone number (E.164) |
@@ -111,6 +129,49 @@ Each entry in the `transcript` array has:
 | `no_answer` | Recipient did not answer |
 | `busy` | Recipient's line was busy |
 | `canceled` | Call was canceled before connecting |
+
+## Post-call extraction
+
+When the agent has a **Custom Analysis** config defined, the platform runs an LLM extraction over the transcript after every completed call and ships the result inline in the same `session.completed` webhook — no second webhook to handle. Configure extraction via the dashboard's "Variables & Analytics" tab on the agent editor or via `PUT /api/v2/agent/:id` with `extraction_config`.
+
+### Extraction object structure
+
+```json
+{
+  "status": "success",
+  "values": {
+    "interested": true,
+    "callback_at": "2026-05-01T15:00:00Z",
+    "outcome": "callback_requested"
+  },
+  "model": "gemini-3-flash-preview",
+  "extractedAt": "2026-03-15T14:32:09.840Z",
+  "latencyMs": 1840,
+  "attempts": 1
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `status` | string | `success`, `failed`, or `skipped` |
+| `values` | object or absent | Extracted fields (typed per the agent's `extraction_config.keys`). Missing fields are emitted as `null` (per-key `nullable: true` on the Gemini response schema). Absent entirely when `status != 'success'`. |
+| `error` | string or absent | Failure reason — present only when `status === 'failed'` |
+| `model` | string | LLM model used (admin-configurable; default `gemini-3-flash-preview`) |
+| `extractedAt` | string (ISO 8601) | When extraction ran |
+| `latencyMs` | integer | LLM latency in milliseconds |
+| `attempts` | integer | Number of attempts (1 = success on first try; 2-3 = retried) |
+
+<Note>
+  Extraction failures **never block webhook delivery**. The unified payload always ships with `extraction.status` indicating outcome — partners that need extraction values can branch on `status === 'success'`, partners that just need transcript + recording can ignore the field.
+</Note>
+
+### Replay extraction against a past session
+
+If you edit `extraction_config` and want to backfill an existing session, call `POST /api/v2/calls/{call_id}/extract` with `{ "dry_run": false }`. Optional `dry_run: true` returns the result without persisting. The replay uses the agent's **current** config (not the config at original-call time).
+
+## Pre-call variables
+
+The `variables` field on every webhook echoes the per-call values that were substituted into the agent's prompt and greeting. Configure variable names via the dashboard "Variables & Analytics" tab or `PUT /api/v2/agent/:id` with `variables: ["callee_name", "mobile_number"]`. Supply per-call values via `POST /api/v2/calls/start` body field `variables: { callee_name: "Sajal" }`. Missing values render as empty strings — the platform never errors on missing variables.
 
 ## Next steps
 
