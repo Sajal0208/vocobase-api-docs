@@ -1,0 +1,111 @@
+---
+title: "Pre-call Variables"
+description: "Template per-call data into your agent's prompt and greeting with `{{name}}` placeholders"
+---
+
+# Pre-call Variables
+
+Pre-call variables let you template the agent's prompt and greeting with per-call data. You declare a list of variable *names* on the agent (`callee_name`, `mobile_number`), supply per-call *values* via the API or sandbox, and the platform substitutes `{{name}}` references in `Agent.prompt` + `Agent.greeting` before the bot starts.
+
+<Info>
+  **Partner API (v2) only** for the endpoints below. Dashboard parity uses the Clerk-authenticated `/api/agents` and `/api/sessions` routes, not these.
+</Info>
+
+## 1. Declare the variable names on the agent
+
+```bash
+PUT /api/v2/agent/{id}
+Authorization: Bearer rg_live_...
+Content-Type: application/json
+
+{
+  "variables": ["callee_name", "mobile_number"]
+}
+```
+
+Names must match `^[a-zA-Z_][a-zA-Z0-9_]*$` (no spaces, dashes, or special characters). Up to 100 variables per agent. Pass `null` to clear the list.
+
+## 2. Reference them in the prompt or greeting
+
+The agent's `prompt` and `intro_message` accept `{{name}}` placeholders. Whitespace inside the braces is tolerated (`{{ name }}` works the same as `{{name}}`).
+
+```text
+You are calling {{callee_name}} regarding their order. Be friendly,
+acknowledge them by name, and confirm we're reaching them on
+{{mobile_number}}.
+```
+
+```text
+Hi {{callee_name}}, this is your friendly assistant.
+```
+
+## 3. Supply per-call values
+
+```bash
+POST /api/v2/calls/start
+Authorization: Bearer rg_live_...
+Content-Type: application/json
+
+{
+  "agent_id": "...",
+  "to_number": "+919876543210",
+  "provider": "twilio",
+  "variables": {
+    "callee_name": "Sajal",
+    "mobile_number": "+919876543210"
+  }
+}
+```
+
+## 4. Echoed in the webhook
+
+The `session.completed` webhook echoes the same `variables` map for partner-side audit. See [Webhook Payloads](/webhooks/payloads) for the full payload shape.
+
+## Behavior
+
+- **Missing values render as empty strings.** A prompt that says `Hi {{callee_name}}!` produces `Hi !` if `callee_name` is omitted. The platform never errors on missing variables.
+- **Type coercion is automatic.** Non-string values in the request body (`{ age: 25 }`, `{ active: true }`) are stringified before substitution.
+- **Inbound calls** receive no `variables` field by default; placeholders in the prompt render empty.
+- **Tool handlers can read variables.** The bot also receives the raw `variables` dict in the start payload, so custom function handlers (CRM lookup, calendar booking) can use values like `customer_id` directly without re-parsing the prompt.
+
+## Campaigns: map CSV columns to variables
+
+When using the Campaigns API, you can map per-row contact metadata into pre-call variables for every call the campaign generates:
+
+```bash
+POST /api/campaigns
+Authorization: Bearer rg_live_...
+Content-Type: application/json
+
+{
+  "name": "Q2 Outreach",
+  "agentId": "...",
+  "phoneNumberId": "...",
+  "variableMap": {
+    "First Name": "callee_name",
+    "Phone": "mobile_number"
+  }
+}
+```
+
+The dispatch worker resolves `variableMap × Contact.metadata` per call and forwards the result as the `variables` field on each generated `/calls/start` request. Mapping keys are free-form spreadsheet columns; values must match the agent's variable names.
+
+## Test from the dashboard
+
+The "Variables & Analytics" tab on the agent editor surfaces the variables list:
+
+- **Custom Variables card** — add / remove names; chip list with delete
+- **`@` autocomplete in prompt + greeting** — type `@` in either field to insert a variable as a styled inline pill
+
+The sandbox test-call form on the Sandbox page also exposes per-variable text inputs when the agent has variables defined, so you can dial-test substitution end-to-end before going live.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Post-call Extraction" icon="wand-magic-sparkles" href="/post-call-extraction">
+    Pull structured fields out of completed call transcripts with an LLM-driven analyzer.
+  </Card>
+  <Card title="Webhook Payloads" icon="bell" href="/webhooks/payloads">
+    Full reference for the `session.completed` payload, including the `variables` echo.
+  </Card>
+</CardGroup>
