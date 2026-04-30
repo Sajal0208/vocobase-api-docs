@@ -838,6 +838,19 @@
                   "kb_llm_system_prompt": {
                     "type": ["string", "null"],
                     "maxLength": 120000
+                  },
+                  "variables": {
+                    "type": ["array", "null"],
+                    "items": { "type": "string", "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$" },
+                    "maxItems": 100,
+                    "description": "List of pre-call variable names referenced in the prompt or greeting as `{{name}}`. Per-call values are supplied via the `variables` body field on `POST /calls/start`. Pass `null` to clear."
+                  },
+                  "extraction_config": {
+                    "oneOf": [
+                      { "type": "null" },
+                      { "$ref": "#/components/schemas/ExtractionConfig" }
+                    ],
+                    "description": "Custom Analysis config — runs an LLM extraction over the transcript after every completed call. Pass `null` to disable extraction."
                   }
                 },
                 "minProperties": 1
@@ -2130,6 +2143,12 @@
                     "enum": ["mcube", "twilio", "exotel", "plivo"],
                     "default": "mcube",
                     "description": "Telephony provider. Defaults to `mcube` if not specified. The provider must be in your partner's `allowed_telephony_providers` list and its credentials must be configured (see the `/config/telephony/*` endpoints)."
+                  },
+                  "variables": {
+                    "type": "object",
+                    "additionalProperties": { "type": "string" },
+                    "description": "Pre-call variable values. Keys must match variable names declared on the agent (`Agent.variables`). Substituted into the agent's prompt and greeting via `{{name}}` placeholders. Echoed in the `session.completed` webhook for partner-side audit. Missing variables render as empty strings.",
+                    "example": { "callee_name": "Sajal", "mobile_number": "+919876543210" }
                   }
                 }
               }
@@ -2415,6 +2434,80 @@
               }
             }
           },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/calls/{id}/extract": {
+      "post": {
+        "operationId": "runCallExtraction",
+        "summary": "Run post-call extraction (Test Analysis / replay)",
+        "description": "Re-runs post-call extraction against an existing session's stored transcript using the agent's CURRENT `extraction_config`. Useful after editing the config to backfill old sessions, or to test a config against real conversation data.\n\n- `dry_run: true` — runs extraction, returns values, does NOT persist or re-fire the partner webhook\n- `dry_run: false` (default) — persists to the session's `extraction` field; partner webhook is **not** re-fired (replays are dashboard-only).\n\nReturns 400 when the agent has no `extraction_config` defined. Subject to the same partner rate-limit as `POST /calls/start` to prevent burst Gemini quota consumption.",
+        "tags": ["Calls"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Call ID."
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "dry_run": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "When true, return the extraction result without persisting it."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Extraction result.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "call_id": { "type": "string", "format": "uuid" },
+                        "session_id": { "type": "string", "format": "uuid" },
+                        "dry_run": { "type": "boolean" },
+                        "extraction": { "$ref": "#/components/schemas/ExtractionResult" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Agent has no extraction_config defined.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": { "code": "EXTRACTION_NOT_CONFIGURED", "message": "Agent has no extraction_config defined" }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": { "$ref": "#/components/responses/RateLimitExceeded" },
           "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
@@ -3215,6 +3308,18 @@
           "kb_result_format": { "type": ["string", "null"] },
           "kb_enable_llm_processing": { "type": "boolean" },
           "kb_llm_system_prompt": { "type": ["string", "null"] },
+          "variables": {
+            "type": "array",
+            "items": { "type": "string", "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$" },
+            "description": "Pre-call variable names referenced in the prompt or greeting as `{{name}}`. Empty array when none are defined."
+          },
+          "extraction_config": {
+            "oneOf": [
+              { "type": "null" },
+              { "$ref": "#/components/schemas/ExtractionConfig" }
+            ],
+            "description": "Custom Analysis config — when present, the platform runs an LLM extraction over each completed call's transcript and ships the result inline in the `session.completed` webhook."
+          },
           "project_id": { "type": ["string", "null"], "format": "uuid", "description": "ID of the project this agent belongs to. Defaults to the default project if not specified." },
           "document_count": { "type": "integer", "description": "Number of linked documents." },
           "status": { "type": "string", "enum": ["active", "inactive"] },
@@ -3316,9 +3421,72 @@
             "format": "uri",
             "description": "Presigned URL to download the call recording (audio/wav). Valid for 7 days from the time of this response. Use `GET /calls/{id}/recording-url` to mint a fresh URL after expiry. `null` if recording was not enabled or the call has not completed."
           },
+          "variables": {
+            "type": "object",
+            "additionalProperties": { "type": "string" },
+            "description": "Pre-call variable values resolved at session-start, substituted into the agent's prompt and greeting via `{{name}}`. Empty object when no variables were supplied."
+          },
+          "extraction": {
+            "oneOf": [
+              { "type": "null" },
+              { "$ref": "#/components/schemas/ExtractionResult" }
+            ],
+            "description": "Post-call extraction result. `null` until the session-queue worker runs extraction (after the call ends). Always `null` when the agent has no `extraction_config`."
+          },
           "status": { "type": "string" },
           "started_at": { "type": "string", "format": "date-time" },
           "ended_at": { "type": ["string", "null"], "format": "date-time" }
+        }
+      },
+      "ExtractionConfig": {
+        "type": "object",
+        "description": "Custom Analysis schema — defines what the post-call extraction LLM should pull from each completed call's transcript.",
+        "required": ["prompt", "keys"],
+        "properties": {
+          "prompt": {
+            "type": "string",
+            "maxLength": 50000,
+            "description": "Free-form analysis prompt. Describe the data you want extracted; reference the keys by name."
+          },
+          "keys": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "required": ["name", "type"],
+              "properties": {
+                "name": { "type": "string", "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$" },
+                "type": {
+                  "type": "string",
+                  "enum": ["string", "number", "integer", "boolean", "array", "date", "datetime"]
+                },
+                "description": { "type": "string", "maxLength": 500 }
+              }
+            }
+          },
+          "includeToolLogs": {
+            "type": "boolean",
+            "description": "When true, the extraction LLM also sees the agent's tool calls + KB hits, not just the transcript. Useful for catching things like 'did the agent search for X' or 'what was the booking outcome'.",
+            "default": false
+          }
+        }
+      },
+      "ExtractionResult": {
+        "type": "object",
+        "description": "Structured output of a single extraction run. Shipped inline in `session.completed` webhooks AND returned by `POST /calls/{id}/extract`.",
+        "required": ["status", "model", "extractedAt", "latencyMs", "attempts"],
+        "properties": {
+          "status": { "type": "string", "enum": ["success", "failed", "skipped"] },
+          "values": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Extracted fields, typed per the agent's `extraction_config.keys`. Missing keys are emitted as `null` (per-key `nullable: true` on the response schema). Absent entirely when `status != 'success'`."
+          },
+          "error": { "type": "string", "description": "Failure reason; present only when `status === 'failed'`." },
+          "model": { "type": "string", "description": "LLM model used (admin-configurable; default `gemini-3-flash-preview`)." },
+          "extractedAt": { "type": "string", "format": "date-time" },
+          "latencyMs": { "type": "integer", "description": "LLM latency in milliseconds." },
+          "attempts": { "type": "integer", "description": "Number of attempts (1 = success on first try; 2-3 = retried)." }
         }
       },
       "DictionarySummary": {
