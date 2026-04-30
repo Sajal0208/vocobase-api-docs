@@ -24,7 +24,7 @@
       },
       {
         "group": "Guides",
-        "pages": ["web-voice-testing", "custom-functions", "dictionaries", "knowledge-base", "credits", "inbound-calls"]
+        "pages": ["web-voice-testing", "custom-functions", "dictionaries", "variables-and-extraction", "knowledge-base", "credits", "inbound-calls"]
       },
       {
         "group": "Partner Onboarding",
