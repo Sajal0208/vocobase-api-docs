@@ -1,0 +1,135 @@
+---
+title: "Post-call Extraction"
+description: "Pull structured fields from completed call transcripts with an LLM-driven analyzer"
+---
+
+# Post-call Extraction
+
+Post-call extraction lets you define a Custom Analysis schema (a free-form prompt + typed keys) once on the agent. After every completed call, the platform runs a structured-output LLM over the transcript and ships the extracted values inline in the same `session.completed` webhook — no second webhook to handle.
+
+<Info>
+  **Partner API (v2) only** for the endpoints below. Dashboard parity uses the Clerk-authenticated `/api/agents` and `/api/sessions` routes, not these.
+</Info>
+
+## 1. Define the Custom Analysis schema
+
+```bash
+PUT /api/v2/agent/{id}
+Authorization: Bearer rg_live_...
+Content-Type: application/json
+
+{
+  "extraction_config": {
+    "prompt": "Analyze the conversation and extract the caller's intent, sentiment, and any commitments made.",
+    "keys": [
+      { "name": "interested", "type": "boolean", "description": "Did the user express interest in our offering?" },
+      { "name": "callback_at", "type": "datetime", "description": "ISO timestamp if the user requested a callback; null otherwise." },
+      { "name": "outcome", "type": "string", "description": "One of: callback_requested, sale_made, not_interested, voicemail, no_answer." }
+    ],
+    "includeToolLogs": false
+  }
+}
+```
+
+Pass `extraction_config: null` to disable extraction.
+
+### Supported types
+
+| Type | Maps to | Notes |
+|---|---|---|
+| `string` | text | Default. |
+| `number` | float | |
+| `integer` | int | |
+| `boolean` | true / false | |
+| `array` | `string[]` | v1: array of strings. |
+| `date` | ISO 8601 date | `YYYY-MM-DD` |
+| `datetime` | ISO 8601 timestamp | `YYYY-MM-DDTHH:MM:SSZ` |
+
+Each key gets `nullable: true` on the underlying response schema, AND every key is marked required so the LLM emits each field as `null` rather than dropping missing keys from the response — partners always receive a consistent object shape.
+
+## 2. Receive results in the webhook
+
+After every completed call where the agent has an `extraction_config`, the queue worker runs extraction (Gemini structured outputs by default) and ships the result inline in `session.completed`:
+
+```json
+{
+  "event": "session.completed",
+  "data": {
+    "session_id": "...",
+    "transcript": [...],
+    "recording_url": "...",
+    "variables": {...},
+    "extraction": {
+      "status": "success",
+      "values": {
+        "interested": true,
+        "callback_at": "2026-05-01T15:00:00Z",
+        "outcome": "callback_requested"
+      },
+      "model": "gemini-3-flash-preview",
+      "extractedAt": "2026-03-15T14:32:09.840Z",
+      "latencyMs": 1840,
+      "attempts": 1
+    }
+  }
+}
+```
+
+See [Webhook Payloads](/webhooks/payloads) for the full payload shape.
+
+## 3. Read results via the API
+
+```bash
+GET /api/v2/calls/{call_id}
+```
+
+Returns the same `extraction` object on `data.session.extraction`. Useful for partners that prefer polling over webhooks, or for backfilling values into a CRM after the fact.
+
+## 4. Replay extraction against past calls
+
+Edited the prompt or added a new key? Backfill any past session by replaying the extractor:
+
+```bash
+POST /api/v2/calls/{call_id}/extract
+Authorization: Bearer rg_live_...
+Content-Type: application/json
+
+{ "dry_run": false }
+```
+
+`dry_run: true` returns the values without persisting and without re-firing the partner webhook (useful for prompt iteration). The replay always uses the agent's **current** `extraction_config`, not the config at original-call time. Returns 400 when the agent has no `extraction_config` defined.
+
+## Failure semantics
+
+Extraction failures **never block webhook delivery**. The unified `session.completed` payload always ships, with `extraction.status` indicating outcome:
+
+| Status | Meaning |
+|---|---|
+| `success` | Extraction completed; `values` is present and typed per `keys`. |
+| `failed` | LLM error after retries (3 attempts with exponential backoff); `error` field describes what broke. |
+| `skipped` | No transcript available (e.g., no-answer call, instant disconnect). |
+
+Partners that need extracted values can branch on `status === 'success'`; partners that just need transcript + recording can ignore the field entirely.
+
+## Concurrency + cost
+
+The platform caps post-call extraction at 20 concurrent LLM calls per worker process. Bursts queue in-memory until a slot frees. The default model is `gemini-3-flash-preview`; the active model is admin-configurable platform-wide.
+
+## Test from the dashboard
+
+The "Variables & Analytics" tab on the agent editor surfaces extraction:
+
+- **Custom Analysis card** — prompt textarea, typed keys table, tool-logs toggle, master enable/disable
+- **Test Analysis button** — opens a modal listing the last 50 completed sessions for this agent; pick one to dry-run extraction with the current config and see the values without affecting the stored result
+- **Auto-display** — after every completed call, the extracted values also appear inline in the session's transcript modal (no replay needed)
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Pre-call Variables" icon="square-bracket" href="/pre-call-variables">
+    Template the agent's prompt and greeting with per-call values via `{{name}}` placeholders.
+  </Card>
+  <Card title="Webhook Payloads" icon="bell" href="/webhooks/payloads">
+    Full reference for the `session.completed` payload, including the `extraction` block.
+  </Card>
+</CardGroup>
