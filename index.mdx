@@ -11,7 +11,10 @@ Vocobase is a voice AI agent platform that enables you to create, manage, and de
 
 - Create and configure AI voice agents
 - Upload knowledge base documents
-- Initiate outbound calls via Twilio or MCube
+- Bias speech recognition with [custom dictionaries](/dictionaries) for domain-specific vocabulary
+- Template prompts with [pre-call variables](/variables-and-extraction#pre-call-variables) (`{{name}}` placeholders that flow in per call)
+- Pull structured fields from completed calls with [post-call extraction](/variables-and-extraction#post-call-extraction) (LLM-driven; results inline in `session.completed`)
+- Initiate outbound calls via Twilio, Exotel, Plivo, or MCube
 - Receive webhook notifications on call completion
 - Manage your partner configuration
 
