@@ -52,6 +52,10 @@
     {
       "name": "Dictionaries",
       "description": "Soniox STT dictionary CRUD and agent attachment."
+    },
+    {
+      "name": "Sessions",
+      "description": "Browser-initiated WebRTC voice sessions for in-app voice agents."
     }
   ],
   "paths": {
@@ -2546,6 +2550,213 @@
             }
           },
           "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/sessions/webrtc": {
+      "post": {
+        "operationId": "startWebrtcSession",
+        "summary": "Start a browser WebRTC session",
+        "description": "Creates a Daily WebRTC room and boots the agent. Returns the room URL and a one-time access token your browser passes to the Pipecat client to connect to the agent in real time.\n\nThe session is fully tracked on the platform — when the call ends, the same `session.completed` partner webhook fires (transcript, recording_url, extraction). The webhook payload's `call` field is omitted for these sessions because there is no associated phone call. See [Web Voice Testing](/web-voice-testing) for end-to-end browser integration code.\n\n**Auth + limits:** Bearer API key (`rg_live_*`). Bound by the API key's `concurrencyLimit`. Rate-limited to 10 starts/minute per key.",
+        "tags": ["Sessions"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["agent_id"],
+                "properties": {
+                  "agent_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "ID of the agent to use for this session."
+                  },
+                  "variables": {
+                    "type": "object",
+                    "additionalProperties": { "type": "string" },
+                    "description": "Pre-call variable values. Keys must match variable names declared on the agent (`Agent.variables`). Substituted into the agent's prompt and greeting via `{{name}}` placeholders. Echoed in the `session.completed` webhook for partner-side audit. Missing variables render as empty strings.",
+                    "example": { "callee_name": "Sajal" }
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Session started successfully. Pass `daily_room_url` and `daily_token` to your WebRTC client.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "session_id": { "type": "string", "format": "uuid" },
+                        "agent_id": { "type": "string", "format": "uuid" },
+                        "daily_room_url": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "WebRTC room URL. Pass to `client.connect({ url, token })`."
+                        },
+                        "daily_token": {
+                          "type": "string",
+                          "description": "One-time WebRTC access token for the room."
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "session_id": "s1234567-abcd-1234-abcd-123456789012",
+                    "agent_id": "a1234567-abcd-1234-abcd-123456789012",
+                    "daily_room_url": "https://vocobase.daily.co/abc123",
+                    "daily_token": "eyJhbGciOi..."
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "429": {
+            "description": "Concurrency limit reached for this API key.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "CONCURRENCY_LIMIT_EXCEEDED",
+                    "message": "Concurrency limit reached. Maximum simultaneous sessions exceeded."
+                  }
+                }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" },
+          "502": {
+            "description": "Bot server temporarily unavailable.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "BOT_SERVER_UNAVAILABLE",
+                    "message": "Bot server temporarily unavailable. Please try again."
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/sessions/{id}": {
+      "get": {
+        "operationId": "getSession",
+        "summary": "Get a session",
+        "description": "Returns the same fields delivered by the `session.completed` partner webhook (transcript, recording, extraction, variables, agent name, status, duration, credits). Polling fallback for partners that can't accept inbound webhooks. Mints a fresh presigned `recording_url` on every call (valid 7 days). Authorization is by `partner_config_id` — partners can only read sessions started via their own v2 endpoints (`/sessions/webrtc` or `/calls/start`).",
+        "tags": ["Sessions"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Session ID (returned by `/sessions/webrtc` or `/calls/start`)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Session retrieved.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "session_id": { "type": "string", "format": "uuid" },
+                        "agent_id": { "type": "string", "format": "uuid" },
+                        "agent_name": { "type": "string", "nullable": true },
+                        "status": {
+                          "type": "string",
+                          "enum": ["active", "completed", "failed"],
+                          "description": "Lifecycle state. `active` while the bot is still running."
+                        },
+                        "duration_seconds": { "type": "integer", "nullable": true, "description": "Call duration in whole seconds. `null` until the session ends." },
+                        "credits_used": { "type": "number", "description": "Credits deducted for this session (display units)." },
+                        "transcript": {
+                          "description": "Ordered conversation turns. Same shape as the `session.completed` webhook payload. `null` until the session ends.",
+                          "nullable": true
+                        },
+                        "recording_url": {
+                          "type": "string",
+                          "format": "uri",
+                          "nullable": true,
+                          "description": "Freshly-minted presigned recording URL (7-day window). `null` if the agent did not have recording enabled or the upload has not landed yet."
+                        },
+                        "variables": {
+                          "type": "object",
+                          "additionalProperties": { "type": "string" },
+                          "description": "Pre-call variable values used to render this session's prompt and greeting. Empty object when none were supplied."
+                        },
+                        "started_at": { "type": "string", "format": "date-time" },
+                        "ended_at": { "type": "string", "format": "date-time", "nullable": true },
+                        "extraction": {
+                          "type": "object",
+                          "description": "Post-call extraction result. Present only when the agent has an `extraction_config` defined."
+                        },
+                        "call": {
+                          "type": "object",
+                          "description": "Call metadata. Present only for telephony sessions started via `POST /calls/start`. Omitted for browser WebRTC sessions.",
+                          "properties": {
+                            "call_id": { "type": "string", "format": "uuid" },
+                            "from_number": { "type": "string" },
+                            "to_number": { "type": "string" },
+                            "direction": { "type": "string" },
+                            "status": { "type": "string" }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "session_id": "s1234567-abcd-1234-abcd-123456789012",
+                    "agent_id": "a1234567-abcd-1234-abcd-123456789012",
+                    "agent_name": "Sales Assistant",
+                    "status": "completed",
+                    "duration_seconds": 127,
+                    "credits_used": 2.12,
+                    "transcript": [
+                      { "role": "bot", "content": "Hello! How can I help?", "timestamp": "2026-05-02T14:30:01.000Z" },
+                      { "role": "user", "content": "Tell me about your enterprise plan.", "timestamp": "2026-05-02T14:30:04.000Z" }
+                    ],
+                    "recording_url": "https://storage.googleapis.com/vocobase-recordings/rec_abc123.wav?X-Goog-Signature=...",
+                    "variables": { "callee_name": "Sajal" },
+                    "started_at": "2026-05-02T14:30:00.000Z",
+                    "ended_at": "2026-05-02T14:32:07.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
           "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
