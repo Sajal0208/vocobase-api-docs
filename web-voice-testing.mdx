@@ -14,13 +14,14 @@ Your web app starts a voice session via the Vocobase API, receives WebRTC creden
 ```
 Your App                      Vocobase API                  WebRTC
   |                               |                           |
-  |  POST /api/sessions/start     |                           |
-  |  { agent_name }               |                           |
+  |  POST /api/v2/sessions/webrtc |                           |
+  |  { agent_id }                 |                           |
   | ----------------------------> |                           |
   |                               |  (starts bot + room)      |
   | <---------------------------- |                           |
   |  { session_id,                |                           |
-  |    room_url, token }          |                           |
+  |    daily_room_url,            |                           |
+  |    daily_token }              |                           |
   |                               |                           |
   |  client.connect({ url, token })                           |
   | --------------------------------------------------------> |
@@ -31,7 +32,9 @@ Your App                      Vocobase API                  WebRTC
   | --------------------------------------------------------> |
   |                               |                           |
   |                               |  (session ends,           |
-  |                               |   credits deducted)       |
+  |                               |   credits deducted,       |
+  |                               |   session.completed       |
+  |                               |   webhook fires)          |
 ```
 
 ---
@@ -82,37 +85,37 @@ Call the Vocobase API to create a voice session. The response contains WebRTC cr
 
 <CodeGroup>
 ```bash cURL
-curl -X POST https://api.vocobase.com/api/sessions/start \
+curl -X POST https://api.vocobase.com/api/v2/sessions/webrtc \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
   -H "Content-Type: application/json" \
-  -d '{"agent_name": "my-agent"}'
+  -d '{"agent_id": "a1234567-abcd-1234-abcd-123456789012"}'
 ```
 
 ```javascript JavaScript
-const response = await fetch("https://api.vocobase.com/api/sessions/start", {
+const response = await fetch("https://api.vocobase.com/api/v2/sessions/webrtc", {
   method: "POST",
   headers: {
     "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
     "Content-Type": "application/json",
   },
-  body: JSON.stringify({ agent_name: "my-agent" }),
+  body: JSON.stringify({ agent_id: "a1234567-abcd-1234-abcd-123456789012" }),
 });
-const session = await response.json();
-// { session_id: "uuid", room_url: "https://...", token: "..." }
+const { data: session } = await response.json();
+// { session_id, agent_id, daily_room_url, daily_token }
 ```
 
 ```python Python
 import requests
 
 response = requests.post(
-    "https://api.vocobase.com/api/sessions/start",
+    "https://api.vocobase.com/api/v2/sessions/webrtc",
     headers={
         "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
         "Content-Type": "application/json",
     },
-    json={"agent_name": "my-agent"},
+    json={"agent_id": "a1234567-abcd-1234-abcd-123456789012"},
 )
-session = response.json()
+session = response.json()["data"]
 ```
 </CodeGroup>
 
@@ -120,32 +123,38 @@ session = response.json()
 
 ```json
 {
-  "session_id": "550e8400-e29b-41d4-a716-446655440000",
-  "room_url": "https://vocobase.daily.co/abc123",
-  "token": "eyJhbGciOi..."
+  "success": true,
+  "data": {
+    "session_id": "550e8400-e29b-41d4-a716-446655440000",
+    "agent_id": "a1234567-abcd-1234-abcd-123456789012",
+    "daily_room_url": "https://vocobase.daily.co/abc123",
+    "daily_token": "eyJhbGciOi..."
+  }
 }
 ```
 
 | Field | Description |
 |-------|-------------|
-| `session_id` | Unique session identifier. Use this to fetch session details later. |
-| `room_url` | WebRTC room URL. Pass this to `client.connect()`. |
-| `token` | One-time access token for the room. Pass this to `client.connect()`. |
+| `session_id` | Unique session identifier. Echoed in the `session.completed` webhook. |
+| `agent_id` | The agent handling this session. |
+| `daily_room_url` | WebRTC room URL. Pass this to `client.connect()`. |
+| `daily_token` | One-time access token for the room. Pass this to `client.connect()`. |
+
+You can also pass `variables` in the request body to substitute pre-call values into the agent's prompt and greeting (see [Pre-call Variables](/pre-call-variables)).
 
 ### Error responses
 
 | Status | Cause | Action |
 |--------|-------|--------|
-| `400` | Missing or invalid `agent_name` | Check the request body |
+| `400` | Missing or invalid `agent_id` | Check the request body |
 | `401` | Invalid API key | Verify key format (`rg_live_*`) |
-| `402` | Insufficient credits | Top up in the dashboard |
-| `403` | Account not active | Contact Vocobase support |
-| `404` | Agent not found | Verify agent name (case-sensitive) |
+| `403` | Account not active or no V2 access | Contact Vocobase support |
+| `404` | Agent not found | Verify the agent UUID and that it's active |
 | `429` | Rate or concurrency limit | Wait and retry |
 | `502` | Bot server temporarily unavailable | Retry after a few seconds |
 
 <Warning>
-  Never expose your API key in client-side code. Proxy the session start call through your own backend — your backend adds the API key, gets the credentials, and returns `room_url` + `token` to the browser. The WebRTC connection itself requires no API key.
+  Never expose your API key in client-side code. Proxy the session start call through your own backend — your backend adds the API key, gets the credentials, and returns `daily_room_url` + `daily_token` to the browser. The WebRTC connection itself requires no API key.
 </Warning>
 
 ---
@@ -185,8 +194,8 @@ const session = await res.json();
 
 // Connect to the voice agent
 await client.connect({
-  url: session.room_url,
-  token: session.token,
+  url: session.daily_room_url,
+  token: session.daily_token,
 });
 ```
 
@@ -339,8 +348,8 @@ A self-contained page you can use to test your integration:
         const session = await res.json();
 
         await client.connect({
-          url: session.room_url,
-          token: session.token,
+          url: session.daily_room_url,
+          token: session.daily_token,
         });
       } catch (err) {
         statusEl.textContent = "Error: " + err.message;
@@ -457,8 +466,8 @@ function VoiceChat({ agentName }: { agentName: string }) {
       const session = await res.json();
 
       await client.connect({
-        url: session.room_url,
-        token: session.token,
+        url: session.daily_room_url,
+        token: session.daily_token,
       });
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to connect");
@@ -552,24 +561,24 @@ const app = express();
 app.post("/api/voice-session", async (req, res) => {
   try {
     const response = await fetch(
-      "https://api.vocobase.com/api/sessions/start",
+      "https://api.vocobase.com/api/v2/sessions/webrtc",
       {
         method: "POST",
         headers: {
           "Authorization": `Bearer ${process.env.VOCOBASE_API_KEY}`,
           "Content-Type": "application/json",
         },
-        body: JSON.stringify({ agent_name: "my-agent" }),
+        body: JSON.stringify({ agent_id: process.env.VOCOBASE_AGENT_ID }),
       }
     );
 
-    if (!response.ok) {
-      const err = await response.json();
-      return res.status(response.status).json(err);
+    const body = await response.json();
+    if (!response.ok || !body.success) {
+      return res.status(response.status).json(body);
     }
 
-    const session = await response.json();
-    res.json(session);
+    // Forward only the WebRTC credentials to the browser.
+    res.json(body.data);
   } catch (err) {
     res.status(500).json({ error: "Failed to start voice session" });
   }
@@ -587,65 +596,30 @@ app = FastAPI()
 async def start_voice_session():
     async with httpx.AsyncClient() as client:
         response = await client.post(
-            "https://api.vocobase.com/api/sessions/start",
+            "https://api.vocobase.com/api/v2/sessions/webrtc",
             headers={
                 "Authorization": f"Bearer {os.environ['VOCOBASE_API_KEY']}",
                 "Content-Type": "application/json",
             },
-            json={"agent_name": "my-agent"},
+            json={"agent_id": os.environ["VOCOBASE_AGENT_ID"]},
         )
 
-    if response.status_code != 200:
-        raise HTTPException(
-            status_code=response.status_code,
-            detail=response.json(),
-        )
+    body = response.json()
+    if response.status_code >= 400 or not body.get("success"):
+        raise HTTPException(status_code=response.status_code, detail=body)
 
-    return response.json()
+    # Forward only the WebRTC credentials to the browser.
+    return body["data"]
 ```
 </CodeGroup>
 
 ---
 
-## Get session details
+## Receiving the transcript and recording
 
-After a session ends, you can retrieve its transcript, duration, and credit usage.
+After the session ends, the platform fires a `session.completed` webhook to your configured webhook URL containing the transcript, recording URL, credit usage, pre-call variables, and any post-call extraction. The `call` block is omitted for browser WebRTC sessions because there's no associated phone call.
 
-<CodeGroup>
-```bash cURL
-curl -X GET https://api.vocobase.com/api/sessions/SESSION_ID \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
-```
-
-```javascript JavaScript
-const response = await fetch(
-  `https://api.vocobase.com/api/sessions/${sessionId}`,
-  {
-    headers: {
-      "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
-    },
-  }
-);
-const session = await response.json();
-```
-</CodeGroup>
-
-```json
-{
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "status": "COMPLETED",
-  "durationSecs": 45,
-  "creditsUsed": 0.75,
-  "transcript": {
-    "messages": [
-      { "role": "user", "content": "Hello" },
-      { "role": "assistant", "content": "Hi! How can I help you today?" }
-    ]
-  },
-  "startedAt": "2025-01-15T10:30:00Z",
-  "endedAt": "2025-01-15T10:30:45Z"
-}
-```
+Configure your webhook URL once via `PUT /api/v2/config/webhook` and the same endpoint receives events for both telephony and WebRTC sessions. See [Webhook Payloads](/webhooks/payloads) for the full schema.
 
 ---
 
@@ -676,7 +650,7 @@ See [Authentication](/authentication) for full rate limit details.
 |-------|----------|
 | No audio from agent | **Vanilla JS:** Ensure `onTrackStarted` creates an `<audio>` element and calls `.play()`. **React:** Ensure `<PipecatClientAudio />` is mounted when connected. Browsers may block autoplay — always connect via a user gesture (button click). |
 | Microphone not working | Check `navigator.mediaDevices.getUserMedia` permission. HTTPS is required in production. |
-| Connection drops immediately | Verify `room_url` and `token` from the API are passed correctly to `client.connect()`. Tokens are single-use. |
+| Connection drops immediately | Verify `daily_room_url` and `daily_token` from the API are passed correctly to `client.connect()`. Tokens are single-use. |
 | Multiple audio elements | In vanilla JS, track the `<audio>` element and remove the old one before creating a new one in `onTrackStarted`. |
 | `enableCam: false` but camera prompt | The WebRTC transport layer may request camera access internally. Setting `enableCam: false` ensures the camera is never activated. |
 

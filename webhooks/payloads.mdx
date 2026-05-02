@@ -99,7 +99,7 @@ Every webhook request includes these headers:
 | `recording_url` | string or null | Presigned URL for the call recording. `null` if recording was not enabled. URL is valid for 7 days. If it expires, mint a fresh one with `GET /calls/{call_id}/recording-url`. |
 | `variables` | object | Pre-call variable values that were substituted into the agent's prompt and greeting. Empty object `{}` when no variables were supplied. Echoed for partner-side audit. |
 | `extraction` | object or absent | Post-call extraction result, present only when the agent has a Custom Analysis config defined. Status is `success`, `failed`, or `skipped` (no transcript). Values are typed per the agent's config; missing keys are emitted as `null`. See [Post-call Extraction](#post-call-extraction) below. |
-| `call` | object or null | Call metadata (present only for telephony calls) |
+| `call` | object or absent | Call metadata. Present only for telephony sessions started via `POST /calls/start`. **Omitted entirely** for browser WebRTC sessions started via `POST /sessions/webrtc` (no associated phone call). |
 | `call.call_id` | string (UUID) | Unique call identifier |
 | `call.from_number` | string | Caller phone number (E.164) |
 | `call.to_number` | string | Destination phone number (E.164) |
