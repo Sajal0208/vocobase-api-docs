@@ -621,6 +621,13 @@ After the session ends, the platform fires a `session.completed` webhook to your
 
 Configure your webhook URL once via `PUT /api/v2/config/webhook` and the same endpoint receives events for both telephony and WebRTC sessions. See [Webhook Payloads](/webhooks/payloads) for the full schema.
 
+If your stack can't accept inbound webhooks, poll `GET /api/v2/sessions/{session_id}` instead — it returns the same fields with a freshly-minted recording URL on each call:
+
+```bash
+curl -X GET https://api.vocobase.com/api/v2/sessions/SESSION_ID \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
 ---
 
 ## Billing
