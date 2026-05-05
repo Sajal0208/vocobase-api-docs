@@ -26,6 +26,8 @@ Upload Document ──> Link to Agent ──> Agent uses it in calls
 |------|-----------|----------|
 | PDF | `application/pdf` | 50 MB |
 | Word (.docx) | `application/vnd.openxmlformats-officedocument.wordprocessingml.document` | 50 MB |
+| Excel (.xlsx) | `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` | 50 MB |
+| Excel Macro (.xlsm) | `application/vnd.ms-excel.sheet.macroEnabled.12` | 50 MB |
 | Plain text | `text/plain` | 50 MB |
 | Markdown | `text/markdown` | 50 MB |
 | PNG image | `image/png` | 50 MB |
@@ -146,8 +148,44 @@ curl -X POST https://api.vocobase.com/api/v2/documents/web-link \
 ```
 
 <Tip>
-  The URL content is crawled and indexed when the document is linked to an agent, not at creation time.
+  The URL content is fetched and stored as a text snapshot when you create the document. The agent uses this snapshot during conversations.
 </Tip>
+
+---
+
+## Add a paragraph document
+
+Paragraphs let you add custom text content directly without uploading a file. This is useful for FAQs, product descriptions, or any text you want the agent to reference.
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/documents/paragraph \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "Return Policy",
+    "content": "Our return policy allows returns within 30 days of purchase. Items must be unused and in original packaging. Refunds are processed within 5-7 business days.",
+    "description": "Company return policy summary"
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "d3456789-abcd-1234-abcd-123456789012",
+    "name": "Return Policy",
+    "type": "paragraph",
+    "description": "Company return policy summary",
+    "status": "ready",
+    "created_at": "2026-03-15T10:40:00.000Z",
+    "updated_at": "2026-03-15T10:40:00.000Z"
+  }
+}
+```
+
+<Note>
+  Paragraph content is limited to **50,000 characters**. For longer content, consider uploading a text or markdown file.
+</Note>
 
 ---
 
@@ -344,6 +382,7 @@ curl -X DELETE https://api.vocobase.com/api/v2/documents/d1234567-abcd-1234-abcd
 | `POST` | `/documents/upload` | Get a presigned upload URL |
 | `POST` | `/documents/{id}/confirm` | Confirm file upload |
 | `POST` | `/documents/web-link` | Add a web link document |
+| `POST` | `/documents/paragraph` | Add a paragraph (text) document |
 | `GET` | `/documents` | List all documents |
 | `GET` | `/documents/{id}` | Get document with download URL |
 | `PUT` | `/documents/{id}` | Update name/description |
