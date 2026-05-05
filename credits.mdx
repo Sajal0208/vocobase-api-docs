@@ -78,14 +78,91 @@ Log in to the [Vocobase Dashboard](https://app.vocobase.com) and navigate to **S
 
 ### Via the API
 
-Fetch your partner configuration to see the current balance:
+Use the billing endpoints to check your balance and view transaction history.
+
+#### Get current balance
 
 ```bash
-curl -X GET https://api.vocobase.com/api/v2/config \
+curl -X GET https://api.vocobase.com/api/v2/billing/balance \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
 ```
 
-The response includes your credit balance in the partner configuration data.
+```json
+{
+  "success": true,
+  "data": {
+    "credits": 1250.50
+  }
+}
+```
+
+#### Get transaction history
+
+View your credit transactions with optional filtering:
+
+```bash
+curl -X GET "https://api.vocobase.com/api/v2/billing/transactions?limit=20&type=usage" \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+| Parameter | Type | Description |
+|-----------|------|-------------|
+| `limit` | integer | Max results (default 50, max 100) |
+| `offset` | integer | Pagination offset (default 0) |
+| `type` | string | Filter by type: `purchase`, `usage`, `refund`, `bonus` |
+| `start_date` | string | ISO date, filter from this date |
+| `end_date` | string | ISO date, filter until this date |
+
+```json
+{
+  "success": true,
+  "data": {
+    "transactions": [
+      {
+        "id": "t1234567-abcd-1234-abcd-123456789012",
+        "amount": -2.12,
+        "type": "usage",
+        "description": "Voice session",
+        "created_at": "2026-03-15T10:30:00.000Z"
+      }
+    ],
+    "total": 156,
+    "limit": 20,
+    "offset": 0
+  }
+}
+```
+
+#### Get usage summary
+
+Get aggregated usage for a date range:
+
+```bash
+curl -X GET "https://api.vocobase.com/api/v2/billing/usage-summary?start_date=2026-03-01&end_date=2026-03-31" \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "period": {
+      "start": "2026-03-01T00:00:00.000Z",
+      "end": "2026-03-31T23:59:59.000Z"
+    },
+    "summary": {
+      "usage": { "count": 142, "total": -285.50 },
+      "purchase": { "count": 1, "total": 500.00 }
+    },
+    "totals": {
+      "transaction_count": 143,
+      "credits_added": 500.00,
+      "credits_used": 285.50,
+      "net_change": 214.50
+    }
+  }
+}
+```
 
 ---
 
