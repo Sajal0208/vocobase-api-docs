@@ -1,0 +1,256 @@
+---
+title: "Call Transfer & Behavior"
+description: "Transfer live calls to human agents and configure end-call/transfer triggers"
+---
+
+# Call Transfer & Behavior
+
+Vocobase agents can transfer live calls to a human agent mid-conversation. When a caller asks to speak to a human, the bot announces the transfer, bridges the call via Plivo, and the human picks up seamlessly. You can also configure the bot to end calls automatically when the conversation goal is reached.
+
+---
+
+## How call transfer works
+
+```
+Caller speaks with your AI agent
+        │
+        ▼
+LLM detects a transfer trigger (e.g., caller asks for human)
+        │
+        ▼
+Bot speaks the transfer announcement ("Please hold while I transfer you...")
+        │
+        ▼
+Backend sends Plivo a <Dial> to the human's phone number
+        │
+        ▼
+Human picks up — caller is now speaking with a human agent
+        │
+        ▼
+Webhook fires session.completed when the full call ends
+```
+
+1. The LLM (running inside the bot) detects a trigger condition — e.g., the caller says "let me speak to a manager"
+2. The bot invokes the `transfer_call_to_human` tool, which pushes a TTS announcement and then signals the backend
+3. The backend calls Plivo's Call Transfer API to redirect the caller's audio leg to a human PSTN number
+4. The bot's WebSocket disconnects; the human and caller are bridged directly
+
+<Note>
+  Call transfer is supported via **Plivo** only. The number you transfer to must be in E.164 format (e.g., `+14155551234`).
+</Note>
+
+---
+
+## Enabling call transfer on an agent
+
+Set `transferEnabled` to `true` when creating or updating an agent. Provide the phone number the caller should be transferred to:
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transferEnabled": true,
+    "transferNumber": "+14155551234",
+    "transferMessage": "Let me connect you with a human agent now."
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "transferEnabled": true,
+    "transferNumber": "+14155551234",
+    "transferMessage": "Let me connect you with a human agent now.",
+    "transferTriggers": ["CALLER_ASKS_HUMAN", "FRUSTRATED"],
+    ...
+  }
+}
+```
+
+### Transfer agent fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `transferEnabled` | `boolean` | Enable call transfer on this agent. Defaults to `false`. |
+| `transferNumber` | `string` | E.164 phone number to transfer to. Max 32 characters. Required when `transferEnabled` is true. |
+| `transferMessage` | `string` | Announcement spoken right before transferring. Max 500 characters. If empty, the bot uses a platform default. |
+| `transferTriggers` | `string[]` | Conditions that trigger a transfer. See [Transfer triggers](#transfer-triggers) below. |
+
+---
+
+## Transfer triggers
+
+Transfer triggers tell the LLM *when* to transfer a call to a human. Each trigger key maps to a prompt fragment that guides the LLM.
+
+| Trigger Key | Label | When it fires |
+|---|---|---|
+| `CALLER_ASKS_HUMAN` | Caller asks to speak to a human | Caller explicitly says "talk to a person," "speak to agent," etc. |
+| `FRUSTRATED` | Caller is upset or frustrated | Caller shows anger, frustration, or uses aggressive language |
+| `ASKS_MANAGER` | Caller asks for a manager | Caller specifically requests a supervisor or manager |
+| `UNKNOWN_QUESTION` | Unfamiliar question | Caller asks something the assistant doesn't know |
+| `BILLING` | Billing / refunds | Caller asks about charges, refunds, or payment issues |
+
+The trigger list is ordered — the LLM considers triggers in sequence. Leave the array empty to disable all platform-driven triggers.
+
+---
+
+## End-call behavior
+
+You can configure the agent to end calls automatically when certain conditions are met — for example, when the caller says goodbye or the conversation goal is achieved.
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "endCallEnabled": true,
+    "endCallMessage": "Thank you for calling. Have a great day!",
+    "endCallTriggers": ["CALLER_GOODBYE", "GOAL_COMPLETED"]
+  }'
+```
+
+### End-call agent fields
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `endCallEnabled` | `boolean` | Enable the agent to end calls on its own. Defaults to `true`. |
+| `endCallMessage` | `string` | Farewell message spoken before hanging up. Max 500 characters. |
+| `endCallTriggers` | `string[]` | Conditions that trigger a hangup. See [End-call triggers](#end-call-triggers) below. |
+
+### End-call triggers
+
+| Trigger Key | Label | When it fires |
+|---|---|---|
+| `CALLER_GOODBYE` | Caller says goodbye | Caller says "bye," "thank you, that's all," etc. |
+| `GOAL_COMPLETED` | Conversation goal is achieved | The primary purpose of the call has been fulfilled |
+| `IDLE` | Caller is unresponsive | Extended silence from the caller |
+| `REMOVE_FROM_LIST` | Remove from call list | Caller asks to be removed from your calling list |
+
+---
+
+## Initiating a transfer from the API
+
+You can programmatically transfer an active call to a human number using the transfer endpoint:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/calls/{call_id}/transfer \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "+919876543210"
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "message": "Call transferred",
+    "callId": "c1234567-abcd-1234-abcd-123456789012",
+    "sessionId": "s1234567-abcd-1234-abcd-123456789012"
+  }
+}
+```
+
+### Request
+
+| Field | Type | Required | Description |
+|-------|------|----------|-------------|
+| `to` | `string` | No | E.164 number to transfer to. If omitted, the agent's `transferNumber` is used. |
+
+### Response
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `success` | `boolean` | Whether the transfer was queued successfully |
+| `data.message` | `string` | Status message |
+| `data.callId` | `string` | The Plivo call UUID |
+| `data.sessionId` | `string` | The Vocobase session ID |
+
+<Warning>
+  The call must be actively in-progress for a transfer to succeed. Transferring an already-completed call returns a 400 error.
+</Warning>
+
+---
+
+## Billing during transferred portion
+
+By default, Vocobase bills for the full call duration — including the time after transfer when the caller is speaking with a human. You can turn this off per partner:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `billDuringTransfer` | `boolean` | Whether to continue billing for the call after it's transferred. Defaults to `true`. |
+
+<Note>
+  This setting is managed by Vocobase staff through the admin panel. Contact your account manager if you want to adjust this behavior.
+</Note>
+
+When `billDuringTransfer` is `false`, the billing clock stops at the moment the transfer completes. Only the pre-transfer portion of the call is charged.
+
+---
+
+## Test ring
+
+Test that your transfer configuration works before deploying it to live calls:
+
+```bash
+curl -X POST https://api.vocobase.com/api/agents/{agent_id}/transfer/test-ring \
+  -H "Authorization: Bearer YOUR_CLERK_JWT"
+```
+
+```json
+{
+  "success": true,
+  "request_uuid": "plivo-req-abc123"
+}
+```
+
+This places a brief test call to the configured `transferNumber`. You'll hear a short ring — pick up to confirm it works, then hang up. No charges apply for test calls.
+
+<Note>
+  This endpoint requires a Clerk JWT (dashboard auth), not an API key. It's designed for testing from the Vocobase dashboard.
+</Note>
+
+---
+
+## Testing the transfer flow
+
+<Steps>
+  <Step title="Enable transfer on your agent">
+    Set `transferEnabled: true`, a valid E.164 `transferNumber`, and at least one `transferTrigger` (e.g., `["CALLER_ASKS_HUMAN"]`).
+  </Step>
+
+  <Step title="Test ring">
+    Use the test ring endpoint to confirm the configured number can be reached.
+  </Step>
+
+  <Step title="Place a test call">
+    Make a call to your agent. During the conversation, say something that matches a transfer trigger, like "Can I talk to a real person?"
+  </Step>
+
+  <Step title="Verify in webhook">
+    After the call ends, check your `session.completed` webhook. A transferred call will include the transfer details in the session metadata.
+  </Step>
+</Steps>
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Inbound Calls" icon="phone-incoming" href="/inbound-calls">
+    Set up inbound call handling with Twilio.
+  </Card>
+  <Card title="Custom Functions" icon="code" href="/custom-functions">
+    Create custom LLM-callable API functions for your agents.
+  </Card>
+  <Card title="Webhooks" icon="webhook" href="/webhooks/setup">
+    Configure webhook notifications for call events.
+  </Card>
+  <Card title="Credits & Billing" icon="credit-card" href="/credits">
+    Understand how call credits are calculated.
+  </Card>
+</CardGroup>

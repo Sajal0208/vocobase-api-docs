@@ -2634,6 +2634,75 @@
         }
       }
     },
+    "/calls/{id}/transfer": {
+      "post": {
+        "operationId": "transferCall",
+        "summary": "Transfer a live call to a human",
+        "description": "Transfers an active in-progress call to a human phone number via Plivo. The bot announces the transfer, then Plivo bridges the caller directly to the destination number. The call's `session.completed` webhook will include transfer metadata when the full call ends.\n\nIf `to` is omitted, the agent's configured `transferNumber` is used. The agent must have `transferEnabled: true`.",
+        "tags": ["Calls"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "The call ID."
+          }
+        ],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "to": {
+                    "type": "string",
+                    "description": "E.164 phone number to transfer to. If omitted, the agent's configured transferNumber is used.",
+                    "example": "+919876543210"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Transfer queued.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "message": { "type": "string" },
+                        "callId": { "type": "string", "format": "uuid" },
+                        "sessionId": { "type": "string", "format": "uuid" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "message": "Call transferred",
+                    "callId": "c1234567-abcd-1234-abcd-123456789012",
+                    "sessionId": "s1234567-abcd-1234-abcd-123456789012"
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/Error" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
     "/sessions/webrtc": {
       "post": {
         "operationId": "startWebrtcSession",
@@ -3620,6 +3689,21 @@
             "description": "Custom Analysis config — when present, the platform runs an LLM extraction over each completed call's transcript and ships the result inline in the `session.completed` webhook."
           },
           "project_id": { "type": ["string", "null"], "format": "uuid", "description": "ID of the project this agent belongs to. Defaults to the default project if not specified." },
+          "transferEnabled": { "type": "boolean", "description": "Enable call transfer to a human agent." },
+          "transferNumber": { "type": ["string", "null"], "description": "E.164 phone number to transfer calls to. Required when transferEnabled is true." },
+          "transferMessage": { "type": ["string", "null"], "description": "Announcement spoken before transferring. Max 500 characters." },
+          "transferTriggers": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Transfer trigger keys. Valid values: CALLER_ASKS_HUMAN, FRUSTRATED, ASKS_MANAGER, UNKNOWN_QUESTION, BILLING."
+          },
+          "endCallEnabled": { "type": "boolean", "description": "Enable the agent to end calls on its own." },
+          "endCallMessage": { "type": ["string", "null"], "description": "Farewell message spoken before hanging up. Max 500 characters." },
+          "endCallTriggers": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "End-call trigger keys. Valid values: CALLER_GOODBYE, GOAL_COMPLETED, IDLE, REMOVE_FROM_LIST."
+          },
           "document_count": { "type": "integer", "description": "Number of linked documents." },
           "status": { "type": "string", "enum": ["active", "inactive"] },
           "created_at": { "type": "string", "format": "date-time" },
