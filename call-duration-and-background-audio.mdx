@@ -1,0 +1,187 @@
+---
+title: "Call Duration & Background Audio"
+description: "Cap how long any single call can run, and mix ambient audio under your agent's voice"
+---
+
+# Call Duration & Background Audio
+
+Two per-agent settings that shape the call's outer envelope: a **maximum
+call duration** (graceful auto-end with farewell) and an **ambient
+background audio** track (mixed under the bot's TTS for the duration of
+the call). Both are independent of each other and independent of the
+core agent prompt / voice / KB configuration.
+
+---
+
+## Call duration cap
+
+A hard cap on how long any single call can run. When the limit is
+reached, the bot speaks a farewell and ends the session through the
+standard end-of-call path so transcript, recording, billing and the
+`session.completed` webhook all fire normally.
+
+### Default
+
+**New agents default to `max_call_duration_secs = 600` (10 minutes).**
+You can override this between **60 and 3600** seconds (1 minute to 1
+hour) per agent, or set it to `null` to disable the cap entirely.
+
+Existing agents created before this default landed may still hold
+`null`; opt them in by writing `600` via the agent update endpoint.
+
+### Behavior at the cap
+
+The cap fires in two stages so the wind-down sounds natural:
+
+| Time            | What the bot does |
+|-----------------|-------------------|
+| `cap − 30s`     | Speaks a soft warning: *"Just a heads up — we're approaching the call time limit, so let's wrap up shortly."* The conversation can continue. |
+| `cap`           | Speaks the agent's `endCallMessage` (or a default farewell when none is set), then sends `EndTaskFrame` upstream. The pipeline winds down through the normal end-of-call path — transcript, recording, billing and the `session.completed` webhook all flow as if it were a normal hangup. |
+
+### How this relates to Pipecat Cloud's platform cap
+
+Pipecat Cloud has its own platform-level
+[`max_session_duration`](https://docs.pipecat.ai/pipecat-cloud/fundamentals/active-sessions#session-duration-limits)
+(default **7200s** / 2 hours) that **forcibly closes** the agent's
+connection at the limit. That's an abrupt termination — no farewell,
+no clean session-end webhook. The Vocobase per-agent cap fires earlier
+and gracefully; PCC's cap stays as a last-resort safety net far above
+ours.
+
+| Layer                  | Default          | Failure mode |
+|------------------------|------------------|---------------|
+| Vocobase per-agent cap | 10 min (configurable 1-60 min, or off) | Graceful — warning + farewell + clean end-of-call webhook |
+| PCC platform cap       | 7200s (2 h)      | Force-close; transcript may be lost mid-sentence |
+
+### Setting the cap
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
+  -H "Authorization: Bearer rg_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{ "max_call_duration_secs": 900 }'
+```
+
+Set to `null` to disable:
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
+  -H "Authorization: Bearer rg_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{ "max_call_duration_secs": null }'
+```
+
+---
+
+## Background audio
+
+Ambient audio mixed under the bot's TTS for the duration of the call
+(office chatter, café noise, white noise, etc.). Looped continuously,
+volume tunable per agent. Implemented via Pipecat's native
+`SoundfileMixer` so it works identically across telephony (8 kHz) and
+WebRTC (16 kHz) — the mixer auto-resamples.
+
+### Asset model
+
+Two visibility tiers:
+
+- **Platform-curated** (`is_platform: true`) — visible to every partner.
+- **Partner uploads** (`owner_user_id: <yours>`) — visible only to your
+  account.
+
+List both in one call:
+
+```bash
+curl -H "Authorization: Bearer rg_live_..." \
+  https://api.vocobase.com/api/v2/agent/background-audio
+```
+
+Response:
+
+```json
+{
+  "success": true,
+  "data": {
+    "options": [
+      {
+        "id": "...",
+        "slug": "office",
+        "label": "Office",
+        "is_platform": true,
+        "duration_secs": 60.0,
+        "preview_url": "https://storage.googleapis.com/..."
+      }
+    ]
+  }
+}
+```
+
+### Uploading your own asset
+
+Two-step upload — bytes go directly to GCS via a presigned URL, the
+server then validates the WAV header and marks the asset ready.
+
+**Constraints (enforced server-side):**
+
+- Format: **WAV** (RIFF/WAVE container, PCM or IEEE float).
+- Channels: **must be mono** (`channels === 1`). Stereo is rejected
+  with an explicit error including the `ffmpeg` downmix command.
+- Size: ≤ 5 MB.
+- Duration: ≤ 5 minutes (loops anyway).
+
+```bash
+# 1. Mint an upload URL
+curl -X POST https://api.vocobase.com/api/v2/agent/background-audio/upload-url \
+  -H "Authorization: Bearer rg_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "slug": "my-cafe",
+    "label": "My Café",
+    "mime_type": "audio/wav",
+    "size_bytes": 1234567
+  }'
+# → { "data": { "id": "<uuid>", "upload_url": "https://...", "gcs_key": "..." } }
+
+# 2. PUT the bytes directly to GCS
+curl -X PUT "https://..." \
+  -H "Content-Type: audio/wav" \
+  --data-binary @my-cafe.wav
+
+# 3. Finalize — server downloads, parses the header, marks READY
+curl -X POST https://api.vocobase.com/api/v2/agent/background-audio/<id>/finalize \
+  -H "Authorization: Bearer rg_live_..."
+```
+
+### Attaching to an agent
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
+  -H "Authorization: Bearer rg_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "background_audio_id": "<asset-id>",
+    "background_audio_volume": 0.4
+  }'
+```
+
+`background_audio_volume` is `0.0`-`1.0`. When `null`, the bot applies
+a default of **0.3**.
+
+### Removing background audio from an agent
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
+  -H "Authorization: Bearer rg_live_..." \
+  -d '{ "background_audio_id": null }'
+```
+
+### Deleting an asset you uploaded
+
+```bash
+curl -X DELETE \
+  https://api.vocobase.com/api/v2/agent/background-audio/{id} \
+  -H "Authorization: Bearer rg_live_..."
+```
+
+Soft-deletes the asset. Any agents currently referencing it are
+automatically detached (`background_audio_id` cleared).
