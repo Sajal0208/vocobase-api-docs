@@ -43,7 +43,7 @@ Webhook fires session.completed when the full call ends
 
 ## Enabling call transfer on an agent
 
-Set `transferEnabled` to `true` when creating or updating an agent. Provide the phone number the caller should be transferred to:
+Set `transferEnabled` to `true` when creating or updating an agent. Provide the phone number the caller should be transferred to. The `transfer_instructions` field is plain English the LLM reads as a "When to transfer" guide — write your own conditions:
 
 ```bash
 curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
@@ -52,7 +52,8 @@ curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
   -d '{
     "transferEnabled": true,
     "transferNumber": "+14155551234",
-    "transferMessage": "Let me connect you with a human agent now."
+    "transferMessage": "Let me connect you with a human agent now.",
+    "transfer_instructions": "If the caller asks to speak to a human, agent, supervisor, manager, or representative, transfer the call. If the caller becomes visibly upset, raises their voice, or repeatedly expresses frustration, transfer the call. If the caller has a billing or refund question that requires account access you do not have, transfer the call."
   }'
 ```
 
@@ -64,7 +65,7 @@ curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
     "transferEnabled": true,
     "transferNumber": "+14155551234",
     "transferMessage": "Let me connect you with a human agent now.",
-    "transferTriggers": ["CALLER_ASKS_HUMAN", "FRUSTRATED"],
+    "transfer_instructions": "If the caller asks to speak to a human ...",
     ...
   }
 }
@@ -74,32 +75,34 @@ curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `transferEnabled` | `boolean` | Enable call transfer on this agent. Defaults to `false`. |
+| `transferEnabled` | `boolean` | Master toggle. Defaults to `false`. |
 | `transferNumber` | `string` | E.164 phone number to transfer to. Max 32 characters. Required when `transferEnabled` is true. |
 | `transferMessage` | `string` | Announcement spoken right before transferring. Max 500 characters. If empty, the bot uses a platform default. |
-| `transferTriggers` | `string[]` | Conditions that trigger a transfer. See [Transfer triggers](#transfer-triggers) below. |
+| `transfer_instructions` | `string` (≤2000 chars) | Free-text natural-language instructions spliced into the system prompt under "When to transfer." Pass `null` or empty to skip the section. |
 
 ---
 
-## Transfer triggers
+## Writing transfer instructions
 
-Transfer triggers tell the LLM *when* to transfer a call to a human. Each trigger key maps to a prompt fragment that guides the LLM.
+`transfer_instructions` is plain English. The LLM reads it under a "TRANSFERRING THE CALL" header in the system prompt. There's no fixed taxonomy — write conditions specific to your use case:
 
-| Trigger Key | Label | When it fires |
-|---|---|---|
-| `CALLER_ASKS_HUMAN` | Caller asks to speak to a human | Caller explicitly says "talk to a person," "speak to agent," etc. |
-| `FRUSTRATED` | Caller is upset or frustrated | Caller shows anger, frustration, or uses aggressive language |
-| `ASKS_MANAGER` | Caller asks for a manager | Caller specifically requests a supervisor or manager |
-| `UNKNOWN_QUESTION` | Unfamiliar question | Caller asks something the assistant doesn't know |
-| `BILLING` | Billing / refunds | Caller asks about charges, refunds, or payment issues |
+```text
+If the caller mentions they're driving and we'll call them back, transfer the call to our voicemail line.
+If the caller asks for our hours of operation in a language other than English, transfer.
+If the caller mentions a chargeback or dispute, immediately transfer to billing.
+```
 
-The trigger list is ordered — the LLM considers triggers in sequence. Leave the array empty to disable all platform-driven triggers.
+For convenience, the dashboard's Call Behavior tab includes a library of common pre-written sentences you can paste into the textarea and edit. Pasting a preset is identical to writing the same sentence yourself — there's no server-side enumeration.
+
+<Note>
+  **Hard cutover** — the prior `transferTriggers: string[]` array of fixed keys (`CALLER_ASKS_HUMAN`, `FRUSTRATED`, etc.) has been removed. If you were posting that field, replace it with `transfer_instructions` containing the equivalent prose. Existing agents were auto-migrated.
+</Note>
 
 ---
 
 ## End-call behavior
 
-You can configure the agent to end calls automatically when certain conditions are met — for example, when the caller says goodbye or the conversation goal is achieved.
+Configure the agent to end calls automatically when certain conditions are met. Same free-form pattern as transfer:
 
 ```bash
 curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
@@ -108,7 +111,7 @@ curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
   -d '{
     "endCallEnabled": true,
     "endCallMessage": "Thank you for calling. Have a great day!",
-    "endCallTriggers": ["CALLER_GOODBYE", "GOAL_COMPLETED"]
+    "end_call_instructions": "When the caller says goodbye, says they have to go, or otherwise indicates the conversation is over, end the call. If the caller has not spoken for an extended period and is unlikely to respond, end the call."
   }'
 ```
 
@@ -116,18 +119,24 @@ curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `endCallEnabled` | `boolean` | Enable the agent to end calls on its own. Defaults to `true`. |
+| `endCallEnabled` | `boolean` | Master toggle. Defaults to `true`. |
 | `endCallMessage` | `string` | Farewell message spoken before hanging up. Max 500 characters. |
-| `endCallTriggers` | `string[]` | Conditions that trigger a hangup. See [End-call triggers](#end-call-triggers) below. |
+| `end_call_instructions` | `string` (≤2000 chars) | Free-text natural-language instructions spliced into the system prompt under "When to end the call." Pass `null` or empty to skip the section. |
 
-### End-call triggers
+---
 
-| Trigger Key | Label | When it fires |
-|---|---|---|
-| `CALLER_GOODBYE` | Caller says goodbye | Caller says "bye," "thank you, that's all," etc. |
-| `GOAL_COMPLETED` | Conversation goal is achieved | The primary purpose of the call has been fulfilled |
-| `IDLE` | Caller is unresponsive | Extended silence from the caller |
-| `REMOVE_FROM_LIST` | Remove from call list | Caller asks to be removed from your calling list |
+## What happens when a call is transferred
+
+When the agent invokes `transfer_call`, the bot:
+
+1. Speaks the configured `transferMessage`.
+2. Backend POSTs to the carrier's call-redirect API (Plivo or Vobiz).
+3. Pushes `EndTaskFrame` upstream and the bot's WebSocket closes — **the bot leaves the room**.
+4. The carrier bridges the caller leg directly to `transferNumber`. There is no bot in the audio path anymore.
+
+The `session.completed` partner webhook fires once the bot leg ends, not when the caller eventually hangs up with the human. Distinguish a transferred call from a normal hangup via `data.call.transferred` on the webhook payload — see [`session.completed` payload](/webhooks/payloads#transferred-calls).
+
+`duration_seconds` reflects only the bot leg. `recording_url`, when present, is the bot-leg recording — the human side is not recorded.
 
 ---
 
