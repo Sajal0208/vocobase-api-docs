@@ -762,6 +762,24 @@
                     "type": ["string", "null"],
                     "maxLength": 120000,
                     "description": "System prompt for LLM KB processing."
+                  },
+                  "max_call_duration_secs": {
+                    "type": ["integer", "null"],
+                    "minimum": 60,
+                    "maximum": 3600,
+                    "default": 600,
+                    "description": "Hard cap on call duration in seconds. New agents default to 600 (10 minutes); pass `null` to disable the cap. Range 60-3600. At `(cap - 30s)` the bot speaks a soft \"wrapping up\" warning; at the cap it speaks the agent's farewell and gracefully ends the session through the standard end-of-call path."
+                  },
+                  "background_audio_id": {
+                    "type": ["string", "null"],
+                    "format": "uuid",
+                    "description": "Reference to a `BackgroundAudio` asset (see `GET /agent/background-audio`) the bot will mix under its TTS for the duration of the call."
+                  },
+                  "background_audio_volume": {
+                    "type": ["number", "null"],
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Mixing volume for `background_audio_id`. Range 0.0-1.0. When `null`, the bot applies a default of 0.3."
                   }
                 }
               }
@@ -935,6 +953,23 @@
                       { "$ref": "#/components/schemas/ExtractionConfig" }
                     ],
                     "description": "Custom Analysis config — runs an LLM extraction over the transcript after every completed call. Pass `null` to disable extraction."
+                  },
+                  "max_call_duration_secs": {
+                    "type": ["integer", "null"],
+                    "minimum": 60,
+                    "maximum": 3600,
+                    "description": "Update the hard call-duration cap. Range 60-3600. Pass `null` to remove the cap. New agents default to 600 (10 minutes); existing agents created before the default landed may currently hold `null`."
+                  },
+                  "background_audio_id": {
+                    "type": ["string", "null"],
+                    "format": "uuid",
+                    "description": "Set or change the background-audio asset. Pass `null` to remove background audio."
+                  },
+                  "background_audio_volume": {
+                    "type": ["number", "null"],
+                    "minimum": 0,
+                    "maximum": 1,
+                    "description": "Mixing volume override for `background_audio_id`. Range 0.0-1.0. Pass `null` to use the default (0.3)."
                   }
                 },
                 "minProperties": 1
@@ -3703,6 +3738,24 @@
             "type": "array",
             "items": { "type": "string" },
             "description": "End-call trigger keys. Valid values: CALLER_GOODBYE, GOAL_COMPLETED, IDLE, REMOVE_FROM_LIST."
+          },
+          "max_call_duration_secs": {
+            "type": ["integer", "null"],
+            "minimum": 60,
+            "maximum": 3600,
+            "default": 600,
+            "description": "Hard cap on call duration in seconds. New agents default to 600 (10 minutes). Set to `null` to disable the cap (no enforcement from the bot). Range 60-3600. At `(cap - 30s)` the bot speaks a soft \"wrapping up\" warning; at the cap it speaks the agent's `endCallMessage` (or a default farewell) and gracefully ends the session through the standard end-of-call path so transcript, recording, billing and the `session.completed` webhook all fire normally. Pipecat Cloud's platform `max_session_duration` (default 7200s) sits above this as a hard force-close backstop."
+          },
+          "background_audio_id": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "Reference to a `BackgroundAudio` asset (from `GET /agent/background-audio`) that the bot mixes under its TTS for the duration of the call. `null` (default) means no background audio. The asset must be visible to the partner — either a platform-curated asset (`is_platform: true`) or one the partner uploaded."
+          },
+          "background_audio_volume": {
+            "type": ["number", "null"],
+            "minimum": 0,
+            "maximum": 1,
+            "description": "Mixing volume for `background_audio_id`. Range 0.0-1.0. When `null`, the bot applies a default of 0.3."
           },
           "document_count": { "type": "integer", "description": "Number of linked documents." },
           "status": { "type": "string", "enum": ["active", "inactive"] },
