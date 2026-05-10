@@ -1,0 +1,549 @@
+---
+title: "B2B2B — Customer-Scoped Tool Connections"
+description: "Give each of your downstream customers their own isolated OAuth and API-key credentials for tools like Google Sheets, Slack, Cal.com, and Zendesk."
+---
+
+# B2B2B — Customer-Scoped Tool Connections
+
+If you are a partner with downstream customers of your own, every customer needs to authorize tools (Google Sheets, Slack, Shopify, Cal.com, Zendesk, LeadSquared, etc.) **with their own credentials, isolated from each other**. The Vocobase B2B2B API gives each of your customers their own identity (`PartnerCustomer`) and their own connections, while you remain the single billing and integration boundary with us.
+
+<Info>
+  **Mental model.** Vocobase ↔ you (the partner) ↔ your customers. You authenticate to Vocobase with your `rg_live_…` API key. Your customers never log in to Vocobase. They authorize tools through one-time hosted URLs that you mint and hand off to them.
+</Info>
+
+## When you need this
+
+- You're building a vertical app on top of Vocobase (Skalix, an ISV with multiple healthcare brands as customers, etc.).
+- Each customer has their own Google Sheets / Slack / LSQ / Calendly / Shopify account and they should not share tokens with you or with each other.
+- You want to bind agents to a specific customer's connection at runtime.
+
+If you are a single-team partner using your own tool credentials, **you do not need this surface** — connect tools directly under your account from the dashboard at `/dashboard/settings/integrations`.
+
+---
+
+## Glossary
+
+| Term | What it is |
+|------|-----------|
+| **Partner** | You. Holds the `rg_live_…` API key, billing relationship, agent quota. |
+| **Partner Customer** | One of your downstream customers (e.g., Practo, Meddibuddy). Has a stable `external_id` you choose. |
+| **Connector** | A tool definition on the Vocobase platform (Google Sheets, Slack, Cal.com, etc.). Admin curates which connectors your account can use. |
+| **Connection** | A specific authorization of a connector for a specific owner. Owners are mutually exclusive — either you (the partner user) OR a single PartnerCustomer. |
+| **Connect link** | A one-time URL you mint and hand to a customer. They open it, complete OAuth (or paste an API key), and tokens land against the PartnerCustomer. |
+
+---
+
+## Discover available connectors
+
+Before you can offer connectors to your customers, list the catalog your account has access to. Admin controls visibility per partner — if a connector you expect is missing, ask the Vocobase team to grant it.
+
+<CodeGroup>
+```bash cURL
+curl https://api.vocobase.com/api/v2/connectors \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```javascript JavaScript
+const response = await fetch("https://api.vocobase.com/api/v2/connectors", {
+  headers: { Authorization: "Bearer rg_live_abc123def456ghi789jkl012" },
+});
+const { data } = await response.json();
+console.log(data.connectors);
+```
+
+```python Python
+import requests
+
+response = requests.get(
+    "https://api.vocobase.com/api/v2/connectors",
+    headers={"Authorization": "Bearer rg_live_abc123def456ghi789jkl012"},
+)
+connectors = response.json()["data"]["connectors"]
+```
+</CodeGroup>
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "connectors": [
+      {
+        "id": "td_01h…",
+        "slug": "google_sheets",
+        "name": "Google Sheets",
+        "description": "Read and write rows to spreadsheets your customers own.",
+        "provider": "GOOGLE",
+        "status": "ACTIVE",
+        "oauth_scopes": ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive.file"],
+        "capabilities": { "functions": ["append_row", "read_range"] }
+      },
+      {
+        "slug": "calcom",
+        "name": "Cal.com",
+        "provider": "CALCOM",
+        "status": "ACTIVE",
+        "oauth_scopes": [],
+        "capabilities": { "functions": ["create_booking", "list_event_types"] }
+      }
+    ]
+  }
+}
+```
+
+`GET /api/v2/connectors/:slug` returns a single connector by slug — useful when you already know which one you want.
+
+<Note>
+  Only `ACTIVE` connectors are returned. The dashboard may show `COMING_SOON` previews for partners; the API filters those out because they have no working programmatic OAuth path.
+</Note>
+
+---
+
+## Create a customer
+
+Customers are identified by a stable `external_id` of your choice — your own primary key for that downstream account. Re-creating with the same `(partner, external_id)` pair is **idempotent**, so a sync that runs on every deploy is safe.
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.vocobase.com/api/v2/customers \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "external_id": "acct_meddibuddy_42",
+    "name": "Meddibuddy Health",
+    "email": "ops@meddibuddy.example",
+    "metadata": { "tier": "enterprise", "country": "IN" }
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch("https://api.vocobase.com/api/v2/customers", {
+  method: "POST",
+  headers: {
+    Authorization: "Bearer rg_live_abc123def456ghi789jkl012",
+    "Content-Type": "application/json",
+  },
+  body: JSON.stringify({
+    external_id: "acct_meddibuddy_42",
+    name: "Meddibuddy Health",
+    email: "ops@meddibuddy.example",
+    metadata: { tier: "enterprise", country: "IN" },
+  }),
+});
+const { data: customer } = await response.json();
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://api.vocobase.com/api/v2/customers",
+    headers={
+        "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+        "Content-Type": "application/json",
+    },
+    json={
+        "external_id": "acct_meddibuddy_42",
+        "name": "Meddibuddy Health",
+        "email": "ops@meddibuddy.example",
+        "metadata": {"tier": "enterprise", "country": "IN"},
+    },
+)
+customer = response.json()["data"]
+```
+</CodeGroup>
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "id": "pc_01h…",
+    "external_id": "acct_meddibuddy_42",
+    "name": "Meddibuddy Health",
+    "email": "ops@meddibuddy.example",
+    "metadata": { "tier": "enterprise", "country": "IN" },
+    "status": "ACTIVE",
+    "created_at": "2026-05-10T08:14:22.000Z",
+    "updated_at": "2026-05-10T08:14:22.000Z"
+  }
+}
+```
+
+| Field | Required | Notes |
+|------|----------|-------|
+| `external_id` | yes | 1–200 chars. Stable, idempotent key in your namespace. |
+| `name` | yes | 1–200 chars. Human-readable label shown to your team and to admins. |
+| `email` | no | Optional contact email. Used only for display. |
+| `metadata` | no | Free-form JSON. Stored as-is; never used by Vocobase logic. |
+
+### List, get, update, archive
+
+```
+GET    /api/v2/customers?cursor=&limit=&status=
+GET    /api/v2/customers/:id
+PATCH  /api/v2/customers/:id           # name | email | metadata
+DELETE /api/v2/customers/:id           # archive — cascade-revokes all connections
+```
+
+`DELETE` is **archive, not delete** — the row stays for audit. Their tool connections are immediately revoked (tokens cleared, AgentTool bindings dropped). Archived customers cannot mint new connect-links until reactivated by Vocobase support.
+
+---
+
+## The connect-link flow
+
+This is the core handoff for OAuth-style connectors (Google Sheets, Slack, Shopify, etc.). You mint a one-time URL, hand it to your customer however you like (in-app button, email, SMS), and they complete authorization without ever touching your or our credentials.
+
+```
+[Your backend]                          [Vocobase]                       [Customer's browser]
+     │                                        │                                  │
+     │ POST /api/v2/customers/:id/connect-link│                                  │
+     │   { tool_slug, redirect_uri }          │                                  │
+     ├───────────────────────────────────────►│                                  │
+     │                                        │ Mints session token (Redis)      │
+     │                                        │ TTL default 30min, max 24h       │
+     │ ◄──────────────────────────────────────┤                                  │
+     │ { url, expires_at }                    │                                  │
+     │                                        │                                  │
+     │ Hand `url` to your customer            │                                  │
+     ├──────────────────────────────────────────────────────────────────────────►│
+     │                                        │                                  │
+     │                                        │ ◄──────────── click ────────────┤
+     │                                        │ Redirects to OAuth provider      │
+     │                                        │   (or renders API-key form for   │
+     │                                        │   Cal.com/Calendly/Zendesk)      │
+     │                                        │                                  │
+     │                                        │ Customer authorizes              │
+     │                                        │ Tokens land against PartnerCustomer
+     │                                        │                                  │
+     │                                        │ Redirects to your `redirect_uri` │
+     │                                        │   ?status=ok&tool=…              │
+     │                                        │   &connection_id=…               │
+     ├──────────────────────────────────────────────────────────────────────────►│
+```
+
+### Mint a connect-link
+
+<CodeGroup>
+```bash cURL
+curl -X POST "https://api.vocobase.com/api/v2/customers/pc_01h.../connect-link" \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tool_slug": "google_sheets",
+    "redirect_uri": "https://app.skalix.example/integrations/return",
+    "expires_in_seconds": 1800
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  `https://api.vocobase.com/api/v2/customers/${customerId}/connect-link`,
+  {
+    method: "POST",
+    headers: {
+      Authorization: "Bearer rg_live_abc123def456ghi789jkl012",
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({
+      tool_slug: "google_sheets",
+      redirect_uri: "https://app.skalix.example/integrations/return",
+    }),
+  }
+);
+const { data } = await response.json();
+// Show data.url to your customer.
+```
+
+```python Python
+response = requests.post(
+    f"https://api.vocobase.com/api/v2/customers/{customer_id}/connect-link",
+    headers={
+        "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+        "Content-Type": "application/json",
+    },
+    json={
+        "tool_slug": "google_sheets",
+        "redirect_uri": "https://app.skalix.example/integrations/return",
+    },
+)
+url = response.json()["data"]["url"]
+```
+</CodeGroup>
+
+```json Response
+{
+  "success": true,
+  "data": {
+    "url": "https://api.vocobase.com/connect/9f3c…",
+    "expires_at": "2026-05-10T08:44:22.000Z"
+  }
+}
+```
+
+### `redirect_uri` rules
+
+The `redirect_uri` is where the customer's browser lands after authorization. Strict validation, intentionally:
+
+- Must be `https://`
+- Must NOT contain `@`, fragment (`#…`), or userinfo
+- Must use the default port (443)
+- Host must EXACT-match an entry in your `allowed_redirect_hosts`. If unset, falls back to the host of your `webhook_url`. Ask Vocobase to register additional hosts on your `PartnerConfig`.
+
+A `redirect_uri` that fails validation returns `400 INVALID_REDIRECT_URI` with a `message` explaining which rule was violated.
+
+### Callback contract
+
+Vocobase appends query parameters to your `redirect_uri`. Reserved parameters:
+
+| Param | When | Value |
+|-------|------|-------|
+| `status` | Always | `ok` or `error` |
+| `tool` | On success | The connector slug, e.g. `google_sheets` |
+| `connection_id` | On success | The persistent connection ID (use to revoke later) |
+| `error` | On error | Machine-readable code (see table below) |
+
+Your existing query parameters in `redirect_uri` are preserved. Reserved keys overwrite.
+
+| Error code | Meaning |
+|-----------|--------|
+| `oauth_denied` | Customer rejected the OAuth consent screen. |
+| `customer_archived` | The customer was archived between mint and authorize. Re-create the customer, mint again. |
+| `invalid_state` | The session token expired or was already consumed. Mint a new one. |
+| `tool_not_found` / `tool_not_available` | The connector isn't ACTIVE on your account. |
+| `provider_mismatch` | Internal mismatch between the requested tool and the OAuth provider returned. |
+| `connection_failed` | OAuth provider returned an error during code exchange. |
+| `token_smoke_test_failed` | Shopify only — the issued token failed our connectivity smoke test. |
+| `invalid_hmac` | Shopify only — the callback HMAC didn't match. |
+
+### Shopify
+
+Shopify uses a per-shop OAuth handshake. The hosted page first prompts for the shop domain (`mystore.myshopify.com`), then redirects to Shopify. Other than the extra prompt, the flow is identical from your point of view — same `connect-link` mint, same callback contract.
+
+---
+
+## Direct credential submission (no hosted UI)
+
+For non-OAuth connectors (Cal.com, Calendly, Zendesk), you can skip the hosted handoff and submit credentials directly from your backend if your customer prefers to give them to you over phone/email.
+
+### Cal.com / Calendly — single API key
+
+```bash
+POST /api/v2/customers/:id/connections/api-key
+Body: { "tool_slug": "calcom", "api_key": "cal_live_…" }
+```
+
+```bash
+POST /api/v2/customers/:id/connections/api-key
+Body: { "tool_slug": "calendly", "api_key": "eyJraWQ…" }
+```
+
+### Zendesk — compound credential
+
+```bash
+POST /api/v2/customers/:id/connections/zendesk
+Body: { "email": "alex@acme.example", "api_token": "<token>", "subdomain": "acme" }
+```
+
+Both endpoints return:
+
+```json
+{
+  "success": true,
+  "data": { "connection_id": "uc_01h…", "tool_slug": "calcom" }
+}
+```
+
+If the customer is `ARCHIVED`, the call returns `409 CUSTOMER_NOT_ACTIVE`.
+
+---
+
+## Inspect a customer's connections
+
+### Per-tool status (catalog view)
+
+```
+GET /api/v2/customers/:id/tools
+```
+
+Returns every connector on your account along with this customer's connection status — empty if not yet connected, or populated with `id`, `status`, `provider_email`, `connectedAt`.
+
+```json
+{
+  "success": true,
+  "data": {
+    "tools": [
+      {
+        "id": "td_01h…",
+        "slug": "google_sheets",
+        "name": "Google Sheets",
+        "provider": "GOOGLE",
+        "status": "ACTIVE",
+        "connection": {
+          "id": "uc_01h…",
+          "status": "ACTIVE",
+          "providerEmail": "ops@meddibuddy.example",
+          "connectedAt": "2026-05-10T08:30:11.000Z"
+        }
+      },
+      {
+        "slug": "calcom",
+        "name": "Cal.com",
+        "connection": null
+      }
+    ]
+  }
+}
+```
+
+### Just the connections (no catalog merge)
+
+```
+GET /api/v2/customers/:id/connections
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "connections": [
+      {
+        "id": "uc_01h…",
+        "tool_slug": "google_sheets",
+        "tool_name": "Google Sheets",
+        "status": "ACTIVE",
+        "provider_email": "ops@meddibuddy.example",
+        "created_at": "2026-05-10T08:30:11.000Z",
+        "updated_at": "2026-05-10T08:30:11.000Z"
+      }
+    ]
+  }
+}
+```
+
+### Revoke
+
+```
+DELETE /api/v2/customers/:id/connections/:connection_id
+```
+
+Revokes at the provider (best-effort), clears the encrypted tokens locally, and deletes any `AgentTool` rows that pointed to this connection. Returns `204 No Content` on success, `404 CONNECTION_NOT_FOUND` if the id doesn't match this customer.
+
+---
+
+## Bind an agent to a specific customer's connection
+
+Agents are owned by you; their tool dispatch reads tokens from a bound `UserToolConnection`. With B2B2B, an agent can be bound to a specific customer's connection so that when the agent runs a session for, say, Meddibuddy, it writes to **Meddibuddy's** Google Sheet — not yours, not Practo's.
+
+### List eligible connections for an agent
+
+```
+GET /api/v2/agent/:agent_id/available-connections
+```
+
+Returns every connection (yours + your customers') that this agent can be bound to.
+
+```json
+{
+  "success": true,
+  "data": {
+    "connections": [
+      {
+        "id": "uc_01h…",
+        "toolSlug": "google_sheets",
+        "toolName": "Google Sheets",
+        "status": "ACTIVE",
+        "providerEmail": "ops@meddibuddy.example",
+        "owner": {
+          "kind": "partnerCustomer",
+          "partnerCustomerId": "pc_01h…",
+          "name": "Meddibuddy Health",
+          "externalId": "acct_meddibuddy_42"
+        }
+      },
+      {
+        "id": "uc_02g…",
+        "toolSlug": "google_sheets",
+        "toolName": "Google Sheets",
+        "owner": { "kind": "user", "userId": "u_skalix" }
+      }
+    ]
+  }
+}
+```
+
+### Inspect what's currently bound
+
+```
+GET /api/v2/agent/:agent_id/tools
+```
+
+Returns one row per (slug, owner) for this agent showing whether the binding is enabled.
+
+### Bind / unbind
+
+```
+PUT /api/v2/agent/:agent_id/tools/:slug
+Body: { "enabled": true, "connection_id": "uc_01h…" }
+```
+
+The optional `connection_id` disambiguates when multiple connections share a slug (which is common in B2B2B — you might have a Google Sheets connection AND each customer might have one). Without `connection_id`, the binding falls back to your own connection for that slug.
+
+```json Response
+{ "success": true, "data": { "enabled": true } }
+```
+
+To unbind, pass `enabled: false` with the same `connection_id`.
+
+---
+
+## Connector visibility (admin-controlled)
+
+Vocobase admins curate which connectors your account can offer. Granting a connector to your account automatically makes it available to **all** of your customers. There is no per-customer connector grant.
+
+If `GET /api/v2/connectors` returns an empty list, you have no connectors yet — contact Vocobase support to onboard the ones you need.
+
+When admin first restricts a connector, partners that already have an active connection for that connector are auto-grandfathered (a one-time `ToolUserAccess` grant is written) so the rollout is non-breaking.
+
+---
+
+## Error reference
+
+All endpoints return the standard envelope:
+
+```json
+{ "success": false, "error": { "code": "INVALID_REDIRECT_URI", "message": "..." } }
+```
+
+| HTTP | Code | When |
+|------|------|------|
+| 400 | `INVALID_EXTERNAL_ID` | Missing/too long `external_id` on create. |
+| 400 | `INVALID_NAME` | Missing/too long `name` on create or update. |
+| 400 | `INVALID_EMAIL` | Email failed validation on create or update. |
+| 400 | `INVALID_TOOL_SLUG` | `tool_slug` missing or unrecognized. |
+| 400 | `INVALID_REDIRECT_URI` / sub-codes | `redirect_uri` failed allowlist / scheme / port / fragment / userinfo check. |
+| 400 | `TOOL_NOT_API_KEY` | Direct API-key submit called for an OAuth-only tool. |
+| 400 | `INVALID_API_KEY` / `INVALID_API_TOKEN` / `INVALID_SUBDOMAIN` | Credential field validation. |
+| 404 | `NOT_FOUND` | Customer or connector doesn't exist or doesn't belong to your partner. |
+| 404 | `CONNECTION_NOT_FOUND` | Connection id doesn't match the customer in path. |
+| 409 | `CUSTOMER_NOT_ACTIVE` | Customer is archived; cannot accept new connections. |
+| 500 | `INTERNAL_ERROR` | Unexpected. Retry idempotent operations. |
+
+---
+
+## Limits
+
+| Limit | Value |
+|------|------|
+| `external_id` length | 1–200 chars |
+| `name` length | 1–200 chars |
+| `email` length | up to 254 chars |
+| Connect-link TTL | default 1800s (30 min), max 86400s (24h), min 60s |
+| Redirect host allowlist | configured per partner — ask Vocobase to add hosts |
+
+---
+
+## What's not in scope
+
+- **Per-customer credit accounting.** Credits are billed to your partner account, not to individual customers. (Track per-customer usage from session metadata or session listing.)
+- **Sub-tenant logins.** Customers don't log in to Vocobase. They authorize via connect-links you mint.
+- **Per-customer agents.** Agents are owned by you; you bind them to specific customer connections at runtime via `connection_id`.
+- **Per-customer webhook routing.** Your single `webhook_url` receives events for all customers; the payload's `partner_customer_id` distinguishes them.
