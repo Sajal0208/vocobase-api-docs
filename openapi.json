@@ -3137,6 +3137,8 @@
                         },
                         "duration_seconds": { "type": "integer", "nullable": true, "description": "Call duration in whole seconds. `null` until the session ends." },
                         "credits_used": { "type": "number", "description": "Credits deducted for this session (display units)." },
+                        "processing_complete": { "type": "boolean", "description": "`true` when the post-call pipeline (status flip, transcript persist, recording upload, extraction) has finished. Use when polling — `status: completed` + `processing_complete: false` means the call ended but decoration is still running." },
+                        "pipeline_completed_at": { "type": "string", "format": "date-time", "nullable": true, "description": "Timestamp when the pipeline finished. `null` until the pipeline completes (or on sessions created before this field shipped — treat `null` + `status: completed` on a pre-existing row as final)." },
                         "transcript": {
                           "description": "Ordered conversation turns. Same shape as the `session.completed` webhook payload. `null` until the session ends.",
                           "nullable": true
@@ -4109,6 +4111,8 @@
           "session_id": { "type": "string", "format": "uuid" },
           "duration_seconds": { "type": ["integer", "null"] },
           "credits_used": { "type": "number", "description": "Credits consumed (display units, e.g., 1.5)." },
+          "processing_complete": { "type": "boolean", "description": "`true` when the post-call pipeline has finished. See `Session.processing_complete` on the polling endpoint for the full semantics." },
+          "pipeline_completed_at": { "type": ["string", "null"], "format": "date-time", "description": "Timestamp when the pipeline finished. Non-null on the webhook payload itself." },
           "transcript": {
             "type": ["array", "null"],
             "items": {
