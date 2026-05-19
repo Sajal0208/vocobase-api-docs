@@ -2493,7 +2493,7 @@
       "post": {
         "operationId": "startCall",
         "summary": "Start an outbound call",
-        "description": "Initiates an outbound phone call via MCube, Twilio, Exotel, or Plivo. Requires sufficient credits and available concurrency (max 5 concurrent calls). The provider you pass must appear in the partner's `allowed_telephony_providers` list and its credentials must already be configured. The call is placed asynchronously -- use webhooks or polling to track status updates.",
+        "description": "Initiates an outbound phone call via MCube, Twilio, Exotel, Plivo, Vobiz, or BYOP SIP. Requires sufficient credits and available concurrency (max 5 concurrent calls). The provider you pass must appear in the partner's `allowed_telephony_providers` list and its credentials must already be configured. The call is placed asynchronously -- use webhooks or polling to track status updates.",
         "tags": ["Calls"],
         "requestBody": {
           "required": true,
@@ -2515,9 +2515,9 @@
                   },
                   "provider": {
                     "type": "string",
-                    "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz"],
+                    "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip"],
                     "default": "mcube",
-                    "description": "Telephony provider. Defaults to `mcube` if not specified. The provider must be in your partner's `allowed_telephony_providers` list and its credentials must be configured (see the `/config/telephony/*` endpoints)."
+                    "description": "Telephony provider. Defaults to `mcube` if not specified. The provider must be in your partner's `allowed_telephony_providers` list and its credentials must be configured (see the `/config/telephony/*` endpoints). `sip` routes the call through LiveKit-mediated BYOP SIP — partners bring their own carrier (Vobiz, Tata Tele, Knowlarity, or any ITSP) and configure it via the dashboard. `sip` requires `\"SIP\"` to be in `allowed_telephony_providers`."
                   },
                   "variables": {
                     "type": "object",
@@ -2545,7 +2545,7 @@
                         "call_id": { "type": "string", "format": "uuid" },
                         "session_id": { "type": "string", "format": "uuid" },
                         "status": { "type": "string", "example": "pending" },
-                        "provider": { "type": "string", "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz"] },
+                        "provider": { "type": "string", "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip"] },
                         "from_number": { "type": "string" },
                         "to_number": { "type": "string" },
                         "agent_id": { "type": "string", "format": "uuid" }
@@ -3843,7 +3843,7 @@
           "status": { "type": "string", "enum": ["active", "suspended"] },
           "allowed_telephony_providers": {
             "type": "array",
-            "items": { "type": "string", "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz"] },
+            "items": { "type": "string", "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip"] },
             "description": "Providers this partner is allowed to use when starting calls or campaigns. Managed by Vocobase platform admins."
           },
           "webhook": {
