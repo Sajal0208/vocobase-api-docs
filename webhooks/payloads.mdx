@@ -33,6 +33,8 @@ Every webhook request includes these headers:
     "agent_name": "Sales Assistant",
     "duration_seconds": 127,
     "credits_used": 2.12,
+    "processing_complete": true,
+    "pipeline_completed_at": "2026-03-15T14:32:08.000Z",
     "transcript": [
       {
         "role": "bot",
@@ -98,6 +100,8 @@ Every webhook request includes these headers:
 | `agent_name` | string | Agent display name at time of call |
 | `duration_seconds` | integer | Call duration in seconds |
 | `credits_used` | number | Credits deducted for this call |
+| `processing_complete` | boolean | `true` when the post-call pipeline (status flip, transcript persisted, recording uploaded, extraction run) has finished. Always `true` on the webhook payload itself — the webhook fires after the pipeline completes. Use it when polling `GET /calls/{id}` to tell "final" from "still decorating". |
+| `pipeline_completed_at` | string (ISO 8601) or null | Timestamp when the pipeline finished. Non-null on the webhook. `null` when polling `GET /calls/{id}` and the pipeline hasn't completed yet, OR on rows created before this field shipped (treat null + `status: completed` for pre-existing rows as "final"). |
 | `transcript` | array | Ordered list of conversation turns (see below) |
 | `recording_url` | string or null | Presigned URL for the call recording. `null` if recording was not enabled. URL is valid for 7 days. If it expires, mint a fresh one with `GET /calls/{call_id}/recording-url`. |
 | `variables` | object | Pre-call variable values that were substituted into the agent's prompt and greeting. Empty object `{}` when no variables were supplied. Echoed for partner-side audit. |
@@ -167,6 +171,40 @@ Use `call.transferred` as the cheap discriminator if your downstream automation 
   }
 }
 ```
+
+## Polling `GET /calls/{id}` vs webhook
+
+Both the webhook and `GET /api/v2/calls/{id}` return the same `data` shape, so a partner that can't accept inbound webhooks (or wants to reconcile dropped deliveries) can poll the GET endpoint instead.
+
+A `Session` row reaches `status: completed` the moment the bot's `voice_session_completion` event lands — but the **post-call pipeline** (transcript persist → recording upload → extraction) keeps running for a few more seconds. The `processing_complete` boolean tells you when that pipeline is finished:
+
+```
+status                processing_complete    meaning
+─────────────────────────────────────────────────────────────────────────────
+active                false                  call still in progress
+completed             false                  call ended; pipeline still running
+completed             true                   final — transcript / recording / extraction are stable
+failed                true                   terminal failure (no_answer, busy, reject); no transcript
+```
+
+### Recommended polling pattern
+
+```js
+async function fetchUntilReady(callId) {
+  while (true) {
+    const { data } = await vocobase.get(`/calls/${callId}`);
+    if (data.session?.processing_complete === true) return data;
+    if (data.status === 'failed' || data.status === 'no_answer' || data.status === 'busy') return data;
+    await sleep(30_000); // 30s; pipeline usually finishes inside ~15s of completion
+  }
+}
+```
+
+In practice the `session.completed` webhook will reach you before polling kicks in — polling is the fallback for partners that can't accept inbound webhooks, or for reconciliation after a delivery failure.
+
+<Note>
+  For sessions created **before this field shipped**, `pipeline_completed_at` will be `null` permanently. Treat `null` + `status: completed` on an older row as "final" — those rows pre-date the signal.
+</Note>
 
 ## Post-call extraction
 
