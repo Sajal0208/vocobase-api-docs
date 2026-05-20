@@ -543,7 +543,7 @@ All endpoints return the standard envelope:
 
 ## What's not in scope
 
-- **Per-customer credit accounting.** Credits are billed to your partner account, not to individual customers. (Track per-customer usage from session metadata or session listing.)
+- **Per-customer billing.** ₹ is billed to your partner account, not to individual customers. (Track per-customer usage from session metadata or session listing.)
 - **Sub-tenant logins.** Customers don't log in to Vocobase. They authorize via connect-links you mint.
 - **Per-customer agents.** Agents are owned by you; you bind them to specific customer connections at runtime via `connection_id`.
 - **Per-customer webhook routing.** Your single `webhook_url` receives events for all customers; the payload's `partner_customer_id` distinguishes them.

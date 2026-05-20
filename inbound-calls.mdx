@@ -32,7 +32,7 @@ Call ends → session.completed webhook fires
 2. Twilio forwards the call to Vocobase using a TwiML webhook
 3. Vocobase identifies the inbound agent associated with the phone number
 4. The agent greets the caller and handles the conversation
-5. When the call ends, a `session.completed` webhook is sent with the transcript, duration, and credits used
+5. When the call ends, a `session.completed` webhook is sent with the transcript, duration, and ₹ used
 
 ---
 
@@ -159,7 +159,7 @@ Call ends → session.completed webhook fires
 | Telephony trigger | Twilio webhook | `POST /calls/start` |
 | `intro_message` | Spoken when agent answers | Spoken when callee picks up |
 | Webhook `direction` | `"inbound"` | `"outbound"` |
-| Credit cost | Same (1 credit / 60 seconds) | Same (1 credit / 60 seconds) |
+| Billing | Same per-tier ₹/min, 15s buckets | Same per-tier ₹/min, 15s buckets |
 
 <Note>
   An agent's type is set at creation and determines how it handles calls. You cannot use the same agent for both inbound and outbound calls. Create separate agents for each purpose.
@@ -206,7 +206,7 @@ See the [Knowledge Base guide](/knowledge-base) for the full workflow.
 ### Agent does not answer
 
 - Confirm you have an active inbound agent (`agent_type: "inbound"`, `status: "active"`)
-- Check that your credit balance is not zero
+- Check that your ₹ balance is not zero
 - Review the Twilio Console error logs for any connection failures
 
 ### Caller hears silence
@@ -510,8 +510,8 @@ echo "\n5. After assignment succeeds, call $DID from a real phone."
   <Card title="Knowledge Base" icon="book" href="/knowledge-base">
     Upload documents to improve your agent's answers.
   </Card>
-  <Card title="Credits & Billing" icon="credit-card" href="/credits">
-    Understand how call credits are calculated.
+  <Card title="Billing (₹)" icon="credit-card" href="/credits">
+    Understand how call ₹ is calculated, including 15s buckets and tier pricing.
   </Card>
   <Card title="Plivo Setup" icon="phone" href="/telephony/plivo-setup">
     Configure Plivo credentials and DIDs.

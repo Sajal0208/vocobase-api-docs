@@ -1,46 +1,85 @@
 ---
-title: "Credits & Billing"
-description: "Understand how credits work, how they are consumed, and how to monitor your balance"
+title: "Billing (₹)"
+description: "How Vocobase bills voice and chat usage in Indian Rupees"
 ---
 
-# Credits & Billing
+# Billing (₹)
 
-Vocobase uses a credit-based billing system. Credits are consumed when your agents handle voice calls or chat sessions.
+Vocobase bills usage in **Indian Rupees (₹)**. Your partner account holds a ₹ balance that is drawn down as your agents handle voice calls or chat sessions.
 
-## How credits work
+<Note>
+  **Unit change (May 2026):** Vocobase previously used an abstract "credits" unit. The wallet now stores rupees directly. The JSON field name `credits` on billing endpoints is **unchanged for backward compatibility**, but the numeric value now represents ₹ instead of credits.
+</Note>
 
-| Activity | Cost |
-|----------|------|
-| Voice conversation | **1 credit per 60 seconds** (pro-rata) |
-| Chat message | **0.01 credits** per message |
+## How voice calls are billed
 
-Voice credits are billed pro-rata by the second. You are only charged for the actual duration of the conversation.
+Voice calls are billed in **15-second buckets** at a per-tier per-minute rate. Any call duration > 0 is rounded **up** to the next 15-second bucket.
 
-### Voice credit examples
+### Per-tier default rates
 
-| Call Duration | Credits Used |
-|---------------|-------------|
-| 30 seconds | 0.5 credits |
-| 60 seconds | 1.0 credit |
-| 90 seconds | 1.5 credits |
-| 5 minutes | 5.0 credits |
-| 10 minutes | 10.0 credits |
+| Tier      | Default rate |
+|-----------|--------------|
+| **V1**    | ₹3.80 / min  |
+| **V1 Pro**| ₹4.20 / min  |
+
+The tier of a call is determined by the **voice configuration** assigned to the agent. Agents without a voice configuration assigned default to **V1**.
+
+### 15-second rounding examples
+
+| Actual duration | Billed duration | Bucket count |
+|-----------------|-----------------|--------------|
+| 1 second        | 15 seconds      | 1            |
+| 14 seconds      | 15 seconds      | 1            |
+| 19 seconds      | 30 seconds      | 2            |
+| 1 minute 1 sec  | 1 minute 15 sec | 5            |
+
+### Cost examples (V1 default, ₹3.80/min)
+
+| Actual duration | Cost     |
+|-----------------|----------|
+| 1 second        | ₹0.95    |
+| 30 seconds      | ₹1.90    |
+| 60 seconds      | ₹3.80    |
+| 1 minute 1 sec  | ₹4.75    |
+| 5 minutes       | ₹19.00   |
 
 <Tip>
-  Credits are rounded up to the nearest fraction. A 61-second call costs slightly more than 1 credit, not 2.
+  A 0-second / never-connected call bills ₹0.
 </Tip>
+
+## Pricing overrides
+
+Vocobase supports per-tier rate overrides at three scopes. At call end, the system walks the override chain and uses the first match for the call's tier; if no override matches, the default rate applies.
+
+```
+Agent → Project (Workspace) → Account → Default
+```
+
+This means you can negotiate a custom rate at the Account level, then optionally tighten or relax it for a specific Project or Agent. Overrides are managed by the Vocobase team — contact **support@vocobase.com** to set up custom pricing.
 
 ---
 
-## When credits are deducted
+## How chat is billed
 
-Credits are deducted **automatically when a session ends** -- not when the call starts. This means:
+Chat messages cost **₹0.035 per message**. Each user message and each agent response is counted.
+
+| Chat messages              | Cost     |
+|----------------------------|----------|
+| 10 messages (5 user + 5 bot) | ₹0.35  |
+| 100 messages               | ₹3.50    |
+| 1,000 messages             | ₹35.00   |
+
+---
+
+## When ₹ is deducted
+
+₹ is deducted **automatically when a session ends** — not when the call starts:
 
 1. A call is placed to the recipient
 2. The agent handles the conversation
 3. The call ends (hang up, timeout, or disconnect)
-4. Vocobase calculates the duration and deducts credits
-5. A `session.completed` webhook fires with `credits_used` in the payload
+4. Vocobase rounds the duration up to the next 15-second bucket, resolves the tier and rate, and deducts ₹
+5. A `session.completed` webhook fires with `credits_used` in the payload (note: value is in ₹)
 
 ```json
 {
@@ -48,37 +87,35 @@ Credits are deducted **automatically when a session ends** -- not when the call 
   "data": {
     "session_id": "s1234567-abcd-1234-abcd-123456789012",
     "duration_seconds": 127,
-    "credits_used": 2.12,
+    "credits_used": 9.50,
     "...": "..."
   }
 }
 ```
 
+The `credits_used` value of `9.50` above means **₹9.50** — the call was 127s actual → 135s billed (9 buckets) at the V1 default ₹3.80/min = `135 × 3.80 / 60 = ₹8.55` after rounding (worked example; check your transaction for exact rate at session time, since overrides may apply).
+
 <Note>
-  If a call fails to connect (e.g., no answer, busy), no credits are deducted.
+  If a call fails to connect (e.g., no answer, busy), no ₹ is deducted.
 </Note>
 
 ---
 
-## Initial credit balance
+## Initial balance
 
-When your partner account is approved by the Vocobase team, an initial credit balance is assigned. The amount depends on your plan and agreement.
+When your partner account is approved by the Vocobase team, an initial ₹ balance is assigned. The amount depends on your plan and agreement.
 
-There is no self-service credit purchase via the API. To add more credits, contact the Vocobase team at **support@vocobase.com**.
+There is no self-service top-up via the API. To add more balance, contact the Vocobase team at **support@vocobase.com**.
 
 ---
 
 ## Checking your balance
 
-You can view your current credit balance in two ways:
-
 ### Via the Dashboard
 
-Log in to the [Vocobase Dashboard](https://app.vocobase.com) and navigate to **Settings**. Your current credit balance is displayed on the account overview.
+Log in to the [Vocobase Dashboard](https://app.vocobase.com) and navigate to **Settings**. Your current ₹ balance is displayed on the account overview.
 
 ### Via the API
-
-Use the billing endpoints to check your balance and view transaction history.
 
 #### Get current balance
 
@@ -96,22 +133,22 @@ curl -X GET https://api.vocobase.com/api/v2/billing/balance \
 }
 ```
 
-#### Get transaction history
+The value `1250.50` represents **₹1,250.50**.
 
-View your credit transactions with optional filtering:
+#### Get transaction history
 
 ```bash
 curl -X GET "https://api.vocobase.com/api/v2/billing/transactions?limit=20&type=usage" \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
 ```
 
-| Parameter | Type | Description |
-|-----------|------|-------------|
-| `limit` | integer | Max results (default 50, max 100) |
-| `offset` | integer | Pagination offset (default 0) |
-| `type` | string | Filter by type: `purchase`, `usage`, `refund`, `bonus` |
-| `start_date` | string | ISO date, filter from this date |
-| `end_date` | string | ISO date, filter until this date |
+| Parameter   | Type    | Description |
+|-------------|---------|-------------|
+| `limit`     | integer | Max results (default 50, max 100) |
+| `offset`    | integer | Pagination offset (default 0) |
+| `type`      | string  | Filter by type: `purchase`, `usage`, `refund`, `bonus` |
+| `start_date`| string  | ISO date, filter from this date |
+| `end_date`  | string  | ISO date, filter until this date |
 
 ```json
 {
@@ -120,10 +157,10 @@ curl -X GET "https://api.vocobase.com/api/v2/billing/transactions?limit=20&type=
     "transactions": [
       {
         "id": "t1234567-abcd-1234-abcd-123456789012",
-        "amount": -2.12,
+        "amount": -8.55,
         "type": "usage",
         "description": "Voice session",
-        "created_at": "2026-03-15T10:30:00.000Z"
+        "created_at": "2026-05-15T10:30:00.000Z"
       }
     ],
     "total": 156,
@@ -133,12 +170,12 @@ curl -X GET "https://api.vocobase.com/api/v2/billing/transactions?limit=20&type=
 }
 ```
 
+`amount` is in ₹. A USAGE row with `amount: -8.55` means **₹8.55 was deducted**. The transaction `metadata` field (returned via the dashboard's detailed view) includes the resolved `tier`, `rate_per_minute`, `rate_source` (`AGENT` / `PROJECT` / `ACCOUNT` / `DEFAULT`), `actual_seconds`, and `billed_seconds` for full audit.
+
 #### Get usage summary
 
-Get aggregated usage for a date range:
-
 ```bash
-curl -X GET "https://api.vocobase.com/api/v2/billing/usage-summary?start_date=2026-03-01&end_date=2026-03-31" \
+curl -X GET "https://api.vocobase.com/api/v2/billing/usage-summary?start_date=2026-05-01&end_date=2026-05-31" \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
 ```
 
@@ -147,41 +184,43 @@ curl -X GET "https://api.vocobase.com/api/v2/billing/usage-summary?start_date=20
   "success": true,
   "data": {
     "period": {
-      "start": "2026-03-01T00:00:00.000Z",
-      "end": "2026-03-31T23:59:59.000Z"
+      "start": "2026-05-01T00:00:00.000Z",
+      "end": "2026-05-31T23:59:59.000Z"
     },
     "summary": {
-      "usage": { "count": 142, "total": -285.50 },
-      "purchase": { "count": 1, "total": 500.00 }
+      "usage": { "count": 142, "total": -1085.50 },
+      "purchase": { "count": 1, "total": 5000.00 }
     },
     "totals": {
       "transaction_count": 143,
-      "credits_added": 500.00,
-      "credits_used": 285.50,
-      "net_change": 214.50
+      "credits_added": 5000.00,
+      "credits_used": 1085.50,
+      "net_change": 3914.50
     }
   }
 }
 ```
 
+All numeric values are in ₹.
+
 ---
 
-## Insufficient credits
+## Insufficient balance
 
-If your credit balance reaches zero, API calls that start new sessions will fail with an error:
+If your ₹ balance reaches zero, API calls that start new sessions will fail with:
 
 ```json
 {
   "success": false,
   "error": {
     "code": "INSUFFICIENT_CREDITS",
-    "message": "Insufficient credits to start a new session"
+    "message": "Insufficient balance to start a new session"
   }
 }
 ```
 
 <Warning>
-  Calls that are already in progress will not be interrupted. However, you will not be able to start new calls until credits are replenished.
+  Calls that are already in progress will not be interrupted. However, you will not be able to start new calls until balance is replenished.
 </Warning>
 
 ---
@@ -190,43 +229,31 @@ If your credit balance reaches zero, API calls that start new sessions will fail
 
 ### Webhook tracking
 
-The most reliable way to track credit usage is through webhooks. Every `session.completed` event includes the `credits_used` field. Accumulate these values in your system to track spend in real time.
+The most reliable way to track usage is through webhooks. Every `session.completed` event includes the `credits_used` field (₹). Accumulate these values in your system to track spend in real time.
 
 ### Campaign-level tracking
 
-If you use campaigns to batch outbound calls, the campaign status endpoint returns aggregate credit usage across all calls in the campaign.
-
----
-
-## Credit usage in chat sessions
-
-Chat sessions (non-voice, text-based interactions with agents) cost **0.01 credits per message**. Each message sent by the user and each response from the agent are both counted.
-
-| Chat Messages | Credits Used |
-|---------------|-------------|
-| 10 messages (5 user + 5 bot) | 0.10 credits |
-| 100 messages | 1.00 credit |
-| 1,000 messages | 10.00 credits |
+If you use campaigns to batch outbound calls, the campaign status endpoint returns aggregate ₹ usage across all calls in the campaign.
 
 ---
 
 ## Frequently asked questions
 
-### Can I set a credit limit per agent?
+### Can I set a per-agent or per-workspace pricing?
 
-Not currently. Credits are shared across all agents under your partner account. You can track per-agent usage via webhook payloads which include the `agent_id`.
+Yes. Pricing overrides can be set at Account, Project (Workspace), or Agent scope. Overrides are managed by the Vocobase team — contact **support@vocobase.com**.
 
-### What happens if credits run out mid-call?
+### What happens if balance runs out mid-call?
 
-Active calls are never interrupted. The credit deduction happens after the call ends, so your balance may temporarily go negative. Contact the Vocobase team promptly to replenish credits if this occurs.
+Active calls are never interrupted. The deduction happens after the call ends, so your balance may temporarily go negative. Contact the Vocobase team promptly to replenish balance if this occurs.
 
 ### Can I get a refund for failed calls?
 
-Calls that fail to connect (no answer, busy, provider error) do not consume credits. If you believe credits were incorrectly deducted, contact **support@vocobase.com** with the `session_id`.
+Calls that fail to connect (no answer, busy, provider error) do not consume ₹. If you believe ₹ was incorrectly deducted, contact **support@vocobase.com** with the `session_id`.
 
-### Is there a minimum credit purchase?
+### Why does the API return the field as `credits` if it's now in ₹?
 
-Credit allocations are handled by the Vocobase team based on your plan. Contact your account manager to discuss top-ups.
+To keep partner integrations working without changes. The JSON field name `credits` (and `credits_used`, `credits_added`) is kept verbatim; only its numeric meaning shifted from abstract credits to Indian Rupees in May 2026.
 
 ## Next steps
 
@@ -235,6 +262,6 @@ Credit allocations are handled by the Vocobase team based on your plan. Contact 
     See the full session.completed payload including credits_used.
   </Card>
   <Card title="Quick Start" icon="rocket" href="/quickstart">
-    Make your first API call and start using credits.
+    Make your first API call and start using ₹.
   </Card>
 </CardGroup>
