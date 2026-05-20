@@ -29,7 +29,7 @@ Your App                    Vocobase                     Twilio/Exotel
   |                            |  Connect voice agent (WebRTC) |
   |                            | <==== real-time conversation ===>
   |                            |                              |
-  |  Call completed            |  Credits deducted            |
+  |  Call completed            |  ₹ deducted                  |
   | <------------------------- |                              |
 ```
 
@@ -537,13 +537,13 @@ Exceeding either limit returns `429 Too Many Requests`.
 
 ## Billing
 
-Calls are billed at the standard voice rate: **1 credit per 60 seconds**, pro-rata. Credits are deducted after the call ends.
+Calls are billed at the resolved per-tier rate (V1 default ₹3.80/min, V1 Pro default ₹4.20/min) in **15-second buckets**. ₹ is deducted after the call ends.
 
-Calls that fail to connect (`NO_ANSWER`, `BUSY`, `FAILED` before the customer answers) do not consume credits.
+Calls that fail to connect (`NO_ANSWER`, `BUSY`, `FAILED` before the customer answers) do not consume ₹.
 
 Your telephony provider (Twilio/Exotel) bills you separately for phone usage.
 
-See [Credits & Billing](/credits) for full details.
+See [Billing (₹)](/credits) for full details, including tier resolution and per-account/project/agent overrides.
 
 ---
 
@@ -567,7 +567,7 @@ See [Credits & Billing](/credits) for full details.
 | "Provider not allowed" | Contact Vocobase to enable Twilio or Exotel for your partner account. |
 | No available phone numbers | Ensure your provider account has purchased phone numbers with voice capability. |
 | Calls stuck in RINGING | The customer may not be answering. Use `POST /calls/:id/cancel` to cancel, or wait for the provider's no-answer timeout. |
-| "Insufficient credits" | Top up Vocobase credits. This is separate from your Twilio/Exotel balance. |
+| "Insufficient balance" | Top up your Vocobase ₹ balance. This is separate from your Twilio/Exotel balance. |
 | "SIP domain not configured" | If using SIP mode, add `sipDomain` when creating the Twilio connection. |
 
 ## Next steps
@@ -579,8 +579,8 @@ See [Credits & Billing](/credits) for full details.
   <Card title="MCube Setup (Partner)" icon="phone" href="/telephony/mcube-setup">
     Partner-level MCube configuration (managed by Vocobase).
   </Card>
-  <Card title="Credits & Billing" icon="coins" href="/credits">
-    Understand how calls consume credits.
+  <Card title="Billing (₹)" icon="coins" href="/credits">
+    Understand how calls consume ₹ — tiers, 15s buckets, and overrides.
   </Card>
   <Card title="Custom Functions" icon="code" href="/custom-functions">
     Give your agents API superpowers during calls.
