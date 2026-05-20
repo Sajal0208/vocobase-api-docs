@@ -39,11 +39,14 @@ Call ends → session.completed webhook fires
 ## Prerequisites
 
 - An approved Vocobase partner account with an API key
-- Twilio configured in your Vocobase account ([Twilio Setup guide](/telephony/twilio-setup))
-- A Twilio phone number with voice capabilities
+- One of the following providers configured in your Vocobase account:
+  - **Twilio** ([Twilio Setup guide](/telephony/twilio-setup))
+  - **Plivo** ([Plivo Setup guide](/telephony/plivo-setup))
+  - **Vobiz** ([Vobiz Setup guide](/telephony/vobiz-setup))
+- A phone number with voice capabilities from your chosen provider
 
 <Note>
-  Inbound calling is currently supported with **Twilio only**. MCube inbound is not yet available.
+  Inbound calling is supported with **Twilio**, **Plivo**, and **Vobiz**. MCube inbound is not yet available. The flow below uses Twilio as the example; for Plivo and Vobiz, use the [V2 phone-numbers API](#use-the-v2-phone-numbers-api-plivo--vobiz) at the bottom of this page to manage DIDs and agent assignment programmatically.
 </Note>
 
 ---
@@ -215,6 +218,94 @@ See the [Knowledge Base guide](/knowledge-base) for the full workflow.
 
 - If `direction` shows `"outbound"` for an inbound call, ensure you created the agent with `agent_type: "inbound"`, not `"outbound"`
 
+## Use the V2 phone-numbers API (Plivo + Vobiz)
+
+For **Plivo** and **Vobiz**, you don't need to paste an answer URL into the carrier's portal. Use the V2 phone-numbers endpoints — Vocobase will pull or accept your DID inventory, then auto-bind each DID to a carrier Application pointing at our inbound URL the moment you assign an agent.
+
+<Steps>
+  <Step title="Sync your DIDs to Vocobase">
+    **Plivo** — Vocobase pulls your inventory directly from Plivo's REST API:
+
+    ```bash
+    curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
+      -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+      -H "Content-Type: application/json" \
+      -d '{ "provider": "PLIVO" }'
+    ```
+
+    **Vobiz** — pass an explicit list (Vobiz has no inventory pull):
+
+    ```bash
+    curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
+      -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "provider": "VOBIZ",
+        "phone_numbers": ["+918065480085", "+919109518550"]
+      }'
+    ```
+
+    Response (both providers, same shape):
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "imported": [
+          { "id": "f1a2…", "phone_number": "+918065480085", "provider": "VOBIZ" }
+        ]
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Assign an agent to a DID">
+    `PUT /api/v2/phone-numbers/:id` with `agent_id`. For both Plivo and Vobiz, Vocobase calls the carrier's REST API to bind the DID to a Voice Application pointing at our inbound webhook — no portal paste needed.
+
+    ```bash
+    curl -X PUT https://api.vocobase.com/api/v2/phone-numbers/f1a2... \
+      -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+      -H "Content-Type: application/json" \
+      -d '{ "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890" }'
+    ```
+
+    On Vobiz REST failure you'll get `502 VOBIZ_SYNC_FAILED` (Plivo: `502 PLIVO_SYNC_FAILED`). The local record is rolled back so retries are safe.
+  </Step>
+
+  <Step title="Reconcile with one call">
+    If you edit something in the carrier's console directly (or rotate creds), `POST /api/v2/phone-numbers/resync` re-applies our Application binding to every assigned DID on that provider:
+
+    ```bash
+    curl -X POST https://api.vocobase.com/api/v2/phone-numbers/resync \
+      -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+      -H "Content-Type: application/json" \
+      -d '{ "provider": "VOBIZ" }'
+    ```
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "total": 3,
+        "succeeded": 3,
+        "failed": [],
+        "application_id": "VB_APP_a1b2c3d4"
+      }
+    }
+    ```
+  </Step>
+
+  <Step title="Receive the call">
+    Call your DID. Carrier hits `/api/{plivo,vobiz}/{answer,inbound}` → Vocobase resolves the assigned agent → bot picks up. Same `session.completed` webhook payload as the Twilio flow above, just with `provider` in the metadata.
+  </Step>
+</Steps>
+
+<Tip>
+  See the per-provider setup guides for credential configuration — [Plivo Setup](/telephony/plivo-setup), [Vobiz Setup](/telephony/vobiz-setup). The endpoints above only work after the partner has uploaded their `auth_id` / `auth_token` via `PUT /api/v2/config/telephony/{plivo|vobiz}`.
+</Tip>
+
+---
+
 ## Next steps
 
 <CardGroup cols={2}>
@@ -223,6 +314,12 @@ See the [Knowledge Base guide](/knowledge-base) for the full workflow.
   </Card>
   <Card title="Credits & Billing" icon="credit-card" href="/credits">
     Understand how call credits are calculated.
+  </Card>
+  <Card title="Plivo Setup" icon="phone" href="/telephony/plivo-setup">
+    Configure Plivo credentials and DIDs.
+  </Card>
+  <Card title="Vobiz Setup" icon="phone" href="/telephony/vobiz-setup">
+    Configure Vobiz credentials and DIDs.
   </Card>
   <Card title="Twilio Setup" icon="phone" href="/telephony/twilio-setup">
     Configure Twilio credentials for your account.
