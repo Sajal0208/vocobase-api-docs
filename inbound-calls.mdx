@@ -222,6 +222,78 @@ See the [Knowledge Base guide](/knowledge-base) for the full workflow.
 
 For **Plivo** and **Vobiz**, you don't need to paste an answer URL into the carrier's portal. Use the V2 phone-numbers endpoints — Vocobase will pull or accept your DID inventory, then auto-bind each DID to a carrier Application pointing at our inbound URL the moment you assign an agent.
 
+<Warning>
+  Before testing Vobiz inbound parity in an environment that has just received this feature, make sure the backend migration `20260520030000_add_vobiz_application_id` has been applied. Without it, Vobiz assignment can fail because the `TelephonyConnection.vobizApplicationId` column is missing.
+</Warning>
+
+### API tester quickstart
+
+Use this as a copy-paste runbook when testing the V2 inbound flow.
+
+```bash
+export BASE_URL="https://api.vocobase.com/api/v2"
+export API_KEY="rg_live_..."
+export PROVIDER="VOBIZ" # or PLIVO
+export DID="+918065480085"
+export AGENT_ID="00000000-0000-0000-0000-000000000000"
+```
+
+Confirm the partner is active and the carrier is configured:
+
+```bash
+curl -sS "$BASE_URL/config" \
+  -H "Authorization: Bearer $API_KEY"
+```
+
+Expected:
+
+- `success` is `true`
+- `data.status` is `active`
+- `data.telephony.vobiz.configured` is `true` for Vobiz, or `data.telephony.plivo.configured` is `true` for Plivo
+- the provider appears in `data.allowed_telephony_providers`
+
+If the provider is not configured, configure it first:
+
+```bash
+# Vobiz
+curl -X PUT "$BASE_URL/config/telephony/vobiz" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "auth_id": "MA_XXXXXXXX",
+    "auth_token": "your_vobiz_auth_token",
+    "from_number": "+918065480085"
+  }'
+
+# Plivo
+curl -X PUT "$BASE_URL/config/telephony/plivo" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "auth_id": "MAxxxxxxxxxxxxxxxxxx",
+    "auth_token": "your_plivo_auth_token",
+    "from_number": "+14155551234"
+  }'
+```
+
+Create or choose an inbound agent:
+
+```bash
+curl -X POST "$BASE_URL/agent" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_name": "Inbound Test Agent",
+    "prompt": "You are a concise inbound support agent. Greet the caller, confirm the test is connected, and answer briefly.",
+    "voice_id": "a0e99841-438c-4a64-b679-ae501e7d6091",
+    "language": "en",
+    "agent_type": "inbound",
+    "intro_message": "Thanks for calling. This is the inbound test agent."
+  }'
+```
+
+Save the returned `data.id` as `AGENT_ID`.
+
 <Steps>
   <Step title="Sync your DIDs to Vocobase">
     **Plivo** — Vocobase pulls your inventory directly from Plivo's REST API:
@@ -233,7 +305,20 @@ For **Plivo** and **Vobiz**, you don't need to paste an answer URL into the carr
       -d '{ "provider": "PLIVO" }'
     ```
 
-    **Vobiz** — pass an explicit list (Vobiz has no inventory pull):
+    Plivo response:
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "imported": 2,
+        "skipped": 1,
+        "total_remote": 3
+      }
+    }
+    ```
+
+    **Vobiz** — pass an explicit `numbers` list (Vobiz has no inventory pull):
 
     ```bash
     curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
@@ -241,22 +326,58 @@ For **Plivo** and **Vobiz**, you don't need to paste an answer URL into the carr
       -H "Content-Type: application/json" \
       -d '{
         "provider": "VOBIZ",
-        "phone_numbers": ["+918065480085", "+919109518550"]
+        "numbers": ["+918065480085", "+919109518550"]
       }'
     ```
 
-    Response (both providers, same shape):
+    Vobiz response:
 
     ```json
     {
       "success": true,
       "data": {
-        "imported": [
-          { "id": "f1a2…", "phone_number": "+918065480085", "provider": "VOBIZ" }
+        "added": 2,
+        "updated": 0,
+        "removed": 0
+      }
+    }
+    ```
+
+    <Warning>
+      The Vobiz request body field is `numbers`, not `phone_numbers`.
+    </Warning>
+  </Step>
+
+  <Step title="List imported DIDs">
+    List the partner's imported phone numbers and save the `id` for the DID you want to assign:
+
+    ```bash
+    curl "https://api.vocobase.com/api/v2/phone-numbers?provider=VOBIZ" \
+      -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+    ```
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "phone_numbers": [
+          {
+            "id": "f1a2c3d4-1111-2222-3333-444455556666",
+            "phone_number": "+918065480085",
+            "provider": "VOBIZ",
+            "friendly_name": null,
+            "status": "ACTIVE",
+            "is_default": false,
+            "agent": null,
+            "created_at": "2026-05-20T08:00:00.000Z",
+            "updated_at": "2026-05-20T08:00:00.000Z"
+          }
         ]
       }
     }
     ```
+
+    Save the phone number `id` as `PHONE_NUMBER_ID`.
   </Step>
 
   <Step title="Assign an agent to a DID">
@@ -267,6 +388,26 @@ For **Plivo** and **Vobiz**, you don't need to paste an answer URL into the carr
       -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
       -H "Content-Type: application/json" \
       -d '{ "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890" }'
+    ```
+
+    Successful response:
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "id": "f1a2c3d4-1111-2222-3333-444455556666",
+        "phone_number": "+918065480085",
+        "provider": "VOBIZ",
+        "friendly_name": null,
+        "status": "ACTIVE",
+        "is_default": false,
+        "agent": {
+          "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+          "name": "Inbound Test Agent"
+        }
+      }
+    }
     ```
 
     On Vobiz REST failure you'll get `502 VOBIZ_SYNC_FAILED` (Plivo: `502 PLIVO_SYNC_FAILED`). The local record is rolled back so retries are safe.
@@ -297,12 +438,69 @@ For **Plivo** and **Vobiz**, you don't need to paste an answer URL into the carr
 
   <Step title="Receive the call">
     Call your DID. Carrier hits `/api/{plivo,vobiz}/{answer,inbound}` → Vocobase resolves the assigned agent → bot picks up. Same `session.completed` webhook payload as the Twilio flow above, just with `provider` in the metadata.
+
+    Expected result:
+
+    - caller hears the assigned agent's greeting
+    - call creates an inbound session
+    - `session.completed` webhook fires after hangup
+    - webhook `data.call.direction` is `inbound`
+    - webhook `data.call.to_number` is the DID
+    - no `VOBIZ_SYNC_FAILED`, `PLIVO_SYNC_FAILED`, or 5xx appears during the assignment or call
   </Step>
 </Steps>
 
 <Tip>
   See the per-provider setup guides for credential configuration — [Plivo Setup](/telephony/plivo-setup), [Vobiz Setup](/telephony/vobiz-setup). The endpoints above only work after the partner has uploaded their `auth_id` / `auth_token` via `PUT /api/v2/config/telephony/{plivo|vobiz}`.
 </Tip>
+
+### End-to-end Vobiz test script
+
+This script assumes the agent already exists and the DID belongs to the partner's Vobiz account.
+
+```bash
+set -euo pipefail
+
+: "${API_KEY:?Set API_KEY}"
+: "${AGENT_ID:?Set AGENT_ID}"
+: "${DID:?Set DID in E.164 format, e.g. +918065480085}"
+
+BASE_URL="${BASE_URL:-https://api.vocobase.com/api/v2}"
+
+echo "1. Check config"
+curl -sS "$BASE_URL/config" \
+  -H "Authorization: Bearer $API_KEY"
+
+echo "\n2. Sync Vobiz DID"
+curl -sS -X POST "$BASE_URL/phone-numbers/sync" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d "{\"provider\":\"VOBIZ\",\"numbers\":[\"$DID\"]}"
+
+echo "\n3. List Vobiz DIDs"
+curl -sS "$BASE_URL/phone-numbers?provider=VOBIZ" \
+  -H "Authorization: Bearer $API_KEY"
+
+echo "\n4. Set PHONE_NUMBER_ID from the list response, then run:"
+echo "curl -X PUT \"$BASE_URL/phone-numbers/\$PHONE_NUMBER_ID\" \\"
+echo "  -H \"Authorization: Bearer \$API_KEY\" \\"
+echo "  -H \"Content-Type: application/json\" \\"
+echo "  -d '{ \"agent_id\": \"'\$AGENT_ID'\" }'"
+
+echo "\n5. After assignment succeeds, call $DID from a real phone."
+```
+
+### Troubleshooting V2 inbound
+
+| Symptom | Likely cause | Fix |
+|---------|--------------|-----|
+| `400 VOBIZ_NOT_CONFIGURED` or `400 PLIVO_NOT_CONFIGURED` | Partner has no active telephony connection for that provider | Run `PUT /api/v2/config/telephony/vobiz` or `PUT /api/v2/config/telephony/plivo`, then retry |
+| `400 VALIDATION_ERROR` on Vobiz sync | Body used `phone_numbers`, omitted `numbers`, or sent invalid E.164 values | Send `{ "provider": "VOBIZ", "numbers": ["+918065480085"] }` |
+| `400 AGENT_NOT_FOUND` | Agent ID belongs to another user, is deleted, or is not a valid UUID | Use an active agent owned by the same partner user |
+| `404 phone number not found` | `PHONE_NUMBER_ID` is from another partner/provider or was not imported | Re-run `GET /api/v2/phone-numbers?provider=VOBIZ` and use that `id` |
+| `502 VOBIZ_SYNC_FAILED` | Vobiz REST credentials, Application creation, or DID attach failed | Confirm Vobiz credentials, DID ownership, and that the migration has been applied |
+| Assignment succeeds but call reaches the wrong destination | Carrier-side Application binding may be stale | Run `POST /api/v2/phone-numbers/resync` and call again |
+| Call connects but no webhook arrives | Partner webhook is not configured or endpoint rejects delivery | Configure `PUT /api/v2/config/webhook` and check your webhook server logs |
 
 ---
 
