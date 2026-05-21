@@ -2859,7 +2859,7 @@
       "post": {
         "operationId": "startCall",
         "summary": "Start an outbound call",
-        "description": "Initiates an outbound phone call via MCube, Twilio, Exotel, Plivo, Vobiz, or BYOP SIP. Requires sufficient credits and available concurrency (max 5 concurrent calls). The provider you pass must appear in the partner's `allowed_telephony_providers` list and its credentials must already be configured. The call is placed asynchronously -- use webhooks or polling to track status updates.",
+        "description": "Initiates an outbound phone call via MCube, Twilio, Exotel, Plivo, Vobiz, or BYOP SIP. Requires sufficient credits and available account call concurrency. Concurrency is resolved as partner override > user account limit > default 1; use `GET /calls/concurrency` to inspect current capacity before starting a call. The provider you pass must appear in the partner's `allowed_telephony_providers` list and its credentials must already be configured. The call is placed asynchronously -- use webhooks or polling to track status updates.",
         "tags": ["Calls"],
         "requestBody": {
           "required": true,
@@ -2956,7 +2956,7 @@
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
                 "example": {
                   "success": false,
-                  "error": { "code": "LIMIT_REACHED", "message": "Maximum 5 concurrent calls allowed. 5 calls currently active." }
+                  "error": { "code": "LIMIT_REACHED", "message": "Maximum 3 concurrent calls allowed. 3 calls currently active." }
                 }
               }
             }
@@ -2974,6 +2974,74 @@
               }
             }
           }
+        }
+      }
+    },
+    "/calls/concurrency": {
+      "get": {
+        "operationId": "getCallConcurrency",
+        "summary": "Get current call concurrency",
+        "description": "Returns the authenticated partner account's current phone-call capacity. The limit is resolved as partner account override (`maxConcurrentCalls > 0`) > user account `concurrencyLimit` > platform default `1`. Active calls are counted from `pending`, `ringing`, and `in_progress` phone-call rows.",
+        "tags": ["Calls"],
+        "responses": {
+          "200": {
+            "description": "Current call concurrency snapshot.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "limit": {
+                          "type": "integer",
+                          "minimum": 1,
+                          "description": "Resolved maximum concurrent phone calls."
+                        },
+                        "limit_source": {
+                          "type": "string",
+                          "enum": ["partner", "user", "default"],
+                          "description": "Where the resolved limit came from."
+                        },
+                        "active": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Currently active phone calls."
+                        },
+                        "remaining": {
+                          "type": "integer",
+                          "minimum": 0,
+                          "description": "Available slots before the account reaches capacity."
+                        },
+                        "statuses_counted": {
+                          "type": "array",
+                          "items": {
+                            "type": "string",
+                            "enum": ["PENDING", "RINGING", "IN_PROGRESS"]
+                          },
+                          "description": "PhoneCall statuses counted as active."
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "limit": 3,
+                    "limit_source": "partner",
+                    "active": 1,
+                    "remaining": 2,
+                    "statuses_counted": ["PENDING", "RINGING", "IN_PROGRESS"]
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
     },
