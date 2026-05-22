@@ -55,7 +55,7 @@
     },
     {
       "name": "Dictionaries",
-      "description": "Soniox STT dictionary CRUD and agent attachment."
+      "description": "Speech-recognition dictionary CRUD and agent attachment."
     },
     {
       "name": "Sessions",
@@ -1147,7 +1147,7 @@
                   "transfer_enabled": {
                     "type": "boolean",
                     "default": false,
-                    "description": "Master toggle for cold-transfer-to-human. `transfer_number` is required when true. When the agent transfers a call, the bot leaves the room (EndTaskFrame) and the carrier (Plivo / Vobiz) bridges the caller directly to `transfer_number`. The session.completed webhook fires when the bot leg ends — see `data.call.transferred`."
+                    "description": "Master toggle for cold-transfer-to-human. `transfer_number` is required when true. When the agent transfers a call, Vocobase connects the caller to `transfer_number`. The session.completed webhook includes transfer metadata — see `data.call.transferred`."
                   },
                   "transfer_number": {
                     "type": ["string", "null"],
@@ -1370,7 +1370,7 @@
                   },
                   "transfer_enabled": {
                     "type": "boolean",
-                    "description": "Toggle cold transfer. When false the backend nulls out `transfer_number` / `transfer_message`."
+                    "description": "Toggle cold transfer. When false, transfer settings are cleared."
                   },
                   "transfer_number": {
                     "type": ["string", "null"],
@@ -1445,7 +1445,7 @@
       "delete": {
         "operationId": "deleteAgent",
         "summary": "Delete an agent",
-        "description": "Soft-deletes an agent and removes all linked document associations. SuperMemory cleanup is handled asynchronously.",
+        "description": "Soft-deletes an agent and removes all linked document associations. Related knowledge-base cleanup is handled asynchronously.",
         "tags": ["Agents"],
         "parameters": [
           {
@@ -1522,7 +1522,7 @@
       "post": {
         "operationId": "createBackgroundAudioUploadUrl",
         "summary": "Mint a presigned upload URL",
-        "description": "Step 1 of the two-step upload: returns a 15-minute presigned PUT URL for GCS plus the `id` of a new asset row in `UPLOADING` status. Then PUT the WAV bytes directly to `upload_url` with `Content-Type: audio/wav`, then call `POST /agent/background-audio/{id}/finalize`.",
+        "description": "Step 1 of the two-step upload: returns a 15-minute presigned PUT URL plus the `id` of a new upload. Then PUT the WAV bytes directly to `upload_url` with `Content-Type: audio/wav`, then call `POST /agent/background-audio/{id}/finalize`.",
         "tags": ["Background Audio"],
         "requestBody": {
           "required": true,
@@ -1572,8 +1572,7 @@
                       "type": "object",
                       "properties": {
                         "id": { "type": "string", "format": "uuid" },
-                        "upload_url": { "type": "string", "description": "Presigned GCS PUT URL valid for 15 minutes." },
-                        "gcs_key": { "type": "string" }
+                        "upload_url": { "type": "string", "description": "Presigned PUT URL valid for 15 minutes." }
                       }
                     }
                   }
@@ -1600,7 +1599,7 @@
       "post": {
         "operationId": "finalizeBackgroundAudio",
         "summary": "Finalize an uploaded asset",
-        "description": "Step 3 of the upload: server downloads the just-uploaded file from GCS, parses the WAV header, and either marks the asset `READY` (with detected `duration_secs`, `sample_rate`, `channels`) or `FAILED` with a human-readable error.\n\n**Validation rules:**\n- WAV (RIFF/WAVE) container, PCM or IEEE float.\n- **Mono only** (channels === 1). Stereo is rejected with the ffmpeg downmix command in the error message.\n- Size ≤ 5 MB. Duration ≤ 5 minutes (loops anyway).\n\nFailing finalize automatically removes the orphaned GCS object so partners don't accumulate FAILED rows tied to leftover bytes.",
+        "description": "Step 3 of the upload: Vocobase validates the just-uploaded WAV file and either marks the asset `READY` (with detected `duration_secs`, `sample_rate`, `channels`) or `FAILED` with a human-readable error.\n\n**Validation rules:**\n- WAV (RIFF/WAVE) container, PCM or IEEE float.\n- **Mono only** (channels === 1). Stereo is rejected with an explicit downmix hint.\n- Size ≤ 5 MB. Duration ≤ 5 minutes.",
         "tags": ["Background Audio"],
         "parameters": [
           {
@@ -1648,7 +1647,7 @@
       "delete": {
         "operationId": "deleteBackgroundAudio",
         "summary": "Soft-delete a background-audio asset",
-        "description": "Soft-deletes the asset (the GCS object is retained for now) and detaches it from any agents currently using it (`background_audio_id` cleared). Hard-delete only available to admins.",
+        "description": "Soft-deletes the asset and detaches it from any agents currently using it (`background_audio_id` cleared).",
         "tags": ["Background Audio"],
         "parameters": [
           {
@@ -1743,7 +1742,7 @@
       "post": {
         "operationId": "getUploadUrl",
         "summary": "Get presigned upload URL",
-        "description": "Creates a document record and returns a presigned S3 URL for uploading the file. After uploading, call `POST /documents/{id}/confirm` to finalize. The upload URL expires in 15 minutes.",
+        "description": "Creates a document record and returns a presigned URL for uploading the file. After uploading, call `POST /documents/{id}/confirm` to finalize. The upload URL expires in 15 minutes.",
         "tags": ["Documents"],
         "requestBody": {
           "required": true,
@@ -1800,7 +1799,7 @@
                       "type": "object",
                       "properties": {
                         "document_id": { "type": "string", "format": "uuid" },
-                        "upload_url": { "type": "string", "format": "uri", "description": "Presigned S3 PUT URL." },
+                        "upload_url": { "type": "string", "format": "uri", "description": "Presigned PUT URL." },
                         "expires_in": { "type": "integer", "description": "URL expiry in seconds.", "example": 900 }
                       }
                     }
@@ -1810,7 +1809,7 @@
                   "success": true,
                   "data": {
                     "document_id": "d1234567-abcd-1234-abcd-123456789012",
-                    "upload_url": "https://s3.amazonaws.com/bucket/path?X-Amz-Signature=...",
+                    "upload_url": "https://uploads.example.com/path?signature=...",
                     "expires_in": 900
                   }
                 }
@@ -1827,7 +1826,7 @@
       "post": {
         "operationId": "confirmUpload",
         "summary": "Confirm document upload",
-        "description": "Confirms that the file has been uploaded to S3. Verifies the file exists and transitions the document status from `uploading` to `ready`. Must be called after uploading to the presigned URL.",
+        "description": "Confirms that the file has been uploaded. Verifies the file exists and transitions the document status from `uploading` to `ready`. Must be called after uploading to the presigned URL.",
         "tags": ["Documents"],
         "parameters": [
           {
@@ -2120,7 +2119,7 @@
       "delete": {
         "operationId": "deleteDocument",
         "summary": "Delete a document",
-        "description": "Permanently deletes a document, removes the file from S3 (if applicable), and unlinks it from all agents. SuperMemory cleanup is handled asynchronously.",
+        "description": "Permanently deletes a document, removes the stored file if applicable, and unlinks it from all agents. Knowledge-base cleanup is handled asynchronously.",
         "tags": ["Documents"],
         "parameters": [
           {
@@ -2165,7 +2164,7 @@
       "get": {
         "operationId": "listDictionaries",
         "summary": "List dictionaries",
-        "description": "Returns every Soniox STT dictionary owned by the partner, ordered by creation date (newest first). The summary shape does not include the `terms` array -- fetch a single dictionary to see them.",
+        "description": "Returns every speech-recognition dictionary owned by the partner, ordered by creation date (newest first). The summary shape does not include the `terms` array -- fetch a single dictionary to see them.",
         "tags": ["Dictionaries"],
         "responses": {
           "200": {
@@ -2197,7 +2196,7 @@
       "post": {
         "operationId": "createDictionary",
         "summary": "Create a dictionary",
-        "description": "Creates a new Soniox STT dictionary for the partner. Terms are normalized server-side: whitespace is trimmed, empty/whitespace-only entries are dropped, non-string entries are silently skipped, and the dedupe is case-insensitive but preserves first-occurrence casing. A blank `description` is stored as `null`. Dictionary names must be unique per partner.",
+        "description": "Creates a new speech-recognition dictionary for the partner. Terms are normalized server-side: whitespace is trimmed, empty/whitespace-only entries are dropped, non-string entries are silently skipped, and the dedupe is case-insensitive but preserves first-occurrence casing. A blank `description` is stored as `null`. Dictionary names must be unique per partner.",
         "tags": ["Dictionaries"],
         "requestBody": {
           "required": true,
@@ -2543,7 +2542,7 @@
       "post": {
         "operationId": "linkDocuments",
         "summary": "Link documents to an agent",
-        "description": "Links one or more documents to an agent for knowledge base integration. Documents must be in `ready` status. Duplicate links are silently skipped (idempotent). Maximum 20 document IDs per request, 100 total linked documents per agent. Queues background sync jobs for newly linked documents.",
+        "description": "Links one or more documents to an agent for knowledge base integration. Documents must be in `ready` status. Duplicate links are silently skipped (idempotent). Maximum 20 document IDs per request, 100 total linked documents per agent. Indexing starts for newly linked documents.",
         "tags": ["Agent Documents"],
         "parameters": [
           {
@@ -2650,7 +2649,7 @@
       "delete": {
         "operationId": "unlinkDocument",
         "summary": "Unlink a document from an agent",
-        "description": "Removes the association between a document and an agent. The document itself is not deleted. SuperMemory cleanup is handled asynchronously.",
+        "description": "Removes the association between a document and an agent. The document itself is not deleted. Knowledge-base cleanup is handled asynchronously.",
         "tags": ["Agent Documents"],
         "parameters": [
           {
@@ -2702,7 +2701,7 @@
       "get": {
         "operationId": "listAgentDictionaries",
         "summary": "List attached dictionaries",
-        "description": "Returns all Soniox STT dictionaries currently attached to the agent. The summary shape does not include `description` or `terms`.",
+        "description": "Returns all speech-recognition dictionaries currently attached to the agent. The summary shape does not include `description` or `terms`.",
         "tags": ["Agents", "Dictionaries"],
         "parameters": [
           {
@@ -2859,7 +2858,7 @@
       "post": {
         "operationId": "startCall",
         "summary": "Start an outbound call",
-        "description": "Initiates an outbound phone call via MCube, Twilio, Exotel, Plivo, Vobiz, or BYOP SIP. Requires sufficient credits and available account call concurrency. Concurrency is resolved as partner override > user account limit > default 1; use `GET /calls/concurrency` to inspect current capacity before starting a call. The provider you pass must appear in the partner's `allowed_telephony_providers` list and its credentials must already be configured. The call is placed asynchronously -- use webhooks or polling to track status updates.",
+        "description": "Initiates an outbound phone call via MCube, Twilio, Exotel, Plivo, Vobiz, or SIP. Requires sufficient credits and available call concurrency; use `GET /calls/concurrency` to inspect current capacity before starting a call. The provider you pass must appear in the partner's `allowed_telephony_providers` list and its credentials must already be configured. The call is placed asynchronously -- use webhooks or polling to track status updates.",
         "tags": ["Calls"],
         "requestBody": {
           "required": true,
@@ -2883,7 +2882,7 @@
                     "type": "string",
                     "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip"],
                     "default": "mcube",
-                    "description": "Telephony provider. Defaults to `mcube` if not specified. The provider must be in your partner's `allowed_telephony_providers` list and its credentials must be configured (see the `/config/telephony/*` endpoints). `sip` routes the call through LiveKit-mediated BYOP SIP — partners bring their own carrier (Vobiz, Tata Tele, Knowlarity, or any ITSP) and configure it via the dashboard. `sip` requires `\"SIP\"` to be in `allowed_telephony_providers`."
+                    "description": "Telephony provider. Defaults to `mcube` if not specified. The provider must be in your partner's `allowed_telephony_providers` list and its credentials must be configured (see the `/config/telephony/*` endpoints). `sip` requires `\"SIP\"` to be in `allowed_telephony_providers` and a SIP carrier connection to be configured for your account."
                   },
                   "variables": {
                     "type": "object",
@@ -3156,7 +3155,7 @@
       "get": {
         "operationId": "getCallRecordingUrl",
         "summary": "Get a fresh recording URL",
-        "description": "Mints a freshly signed download URL for the call's recording, valid for 7 days (the maximum the underlying storage allows). Use this when the `recording_url` returned by `GET /calls/{id}` or by the `session.completed` webhook has expired.\n\nReturns 404 if the call has no recording, the call is not yet complete, or the recording file is no longer available in storage.",
+        "description": "Mints a freshly signed download URL for the call's recording, valid for 7 days. Use this when the `recording_url` returned by `GET /calls/{id}` or by the `session.completed` webhook has expired.\n\nReturns 404 if the call has no recording, the call is not yet complete, or the recording file is no longer available.",
         "tags": ["Calls"],
         "parameters": [
           {
@@ -3251,7 +3250,7 @@
       "post": {
         "operationId": "runCallExtraction",
         "summary": "Run post-call extraction (Test Analysis / replay)",
-        "description": "Re-runs post-call extraction against an existing session's stored transcript using the agent's CURRENT `extraction_config`. Useful after editing the config to backfill old sessions, or to test a config against real conversation data.\n\n- `dry_run: true` — runs extraction, returns values, does NOT persist or re-fire the partner webhook\n- `dry_run: false` (default) — persists to the session's `extraction` field; partner webhook is **not** re-fired (replays are dashboard-only).\n\nReturns 400 when the agent has no `extraction_config` defined. Subject to the same partner rate-limit as `POST /calls/start` to prevent burst Gemini quota consumption.",
+        "description": "Re-runs post-call extraction against an existing session's stored transcript using the agent's CURRENT `extraction_config`. Useful after editing the config to backfill old sessions, or to test a config against real conversation data.\n\n- `dry_run: true` — runs extraction, returns values, does NOT persist or re-fire the partner webhook\n- `dry_run: false` (default) — persists to the session's `extraction` field; partner webhook is **not** re-fired.\n\nReturns 400 when the agent has no `extraction_config` defined. Subject to the same partner rate-limit as `POST /calls/start`.",
         "tags": ["Calls"],
         "parameters": [
           {
@@ -3432,7 +3431,7 @@
       "post": {
         "operationId": "startWebrtcSession",
         "summary": "Start a browser WebRTC session",
-        "description": "Creates a Daily WebRTC room and boots the agent. Returns the room URL and a one-time access token your browser passes to the Pipecat client to connect to the agent in real time.\n\nThe session is fully tracked on the platform — when the call ends, the same `session.completed` partner webhook fires (transcript, recording_url, extraction). The webhook payload's `call` field is omitted for these sessions because there is no associated phone call. See [Web Voice Testing](/web-voice-testing) for end-to-end browser integration code.\n\n**Auth + limits:** Bearer API key (`rg_live_*`). Bound by the API key's `concurrencyLimit`. Rate-limited to 10 starts/minute per key.",
+        "description": "Creates a browser voice session and returns a room URL plus a one-time access token your browser uses to connect to the agent in real time.\n\nThe session is fully tracked on the platform — when the session ends, the same `session.completed` partner webhook fires (transcript, recording_url, extraction). The webhook payload's `call` field is omitted for these sessions because there is no associated phone call. See [Web Voice Testing](/web-voice-testing) for end-to-end browser integration code.\n\n**Auth + limits:** Bearer API key (`rg_live_*`). Bound by the API key's concurrency limit. Rate-limited to 10 starts/minute per key.",
         "tags": ["Sessions"],
         "requestBody": {
           "required": true,
@@ -3490,7 +3489,7 @@
                   "data": {
                     "session_id": "s1234567-abcd-1234-abcd-123456789012",
                     "agent_id": "a1234567-abcd-1234-abcd-123456789012",
-                    "daily_room_url": "https://vocobase.daily.co/abc123",
+                    "daily_room_url": "https://voice-session.example.com/abc123",
                     "daily_token": "eyJhbGciOi..."
                   }
                 }
@@ -3517,7 +3516,7 @@
           },
           "500": { "$ref": "#/components/responses/InternalError" },
           "502": {
-            "description": "Bot server temporarily unavailable.",
+            "description": "Voice session temporarily unavailable.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
@@ -3525,7 +3524,7 @@
                   "success": false,
                   "error": {
                     "code": "BOT_SERVER_UNAVAILABLE",
-                    "message": "Bot server temporarily unavailable. Please try again."
+                    "message": "Voice session temporarily unavailable. Please try again."
                   }
                 }
               }
@@ -4434,7 +4433,7 @@
             "minimum": 60,
             "maximum": 3600,
             "default": 600,
-            "description": "Hard cap on call duration in seconds. New agents default to 600 (10 minutes). Set to `null` to disable the cap (no enforcement from the bot). Range 60-3600. At `(cap - 30s)` the bot speaks a soft \"wrapping up\" warning; at the cap it speaks the agent's `endCallMessage` (or a default farewell) and gracefully ends the session through the standard end-of-call path so transcript, recording, billing and the `session.completed` webhook all fire normally. Pipecat Cloud's platform `max_session_duration` (default 7200s) sits above this as a hard force-close backstop."
+            "description": "Hard cap on call duration in seconds. New agents default to 600 (10 minutes). Set to `null` to disable the cap. Range 60-3600. At `(cap - 30s)` the agent speaks a soft \"wrapping up\" warning; at the cap it speaks the agent's `endCallMessage` (or a default farewell) and gracefully ends the session through the standard end-of-call path so transcript, recording, billing and the `session.completed` webhook all fire normally."
           },
           "background_audio_id": {
             "type": ["string", "null"],
@@ -4465,7 +4464,7 @@
           "size_bytes": { "type": "integer" },
           "duration_secs": { "type": "number", "description": "Detected from WAV header at upload time." },
           "sample_rate": { "type": "integer" },
-          "preview_url": { "type": "string", "description": "15-min presigned GCS URL for in-browser preview." }
+          "preview_url": { "type": "string", "description": "15-minute presigned preview URL." }
         }
       },
       "Voice": {
@@ -4574,7 +4573,7 @@
               { "type": "null" },
               { "$ref": "#/components/schemas/ExtractionResult" }
             ],
-            "description": "Post-call extraction result. `null` until the session-queue worker runs extraction (after the call ends). Always `null` when the agent has no `extraction_config`."
+            "description": "Post-call extraction result. `null` until extraction runs after the call ends. Always `null` when the agent has no `extraction_config`."
           },
           "status": { "type": "string" },
           "started_at": { "type": "string", "format": "date-time" },
@@ -4626,7 +4625,7 @@
             "description": "Extracted fields, typed per the agent's `extraction_config.keys`. Missing keys are emitted as `null` (per-key `nullable: true` on the response schema). Absent entirely when `status != 'success'`."
           },
           "error": { "type": "string", "description": "Failure reason; present only when `status === 'failed'`." },
-          "model": { "type": "string", "description": "LLM model used (admin-configurable; default `gemini-3-flash-preview`)." },
+          "model": { "type": "string", "description": "Opaque extraction model identifier. Do not branch business logic on this value." },
           "extractedAt": { "type": "string", "format": "date-time" },
           "latencyMs": { "type": "integer", "description": "LLM latency in milliseconds." },
           "attempts": { "type": "integer", "description": "Number of attempts (1 = success on first try; 2-3 = retried)." }

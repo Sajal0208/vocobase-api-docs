@@ -8,7 +8,7 @@ description: "Configure Plivo for outbound calling with the Vocobase API"
 This guide walks you through connecting your Plivo account to Vocobase for outbound calling.
 
 <Note>
-  Plivo credentials can be configured either via the Partner API (`PUT /api/v2/config/telephony/plivo`) or through the Vocobase dashboard's **Telephony Connections** panel — both write to the same underlying record. Once Plivo is configured, start calls programmatically using `POST /calls/start` with `"provider": "plivo"`.
+  Configure Plivo with the Partner API (`PUT /api/v2/config/telephony/plivo`). Once Plivo is configured, start calls programmatically using `POST /calls/start` with `"provider": "plivo"`.
 </Note>
 
 ## Prerequisites
@@ -16,7 +16,6 @@ This guide walks you through connecting your Plivo account to Vocobase for outbo
 - A [Plivo account](https://www.plivo.com/) with a verified Auth ID and Auth Token
 - At least one Plivo phone number with **Voice** enabled
 - An approved Vocobase partner account with `"plivo"` present in `allowed_telephony_providers` (check `GET /config`)
-- Access to the Vocobase dashboard at [app.vocobase.com](https://app.vocobase.com)
 
 <Tip>
   If `"plivo"` is not yet listed in your partner config's `allowed_telephony_providers`, contact your Vocobase account manager to enable it.
@@ -49,9 +48,7 @@ This guide walks you through connecting your Plivo account to Vocobase for outbo
 
 ## Step 2: Configure Plivo in Vocobase
 
-You can either send the credentials via the Partner API, or set them up through the dashboard.
-
-### Option A — Partner API (programmatic)
+Send the credentials through the Partner API.
 
 <CodeGroup>
 ```bash cURL
@@ -120,17 +117,6 @@ A successful response confirms credentials were stored:
 <Tip>
   Your Auth Token is encrypted at rest and never returned in API responses. The Auth ID is masked.
 </Tip>
-
-### Option B — Dashboard
-
-1. Open [app.vocobase.com](https://app.vocobase.com) and sign in.
-2. Go to **Settings > Telephony Connections**.
-3. Click **Add Connection** and pick **Plivo** from the provider list.
-4. Paste your **Auth ID** and **Auth Token**, then give the connection a name — for example, `Plivo — Production`.
-5. Click **Verify**. Vocobase calls Plivo with your credentials to confirm they are valid; on success the connection is stored encrypted at rest.
-6. Open the new connection and click **Import Phone Numbers**. Select the numbers you want Vocobase to use and click **Import**.
-
-Both paths write to the same underlying `TelephonyConnection` record — switching between API and dashboard later is fine.
 
 ## Step 3: Confirm the partner sees Plivo as configured
 
@@ -232,19 +218,18 @@ print(response.json())
 }
 ```
 
-Under the hood, Vocobase opens a **Plivo Media Streams** session to the bot and bridges audio over a WebSocket — the same pattern as the default Twilio path. Latency and audio quality are comparable to Twilio.
+Vocobase manages the carrier connection and media path for Plivo. Partners only need to configure credentials and pass `"provider": "plivo"` when starting calls.
 
 ## Troubleshooting
 
 ### "Plivo not configured" or 403 on `/calls/start`
 
-- Confirm the connection status is **Verified** in the dashboard (re-run verify if it shows as invalid).
 - Confirm `"plivo"` is in `allowed_telephony_providers` from `GET /config`. If it is not, contact your Vocobase account manager.
 
 ### 401 from Plivo during verification
 
 - Auth ID or Auth Token is wrong. Re-copy from the Plivo Console.
-- If you recently rotated the Auth Token in Plivo, update the connection in the Vocobase dashboard.
+- If you recently rotated the Auth Token in Plivo, send `PUT /config/telephony/plivo` again with the new token.
 
 ### Calls ring but drop immediately
 
@@ -254,11 +239,11 @@ Under the hood, Vocobase opens a **Plivo Media Streams** session to the bot and 
 
 ### Caller ID shows "Unknown"
 
-Ensure the number in your Plivo account matches an imported number on your Vocobase connection. Numbers imported after initial setup need to be synced — re-open **Telephony Connections > Plivo > Import Phone Numbers** and pull the new entries.
+Ensure the number in your Plivo account matches an imported number on your Vocobase connection. If you added numbers after initial setup, sync them through the V2 phone-numbers API.
 
 ## Updating credentials
 
-Rotate the Auth Token in Plivo, then in the Vocobase dashboard open the connection, click **Edit**, and paste the new token. Re-run **Verify** to confirm Vocobase can still reach Plivo.
+Rotate the Auth Token in Plivo, then update Vocobase by re-sending `PUT /api/v2/config/telephony/plivo` with the new token.
 
 ## Next steps
 

@@ -8,7 +8,7 @@ description: "Configure Vobiz for outbound calling with the Vocobase API"
 This guide walks you through connecting your Vobiz account to Vocobase for outbound calling.
 
 <Note>
-  Vobiz credentials can be configured either via the Partner API (`PUT /api/v2/config/telephony/vobiz`) or through the Vocobase dashboard's **Telephony Connections** panel — both write to the same underlying record. Once Vobiz is configured, start calls programmatically using `POST /calls/start` with `"provider": "vobiz"`.
+  Configure Vobiz with the Partner API (`PUT /api/v2/config/telephony/vobiz`). Once Vobiz is configured, start calls programmatically using `POST /calls/start` with `"provider": "vobiz"`.
 </Note>
 
 ## Prerequisites
@@ -16,7 +16,6 @@ This guide walks you through connecting your Vobiz account to Vocobase for outbo
 - A [Vobiz account](https://www.vobiz.ai/) with a verified Auth ID and Auth Token
 - At least one Vobiz phone number provisioned for outbound voice
 - An approved Vocobase partner account with `"vobiz"` present in `allowed_telephony_providers` (check `GET /config`)
-- Access to the Vocobase dashboard at [app.vocobase.com](https://app.vocobase.com)
 
 <Tip>
   If `"vobiz"` is not yet listed in your partner config's `allowed_telephony_providers`, contact your Vocobase account manager to enable it.
@@ -49,9 +48,7 @@ This guide walks you through connecting your Vobiz account to Vocobase for outbo
 
 ## Step 2: Configure Vobiz in Vocobase
 
-You can either send the credentials via the Partner API, or set them up through the dashboard.
-
-### Option A — Partner API (programmatic)
+Send the credentials through the Partner API.
 
 <CodeGroup>
 ```bash cURL
@@ -120,16 +117,6 @@ A successful response confirms credentials were stored:
 <Tip>
   Your Auth Token is encrypted at rest and never returned in API responses. The Auth ID is masked.
 </Tip>
-
-### Option B — Dashboard
-
-1. Open [app.vocobase.com](https://app.vocobase.com) and sign in.
-2. Go to **Settings > Telephony Connections**.
-3. Click **Add Connection** and pick **Vobiz** from the provider list.
-4. Paste your **Auth ID**, **Auth Token**, and **From Number**, then give the connection a name — for example, `Vobiz — Production`.
-5. Click **Verify**. Vocobase calls Vobiz with your credentials to confirm they are valid; on success the connection is stored encrypted at rest.
-
-Both paths write to the same underlying `TelephonyConnection` record — switching between API and dashboard later is fine.
 
 ## Step 3: Confirm the partner sees Vobiz as configured
 
@@ -232,19 +219,18 @@ print(response.json())
 }
 ```
 
-Under the hood, Vobiz uses a self-hosted **Vobiz Media Streams** path: Vocobase asks Vobiz to dial out via the Vobiz REST API (`https://api.vobiz.ai/api/v1/Account/{authId}/Call/`), and Vobiz bridges the call into a bidirectional WebSocket served directly by the Vocobase bot at `/ws/vobiz`, carrying μ-law 8 kHz audio in both directions. This differs from the Plivo path (which is routed via Pipecat Cloud) — the bot terminates the media stream itself for Vobiz. Latency and audio quality are comparable to the other providers; partners do not need to do anything different to configure it.
+Vocobase manages the carrier connection and media path for Vobiz. Partners only need to configure credentials and pass `"provider": "vobiz"` when starting calls.
 
 ## Troubleshooting
 
 ### "Vobiz not configured" or 403 on `/calls/start`
 
-- Confirm the connection status is **Verified** in the dashboard (re-run verify if it shows as invalid).
 - Confirm `"vobiz"` is in `allowed_telephony_providers` from `GET /config`. If it is not, contact your Vocobase account manager.
 
 ### 401 from Vobiz during verification
 
 - Auth ID or Auth Token is wrong. Re-copy them from your Vobiz account settings.
-- If you recently rotated the Auth Token in Vobiz, update the connection in the Vocobase dashboard or re-`PUT /config/telephony/vobiz`.
+- If you recently rotated the Auth Token in Vobiz, send `PUT /config/telephony/vobiz` again with the new token.
 
 ### Calls ring but drop immediately
 
@@ -253,11 +239,11 @@ Under the hood, Vobiz uses a self-hosted **Vobiz Media Streams** path: Vocobase 
 
 ### Caller ID shows the wrong number or "Unknown"
 
-- The `from_number` saved on your Vocobase Vobiz connection must match a number that Vobiz has provisioned for your account, in E.164 format. Update it via `PUT /config/telephony/vobiz` or the dashboard if it does not.
+- The `from_number` saved on your Vocobase Vobiz connection must match a number that Vobiz has provisioned for your account, in E.164 format. Update it via `PUT /config/telephony/vobiz` if it does not.
 
 ## Updating credentials
 
-Rotate the Auth Token in Vobiz, then update Vocobase by re-sending `PUT /api/v2/config/telephony/vobiz` with the new token, or by editing the connection in the Vocobase dashboard. Re-run **Verify** to confirm Vocobase can still reach Vobiz with the rotated credentials.
+Rotate the Auth Token in Vobiz, then update Vocobase by re-sending `PUT /api/v2/config/telephony/vobiz` with the new token.
 
 ## Next steps
 

@@ -170,7 +170,7 @@ curl -X GET "https://api.vocobase.com/api/v2/billing/transactions?limit=20&type=
 }
 ```
 
-`amount` is in ₹. A USAGE row with `amount: -8.55` means **₹8.55 was deducted**. The transaction `metadata` field (returned via the dashboard's detailed view) includes the resolved `tier`, `rate_per_minute`, `rate_source` (`AGENT` / `PROJECT` / `ACCOUNT` / `DEFAULT`), `actual_seconds`, and `billed_seconds` for full audit.
+`amount` is in ₹. A USAGE row with `amount: -8.55` means **₹8.55 was deducted**. If you need a detailed billing audit for a call, contact Vocobase support with the `session_id`.
 
 #### Get usage summary
 

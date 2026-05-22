@@ -52,7 +52,7 @@ Every webhook request includes these headers:
         "timestamp": "2026-03-15T14:30:05.200Z"
       }
     ],
-    "recording_url": "https://vocobase-recordings.s3.amazonaws.com/rec_abc123.wav?X-Amz-Signature=...",
+    "recording_url": "https://downloads.example.com/recordings/rec_abc123.wav?signature=...",
     "variables": {
       "callee_name": "Sajal",
       "mobile_number": "+919876543210"
@@ -64,7 +64,7 @@ Every webhook request includes these headers:
         "callback_at": "2026-05-01T15:00:00Z",
         "outcome": "callback_requested"
       },
-      "model": "gemini-3-flash-preview",
+      "model": "vocobase-managed",
       "extractedAt": "2026-03-15T14:32:09.840Z",
       "latencyMs": 1840,
       "attempts": 1
@@ -100,8 +100,8 @@ Every webhook request includes these headers:
 | `agent_name` | string | Agent display name at time of call |
 | `duration_seconds` | integer | Call duration in seconds |
 | `credits_used` | number | Credits deducted for this call |
-| `processing_complete` | boolean | `true` when the post-call pipeline (status flip, transcript persisted, recording uploaded, extraction run) has finished. Always `true` on the webhook payload itself — the webhook fires after the pipeline completes. Use it when polling `GET /calls/{id}` to tell "final" from "still decorating". |
-| `pipeline_completed_at` | string (ISO 8601) or null | Timestamp when the pipeline finished. Non-null on the webhook. `null` when polling `GET /calls/{id}` and the pipeline hasn't completed yet, OR on rows created before this field shipped (treat null + `status: completed` for pre-existing rows as "final"). |
+| `processing_complete` | boolean | `true` when post-call processing has finished. Always `true` on the webhook payload itself. Use it when polling `GET /calls/{id}` to tell final results from in-progress processing. |
+| `pipeline_completed_at` | string (ISO 8601) or null | Timestamp when post-call processing finished. Non-null on the webhook. `null` when polling `GET /calls/{id}` and processing has not completed yet, or on older sessions that pre-date this field. |
 | `transcript` | array | Ordered list of conversation turns (see below) |
 | `recording_url` | string or null | Presigned URL for the call recording. `null` if recording was not enabled. URL is valid for 7 days. If it expires, mint a fresh one with `GET /calls/{call_id}/recording-url`. |
 | `variables` | object | Pre-call variable values that were substituted into the agent's prompt and greeting. Empty object `{}` when no variables were supplied. Echoed for partner-side audit. |
@@ -142,12 +142,11 @@ Each entry in the `transcript` array has:
 
 ### Transferred calls
 
-When an agent transfers a live call to a human (cold transfer via Plivo or Vobiz), **the bot leaves the room** the moment the carrier accepts the redirect. Concretely:
+When an agent transfers a live call to a human:
 
 1. The bot speaks the configured announcement (`transfer_message`).
-2. Backend POSTs to the carrier's call-redirect API.
-3. The bot pushes `EndTaskFrame` upstream and the WebSocket closes.
-4. The carrier bridges the caller leg directly to `transfer_target` — no bot in the audio path anymore.
+2. Vocobase transfers the caller to `transfer_target`.
+3. The `session.completed` webhook includes transfer metadata.
 
 The `session.completed` webhook fires once the bot leg ends, not when the caller eventually hangs up with the human. This means:
 
@@ -176,13 +175,13 @@ Use `call.transferred` as the cheap discriminator if your downstream automation 
 
 Both the webhook and `GET /api/v2/calls/{id}` return the same `data` shape, so a partner that can't accept inbound webhooks (or wants to reconcile dropped deliveries) can poll the GET endpoint instead.
 
-A `Session` row reaches `status: completed` the moment the bot's `voice_session_completion` event lands — but the **post-call pipeline** (transcript persist → recording upload → extraction) keeps running for a few more seconds. The `processing_complete` boolean tells you when that pipeline is finished:
+A call can appear completed before all transcript, recording, and extraction fields are ready. The `processing_complete` boolean tells you when the response is final:
 
 ```
 status                processing_complete    meaning
 ─────────────────────────────────────────────────────────────────────────────
 active                false                  call still in progress
-completed             false                  call ended; pipeline still running
+completed             false                  call ended; post-call processing still running
 completed             true                   final — transcript / recording / extraction are stable
 failed                true                   terminal failure (no_answer, busy, reject); no transcript
 ```
@@ -195,7 +194,7 @@ async function fetchUntilReady(callId) {
     const { data } = await vocobase.get(`/calls/${callId}`);
     if (data.session?.processing_complete === true) return data;
     if (data.status === 'failed' || data.status === 'no_answer' || data.status === 'busy') return data;
-    await sleep(30_000); // 30s; pipeline usually finishes inside ~15s of completion
+    await sleep(30_000);
   }
 }
 ```
@@ -220,7 +219,7 @@ When the agent has a **Custom Analysis** config defined, the platform runs an LL
     "callback_at": "2026-05-01T15:00:00Z",
     "outcome": "callback_requested"
   },
-  "model": "gemini-3-flash-preview",
+      "model": "vocobase-managed",
   "extractedAt": "2026-03-15T14:32:09.840Z",
   "latencyMs": 1840,
   "attempts": 1
@@ -230,9 +229,9 @@ When the agent has a **Custom Analysis** config defined, the platform runs an LL
 | Field | Type | Description |
 |---|---|---|
 | `status` | string | `success`, `failed`, or `skipped` |
-| `values` | object or absent | Extracted fields (typed per the agent's `extraction_config.keys`). Missing fields are emitted as `null` (per-key `nullable: true` on the Gemini response schema). Absent entirely when `status != 'success'`. |
+| `values` | object or absent | Extracted fields, typed per the agent's `extraction_config.keys`. Missing fields are emitted as `null`. Absent entirely when `status != 'success'`. |
 | `error` | string or absent | Failure reason — present only when `status === 'failed'` |
-| `model` | string | LLM model used (admin-configurable; default `gemini-3-flash-preview`) |
+| `model` | string | Opaque extraction model identifier. Do not branch business logic on this value. |
 | `extractedAt` | string (ISO 8601) | When extraction ran |
 | `latencyMs` | integer | LLM latency in milliseconds |
 | `attempts` | integer | Number of attempts (1 = success on first try; 2-3 = retried) |

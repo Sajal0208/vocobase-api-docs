@@ -13,7 +13,7 @@ If you are a partner with downstream customers of your own, every customer needs
 
 ## When you need this
 
-- You're building a vertical app on top of Vocobase (Skalix, an ISV with multiple healthcare brands as customers, etc.).
+- You're building a vertical app on top of Vocobase and need to serve multiple downstream customer accounts.
 - Each customer has their own Google Sheets / Slack / LSQ / Calendly / Shopify account and they should not share tokens with you or with each other.
 - You want to bind agents to a specific customer's connection at runtime.
 
@@ -26,7 +26,7 @@ If you are a single-team partner using your own tool credentials, **you do not n
 | Term | What it is |
 |------|-----------|
 | **Partner** | You. Holds the `rg_live_…` API key, billing relationship, agent quota. |
-| **Partner Customer** | One of your downstream customers (e.g., Practo, Meddibuddy). Has a stable `external_id` you choose. |
+| **Partner Customer** | One of your downstream customers. Has a stable `external_id` you choose. |
 | **Connector** | A tool definition on the Vocobase platform (Google Sheets, Slack, Cal.com, etc.). Admin curates which connectors your account can use. |
 | **Connection** | A specific authorization of a connector for a specific owner. Owners are mutually exclusive — either you (the partner user) OR a single PartnerCustomer. |
 | **Connect link** | A one-time URL you mint and hand to a customer. They open it, complete OAuth (or paste an API key), and tokens land against the PartnerCustomer. |
@@ -108,9 +108,9 @@ curl -X POST https://api.vocobase.com/api/v2/customers \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
   -H "Content-Type: application/json" \
   -d '{
-    "external_id": "acct_meddibuddy_42",
-    "name": "Meddibuddy Health",
-    "email": "ops@meddibuddy.example",
+    "external_id": "acct_customer_42",
+    "name": "Acme Health",
+    "email": "ops@customer.example",
     "metadata": { "tier": "enterprise", "country": "IN" }
   }'
 ```
@@ -123,9 +123,9 @@ const response = await fetch("https://api.vocobase.com/api/v2/customers", {
     "Content-Type": "application/json",
   },
   body: JSON.stringify({
-    external_id: "acct_meddibuddy_42",
-    name: "Meddibuddy Health",
-    email: "ops@meddibuddy.example",
+    external_id: "acct_customer_42",
+    name: "Acme Health",
+    email: "ops@customer.example",
     metadata: { tier: "enterprise", country: "IN" },
   }),
 });
@@ -142,9 +142,9 @@ response = requests.post(
         "Content-Type": "application/json",
     },
     json={
-        "external_id": "acct_meddibuddy_42",
-        "name": "Meddibuddy Health",
-        "email": "ops@meddibuddy.example",
+        "external_id": "acct_customer_42",
+        "name": "Acme Health",
+        "email": "ops@customer.example",
         "metadata": {"tier": "enterprise", "country": "IN"},
     },
 )
@@ -157,9 +157,9 @@ customer = response.json()["data"]
   "success": true,
   "data": {
     "id": "pc_01h…",
-    "external_id": "acct_meddibuddy_42",
-    "name": "Meddibuddy Health",
-    "email": "ops@meddibuddy.example",
+    "external_id": "acct_customer_42",
+    "name": "Acme Health",
+    "email": "ops@customer.example",
     "metadata": { "tier": "enterprise", "country": "IN" },
     "status": "ACTIVE",
     "created_at": "2026-05-10T08:14:22.000Z",
@@ -198,7 +198,7 @@ This is the core handoff for OAuth-style connectors (Google Sheets, Slack, Shopi
      │ POST /api/v2/customers/:id/connect-link│                                  │
      │   { tool_slug, redirect_uri }          │                                  │
      ├───────────────────────────────────────►│                                  │
-     │                                        │ Mints session token (Redis)      │
+     │                                        │ Mints one-time connect link      │
      │                                        │ TTL default 30min, max 24h       │
      │ ◄──────────────────────────────────────┤                                  │
      │ { url, expires_at }                    │                                  │
@@ -229,7 +229,7 @@ curl -X POST "https://api.vocobase.com/api/v2/customers/pc_01h.../connect-link" 
   -H "Content-Type: application/json" \
   -d '{
     "tool_slug": "google_sheets",
-    "redirect_uri": "https://app.skalix.example/integrations/return",
+    "redirect_uri": "https://app.partner.example/integrations/return",
     "expires_in_seconds": 1800
   }'
 ```
@@ -245,7 +245,7 @@ const response = await fetch(
     },
     body: JSON.stringify({
       tool_slug: "google_sheets",
-      redirect_uri: "https://app.skalix.example/integrations/return",
+      redirect_uri: "https://app.partner.example/integrations/return",
     }),
   }
 );
@@ -262,7 +262,7 @@ response = requests.post(
     },
     json={
         "tool_slug": "google_sheets",
-        "redirect_uri": "https://app.skalix.example/integrations/return",
+        "redirect_uri": "https://app.partner.example/integrations/return",
     },
 )
 url = response.json()["data"]["url"]
@@ -380,7 +380,7 @@ Returns every connector on your account along with this customer's connection st
         "connection": {
           "id": "uc_01h…",
           "status": "ACTIVE",
-          "providerEmail": "ops@meddibuddy.example",
+          "providerEmail": "ops@customer.example",
           "connectedAt": "2026-05-10T08:30:11.000Z"
         }
       },
@@ -410,7 +410,7 @@ GET /api/v2/customers/:id/connections
         "tool_slug": "google_sheets",
         "tool_name": "Google Sheets",
         "status": "ACTIVE",
-        "provider_email": "ops@meddibuddy.example",
+        "provider_email": "ops@customer.example",
         "created_at": "2026-05-10T08:30:11.000Z",
         "updated_at": "2026-05-10T08:30:11.000Z"
       }
@@ -431,7 +431,7 @@ Revokes at the provider (best-effort), clears the encrypted tokens locally, and 
 
 ## Bind an agent to a specific customer's connection
 
-Agents are owned by you; their tool dispatch reads tokens from a bound `UserToolConnection`. With B2B2B, an agent can be bound to a specific customer's connection so that when the agent runs a session for, say, Meddibuddy, it writes to **Meddibuddy's** Google Sheet — not yours, not Practo's.
+Agents are owned by you. With B2B2B, an agent can be bound to a specific customer's connection so that when the agent runs a session for one customer, it uses that customer's connected tool account.
 
 ### List eligible connections for an agent
 
@@ -451,19 +451,19 @@ Returns every connection (yours + your customers') that this agent can be bound 
         "toolSlug": "google_sheets",
         "toolName": "Google Sheets",
         "status": "ACTIVE",
-        "providerEmail": "ops@meddibuddy.example",
+          "providerEmail": "ops@customer.example",
         "owner": {
           "kind": "partnerCustomer",
           "partnerCustomerId": "pc_01h…",
-          "name": "Meddibuddy Health",
-          "externalId": "acct_meddibuddy_42"
+          "name": "Acme Health",
+          "externalId": "acct_customer_42"
         }
       },
       {
         "id": "uc_02g…",
         "toolSlug": "google_sheets",
         "toolName": "Google Sheets",
-        "owner": { "kind": "user", "userId": "u_skalix" }
+        "owner": { "kind": "user", "userId": "u_partner" }
       }
     ]
   }
@@ -501,7 +501,7 @@ Vocobase admins curate which connectors your account can offer. Granting a conne
 
 If `GET /api/v2/connectors` returns an empty list, you have no connectors yet — contact Vocobase support to onboard the ones you need.
 
-When admin first restricts a connector, partners that already have an active connection for that connector are auto-grandfathered (a one-time `ToolUserAccess` grant is written) so the rollout is non-breaking.
+If connector availability changes, existing active connections remain available unless Vocobase support tells you otherwise.
 
 ---
 

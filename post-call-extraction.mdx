@@ -8,7 +8,7 @@ description: "Pull structured fields from completed call transcripts with an LLM
 Post-call extraction lets you define a Custom Analysis schema (a free-form prompt + typed keys) once on the agent. After every completed call, the platform runs a structured-output LLM over the transcript and ships the extracted values inline in the same `session.completed` webhook — no second webhook to handle.
 
 <Info>
-  **Partner API (v2) only** for the endpoints below. Dashboard parity uses the Clerk-authenticated `/api/agents` and `/api/sessions` routes, not these.
+  **Partner API (v2) only** for the endpoints below.
 </Info>
 
 ## 1. Define the Custom Analysis schema
@@ -45,11 +45,11 @@ Pass `extraction_config: null` to disable extraction.
 | `date` | ISO 8601 date | `YYYY-MM-DD` |
 | `datetime` | ISO 8601 timestamp | `YYYY-MM-DDTHH:MM:SSZ` |
 
-Each key gets `nullable: true` on the underlying response schema, AND every key is marked required so the LLM emits each field as `null` rather than dropping missing keys from the response — partners always receive a consistent object shape.
+Each configured key is returned in the extraction result. When a value cannot be found, Vocobase returns `null` for that key so partners receive a consistent object shape.
 
 ## 2. Receive results in the webhook
 
-After every completed call where the agent has an `extraction_config`, the queue worker runs extraction (Gemini structured outputs by default) and ships the result inline in `session.completed`:
+After every completed call where the agent has an `extraction_config`, Vocobase runs extraction and ships the result inline in `session.completed`:
 
 ```json
 {
@@ -66,7 +66,7 @@ After every completed call where the agent has an `extraction_config`, the queue
         "callback_at": "2026-05-01T15:00:00Z",
         "outcome": "callback_requested"
       },
-      "model": "gemini-3-flash-preview",
+      "model": "vocobase-managed",
       "extractedAt": "2026-03-15T14:32:09.840Z",
       "latencyMs": 1840,
       "attempts": 1
@@ -101,27 +101,15 @@ Content-Type: application/json
 
 ## Failure semantics
 
-Extraction failures **never block webhook delivery**. The unified `session.completed` payload always ships, with `extraction.status` indicating outcome:
+Extraction failures **never block webhook delivery**. The `session.completed` payload always ships, with `extraction.status` indicating outcome:
 
 | Status | Meaning |
 |---|---|
 | `success` | Extraction completed; `values` is present and typed per `keys`. |
-| `failed` | LLM error after retries (3 attempts with exponential backoff); `error` field describes what broke. |
+| `failed` | Extraction could not be completed; `error` field describes what broke. |
 | `skipped` | No transcript available (e.g., no-answer call, instant disconnect). |
 
 Partners that need extracted values can branch on `status === 'success'`; partners that just need transcript + recording can ignore the field entirely.
-
-## Concurrency + cost
-
-The platform caps post-call extraction at 20 concurrent LLM calls per worker process. Bursts queue in-memory until a slot frees. The default model is `gemini-3-flash-preview`; the active model is admin-configurable platform-wide.
-
-## Test from the dashboard
-
-The "Variables & Analytics" tab on the agent editor surfaces extraction:
-
-- **Custom Analysis card** — prompt textarea, typed keys table, tool-logs toggle, master enable/disable
-- **Test Analysis button** — opens a modal listing the last 50 completed sessions for this agent; pick one to dry-run extraction with the current config and see the values without affecting the stored result
-- **Auto-display** — after every completed call, the extracted values also appear inline in the session's transcript modal (no replay needed)
 
 ## Next steps
 

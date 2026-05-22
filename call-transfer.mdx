@@ -5,7 +5,7 @@ description: "Transfer live calls to human agents and configure end-call/transfe
 
 # Call Transfer & Behavior
 
-Vocobase agents can transfer live calls to a human agent mid-conversation. When a caller asks to speak to a human, the bot announces the transfer, bridges the call via Plivo, and the human picks up seamlessly. You can also configure the bot to end calls automatically when the conversation goal is reached.
+Vocobase agents can transfer live calls to a human agent mid-conversation. When a caller asks to speak to a human, the agent announces the transfer and the caller is bridged to the configured human number. You can also configure the agent to end calls automatically when the conversation goal is reached.
 
 ---
 
@@ -15,35 +15,35 @@ Vocobase agents can transfer live calls to a human agent mid-conversation. When 
 Caller speaks with your AI agent
         │
         ▼
-LLM detects a transfer trigger (e.g., caller asks for human)
+Agent detects a transfer trigger (e.g., caller asks for human)
         │
         ▼
-Bot speaks the transfer announcement ("Please hold while I transfer you...")
+Agent speaks the transfer announcement ("Please hold while I transfer you...")
         │
         ▼
-Backend sends Plivo a <Dial> to the human's phone number
+Vocobase transfers the call to the human's phone number
         │
         ▼
 Human picks up — caller is now speaking with a human agent
         │
         ▼
-Webhook fires session.completed when the full call ends
+Webhook fires session.completed for the agent-handled portion
 ```
 
-1. The LLM (running inside the bot) detects a trigger condition — e.g., the caller says "let me speak to a manager"
-2. The bot invokes the `transfer_call_to_human` tool, which pushes a TTS announcement and then signals the backend
-3. The backend calls Plivo's Call Transfer API to redirect the caller's audio leg to a human PSTN number
-4. The bot's WebSocket disconnects; the human and caller are bridged directly
+1. The agent detects a trigger condition — e.g., the caller says "let me speak to a manager"
+2. The agent speaks the configured transfer announcement
+3. Vocobase transfers the caller to the configured human phone number
+4. The `session.completed` webhook includes transfer metadata so you can identify the handoff
 
 <Note>
-  Call transfer is supported via **Plivo** only. The number you transfer to must be in E.164 format (e.g., `+14155551234`).
+  The number you transfer to must be in E.164 format (e.g., `+14155551234`).
 </Note>
 
 ---
 
 ## Enabling call transfer on an agent
 
-Set `transferEnabled` to `true` when creating or updating an agent. Provide the phone number the caller should be transferred to. The `transfer_instructions` field is plain English the LLM reads as a "When to transfer" guide — write your own conditions:
+Set `transferEnabled` to `true` when creating or updating an agent. Provide the phone number the caller should be transferred to. The `transfer_instructions` field is plain English guidance for when the agent should transfer:
 
 ```bash
 curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
@@ -78,21 +78,19 @@ curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
 | `transferEnabled` | `boolean` | Master toggle. Defaults to `false`. |
 | `transferNumber` | `string` | E.164 phone number to transfer to. Max 32 characters. Required when `transferEnabled` is true. |
 | `transferMessage` | `string` | Announcement spoken right before transferring. Max 500 characters. If empty, the bot uses a platform default. |
-| `transfer_instructions` | `string` (≤2000 chars) | Free-text natural-language instructions spliced into the system prompt under "When to transfer." Pass `null` or empty to skip the section. |
+| `transfer_instructions` | `string` (≤2000 chars) | Free-text natural-language instructions for when to transfer. Pass `null` or empty to skip the section. |
 
 ---
 
 ## Writing transfer instructions
 
-`transfer_instructions` is plain English. The LLM reads it under a "TRANSFERRING THE CALL" header in the system prompt. There's no fixed taxonomy — write conditions specific to your use case:
+`transfer_instructions` is plain English. There's no fixed taxonomy — write conditions specific to your use case:
 
 ```text
 If the caller mentions they're driving and we'll call them back, transfer the call to our voicemail line.
 If the caller asks for our hours of operation in a language other than English, transfer.
 If the caller mentions a chargeback or dispute, immediately transfer to billing.
 ```
-
-For convenience, the dashboard's Call Behavior tab includes a library of common pre-written sentences you can paste into the textarea and edit. Pasting a preset is identical to writing the same sentence yourself — there's no server-side enumeration.
 
 <Note>
   **Hard cutover** — the prior `transferTriggers: string[]` array of fixed keys (`CALLER_ASKS_HUMAN`, `FRUSTRATED`, etc.) has been removed. If you were posting that field, replace it with `transfer_instructions` containing the equivalent prose. Existing agents were auto-migrated.
@@ -121,20 +119,19 @@ curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
 |-------|------|-------------|
 | `endCallEnabled` | `boolean` | Master toggle. Defaults to `true`. |
 | `endCallMessage` | `string` | Farewell message spoken before hanging up. Max 500 characters. |
-| `end_call_instructions` | `string` (≤2000 chars) | Free-text natural-language instructions spliced into the system prompt under "When to end the call." Pass `null` or empty to skip the section. |
+| `end_call_instructions` | `string` (≤2000 chars) | Free-text natural-language instructions for when to end the call. Pass `null` or empty to skip the section. |
 
 ---
 
 ## What happens when a call is transferred
 
-When the agent invokes `transfer_call`, the bot:
+When a transfer happens:
 
-1. Speaks the configured `transferMessage`.
-2. Backend POSTs to the carrier's call-redirect API (Plivo or Vobiz).
-3. Pushes `EndTaskFrame` upstream and the bot's WebSocket closes — **the bot leaves the room**.
-4. The carrier bridges the caller leg directly to `transferNumber`. There is no bot in the audio path anymore.
+1. The agent speaks the configured `transferMessage`.
+2. Vocobase transfers the caller to `transferNumber`.
+3. The `session.completed` webhook includes `data.call.transferred: true`.
 
-The `session.completed` partner webhook fires once the bot leg ends, not when the caller eventually hangs up with the human. Distinguish a transferred call from a normal hangup via `data.call.transferred` on the webhook payload — see [`session.completed` payload](/webhooks/payloads#transferred-calls).
+The `session.completed` partner webhook fires when the agent-handled portion ends. Distinguish a transferred call from a normal hangup via `data.call.transferred` on the webhook payload — see [`session.completed` payload](/webhooks/payloads#transferred-calls).
 
 `duration_seconds` reflects only the bot leg. `recording_url`, when present, is the bot-leg recording — the human side is not recorded.
 
@@ -176,7 +173,7 @@ curl -X POST https://api.vocobase.com/api/v2/calls/{call_id}/transfer \
 |-------|------|-------------|
 | `success` | `boolean` | Whether the transfer was queued successfully |
 | `data.message` | `string` | Status message |
-| `data.callId` | `string` | The Plivo call UUID |
+| `data.callId` | `string` | The call identifier |
 | `data.sessionId` | `string` | The Vocobase session ID |
 
 <Warning>
@@ -185,59 +182,15 @@ curl -X POST https://api.vocobase.com/api/v2/calls/{call_id}/transfer \
 
 ---
 
-## Billing during transferred portion
-
-By default, Vocobase bills for the full call duration — including the time after transfer when the caller is speaking with a human. You can turn this off per partner:
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `billDuringTransfer` | `boolean` | Whether to continue billing for the call after it's transferred. Defaults to `true`. |
-
-<Note>
-  This setting is managed by Vocobase staff through the admin panel. Contact your account manager if you want to adjust this behavior.
-</Note>
-
-When `billDuringTransfer` is `false`, the billing clock stops at the moment the transfer completes. Only the pre-transfer portion of the call is charged.
-
----
-
-## Test ring
-
-Test that your transfer configuration works before deploying it to live calls:
-
-```bash
-curl -X POST https://api.vocobase.com/api/agents/{agent_id}/transfer/test-ring \
-  -H "Authorization: Bearer YOUR_CLERK_JWT"
-```
-
-```json
-{
-  "success": true,
-  "request_uuid": "plivo-req-abc123"
-}
-```
-
-This places a brief test call to the configured `transferNumber`. You'll hear a short ring — pick up to confirm it works, then hang up. No charges apply for test calls.
-
-<Note>
-  This endpoint requires a Clerk JWT (dashboard auth), not an API key. It's designed for testing from the Vocobase dashboard.
-</Note>
-
----
-
 ## Testing the transfer flow
 
 <Steps>
   <Step title="Enable transfer on your agent">
-    Set `transferEnabled: true`, a valid E.164 `transferNumber`, and at least one `transferTrigger` (e.g., `["CALLER_ASKS_HUMAN"]`).
-  </Step>
-
-  <Step title="Test ring">
-    Use the test ring endpoint to confirm the configured number can be reached.
+    Set `transferEnabled: true`, a valid E.164 `transferNumber`, and clear `transfer_instructions`.
   </Step>
 
   <Step title="Place a test call">
-    Make a call to your agent. During the conversation, say something that matches a transfer trigger, like "Can I talk to a real person?"
+    Make a call to your agent. During the conversation, say something that matches your transfer instructions, like "Can I talk to a real person?"
   </Step>
 
   <Step title="Verify in webhook">

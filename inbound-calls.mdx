@@ -99,16 +99,16 @@ Call ends → session.completed webhook fires
   <Step title="Configure your Twilio phone number">
     In the [Twilio Console](https://console.twilio.com), navigate to **Phone Numbers > Manage > Active Numbers** and select the phone number you want to use for inbound calls.
 
-    Under **Voice Configuration**, set the webhook URL:
+    Under **Voice Configuration**, set the inbound webhook URL provided by Vocobase for your account:
 
     | Setting | Value |
     |---------|-------|
     | **When a call comes in** | Webhook |
-    | **URL** | `https://api.vocobase.com/api/twilio/inbound` |
+    | **URL** | Your Vocobase inbound webhook URL |
     | **HTTP Method** | `POST` |
 
     <Warning>
-      The webhook URL must be exactly `https://api.vocobase.com/api/twilio/inbound`. Do not append your API key or any query parameters -- Vocobase identifies your account from the Twilio credentials you configured.
+      Do not append your API key or any query parameters to the inbound webhook URL. Vocobase identifies your account from the telephony credentials you configured.
     </Warning>
   </Step>
 
@@ -199,7 +199,7 @@ See the [Knowledge Base guide](/knowledge-base) for the full workflow.
 
 ### Calls go to Twilio voicemail instead of the agent
 
-- Verify the webhook URL in Twilio is set to `https://api.vocobase.com/api/twilio/inbound`
+- Verify the webhook URL in Twilio matches the inbound webhook URL provided by Vocobase
 - Check that the HTTP method is `POST`
 - Ensure your Twilio credentials are configured in Vocobase ([Twilio Setup](/telephony/twilio-setup))
 
@@ -221,10 +221,6 @@ See the [Knowledge Base guide](/knowledge-base) for the full workflow.
 ## Use the V2 phone-numbers API (Plivo + Vobiz)
 
 For **Plivo** and **Vobiz**, you don't need to paste an answer URL into the carrier's portal. Use the V2 phone-numbers endpoints — Vocobase will pull or accept your DID inventory, then auto-bind each DID to a carrier Application pointing at our inbound URL the moment you assign an agent.
-
-<Warning>
-  Before testing Vobiz inbound parity in an environment that has just received this feature, make sure the backend migration `20260520030000_add_vobiz_application_id` has been applied. Without it, Vobiz assignment can fail because the `TelephonyConnection.vobizApplicationId` column is missing.
-</Warning>
 
 ### API tester quickstart
 
@@ -381,7 +377,7 @@ Save the returned `data.id` as `AGENT_ID`.
   </Step>
 
   <Step title="Assign an agent to a DID">
-    `PUT /api/v2/phone-numbers/:id` with `agent_id`. For both Plivo and Vobiz, Vocobase calls the carrier's REST API to bind the DID to a Voice Application pointing at our inbound webhook — no portal paste needed.
+    `PUT /api/v2/phone-numbers/:id` with `agent_id`. For both Plivo and Vobiz, Vocobase configures the carrier-side routing for the DID automatically — no portal paste needed.
 
     ```bash
     curl -X PUT https://api.vocobase.com/api/v2/phone-numbers/f1a2... \
@@ -410,11 +406,11 @@ Save the returned `data.id` as `AGENT_ID`.
     }
     ```
 
-    On Vobiz REST failure you'll get `502 VOBIZ_SYNC_FAILED` (Plivo: `502 PLIVO_SYNC_FAILED`). The local record is rolled back so retries are safe.
+    If carrier-side assignment fails, you'll get `502 VOBIZ_SYNC_FAILED` or `502 PLIVO_SYNC_FAILED`. Retry after confirming the credentials and DID ownership.
   </Step>
 
   <Step title="Reconcile with one call">
-    If you edit something in the carrier's console directly (or rotate creds), `POST /api/v2/phone-numbers/resync` re-applies our Application binding to every assigned DID on that provider:
+    If you edit something in the carrier's console directly or rotate credentials, `POST /api/v2/phone-numbers/resync` refreshes the assignment for every DID on that provider:
 
     ```bash
     curl -X POST https://api.vocobase.com/api/v2/phone-numbers/resync \
@@ -437,7 +433,7 @@ Save the returned `data.id` as `AGENT_ID`.
   </Step>
 
   <Step title="Receive the call">
-    Call your DID. Carrier hits `/api/{plivo,vobiz}/{answer,inbound}` → Vocobase resolves the assigned agent → bot picks up. Same `session.completed` webhook payload as the Twilio flow above, just with `provider` in the metadata.
+    Call your DID. Vocobase routes the incoming call to the assigned agent and sends the same `session.completed` webhook payload as the Twilio flow above, with `provider` in the metadata.
 
     Expected result:
 
@@ -498,7 +494,7 @@ echo "\n5. After assignment succeeds, call $DID from a real phone."
 | `400 VALIDATION_ERROR` on Vobiz sync | Body used `phone_numbers`, omitted `numbers`, or sent invalid E.164 values | Send `{ "provider": "VOBIZ", "numbers": ["+918065480085"] }` |
 | `400 AGENT_NOT_FOUND` | Agent ID belongs to another user, is deleted, or is not a valid UUID | Use an active agent owned by the same partner user |
 | `404 phone number not found` | `PHONE_NUMBER_ID` is from another partner/provider or was not imported | Re-run `GET /api/v2/phone-numbers?provider=VOBIZ` and use that `id` |
-| `502 VOBIZ_SYNC_FAILED` | Vobiz REST credentials, Application creation, or DID attach failed | Confirm Vobiz credentials, DID ownership, and that the migration has been applied |
+| `502 VOBIZ_SYNC_FAILED` | Carrier-side assignment failed | Confirm Vobiz credentials and DID ownership, then retry |
 | Assignment succeeds but call reaches the wrong destination | Carrier-side Application binding may be stale | Run `POST /api/v2/phone-numbers/resync` and call again |
 | Call connects but no webhook arrives | Partner webhook is not configured or endpoint rejects delivery | Configure `PUT /api/v2/config/webhook` and check your webhook server logs |
 
