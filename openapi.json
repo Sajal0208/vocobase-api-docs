@@ -2980,7 +2980,7 @@
       "get": {
         "operationId": "getCallConcurrency",
         "summary": "Get current call concurrency",
-        "description": "Returns the authenticated partner account's current phone-call capacity. The limit is resolved as partner account override (`maxConcurrentCalls > 0`) > user account `concurrencyLimit` > platform default `1`. Active calls are counted from `pending`, `ringing`, and `in_progress` phone-call rows.",
+        "description": "Returns the authenticated partner account's current phone-call capacity. The limit is resolved as: partner override (`maxConcurrentCalls > 0`) caps the account at that value; partner `maxConcurrentCalls = 0` means unlimited (no cap), in which case `limit` and `remaining` are `null` and `limit_source` is `partner_unlimited`. Active calls are counted from `pending`, `ringing`, and `in_progress` phone-call rows.",
         "tags": ["Calls"],
         "responses": {
           "200": {
@@ -2995,14 +2995,14 @@
                       "type": "object",
                       "properties": {
                         "limit": {
-                          "type": "integer",
+                          "type": ["integer", "null"],
                           "minimum": 1,
-                          "description": "Resolved maximum concurrent phone calls."
+                          "description": "Resolved maximum concurrent phone calls. `null` when the partner has `maxConcurrentCalls = 0` (unlimited)."
                         },
                         "limit_source": {
                           "type": "string",
-                          "enum": ["partner", "user", "default"],
-                          "description": "Where the resolved limit came from."
+                          "enum": ["partner", "partner_unlimited", "user", "default"],
+                          "description": "Where the resolved limit came from. `partner_unlimited` indicates no cap."
                         },
                         "active": {
                           "type": "integer",
@@ -3010,9 +3010,9 @@
                           "description": "Currently active phone calls."
                         },
                         "remaining": {
-                          "type": "integer",
+                          "type": ["integer", "null"],
                           "minimum": 0,
-                          "description": "Available slots before the account reaches capacity."
+                          "description": "Available slots before the account reaches capacity. `null` when the partner is unlimited."
                         },
                         "statuses_counted": {
                           "type": "array",
@@ -4766,6 +4766,18 @@
             "example": {
               "success": false,
               "error": { "code": "INTERNAL_ERROR", "message": "An unexpected error occurred" }
+            }
+          }
+        }
+      },
+      "RateLimitExceeded": {
+        "description": "Per-partner rate limit exceeded. Retry after a short backoff.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": {
+              "success": false,
+              "error": { "code": "RATE_LIMITED", "message": "Rate limit exceeded. Retry after 60 seconds." }
             }
           }
         }
