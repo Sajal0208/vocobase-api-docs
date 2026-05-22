@@ -8,7 +8,7 @@ description: "Template per-call data into your agent's prompt and greeting with 
 Pre-call variables let you template the agent's prompt and greeting with per-call data. You declare a list of variable *names* on the agent (`callee_name`, `mobile_number`), supply per-call *values* via the API or sandbox, and the platform substitutes `{{name}}` references in `Agent.prompt` + `Agent.greeting` before the bot starts.
 
 <Info>
-  **Partner API (v2) only** for the endpoints below. Dashboard parity uses the Clerk-authenticated `/api/agents` and `/api/sessions` routes, not these.
+  **Partner API (v2) only** for the endpoints below.
 </Info>
 
 ## 1. Declare the variable names on the agent
@@ -66,14 +66,14 @@ The `session.completed` webhook echoes the same `variables` map for partner-side
 - **Missing values render as empty strings.** A prompt that says `Hi {{callee_name}}!` produces `Hi !` if `callee_name` is omitted. The platform never errors on missing variables.
 - **Type coercion is automatic.** Non-string values in the request body (`{ age: 25 }`, `{ active: true }`) are stringified before substitution.
 - **Inbound calls** receive no `variables` field by default; placeholders in the prompt render empty.
-- **Tool handlers can read variables.** The bot also receives the raw `variables` dict in the start payload, so custom function handlers (CRM lookup, calendar booking) can use values like `customer_id` directly without re-parsing the prompt.
+- **Custom functions can read variables.** Values supplied at call start are available to your configured custom functions, so handlers such as CRM lookup or calendar booking can use fields like `customer_id` directly.
 
 ## Campaigns: map CSV columns to variables
 
 When using the Campaigns API, you can map per-row contact metadata into pre-call variables for every call the campaign generates:
 
 ```bash
-POST /api/campaigns
+POST /api/v2/campaigns
 Authorization: Bearer rg_live_...
 Content-Type: application/json
 
@@ -88,16 +88,7 @@ Content-Type: application/json
 }
 ```
 
-The dispatch worker resolves `variableMap × Contact.metadata` per call and forwards the result as the `variables` field on each generated `/calls/start` request. Mapping keys are free-form spreadsheet columns; values must match the agent's variable names.
-
-## Test from the dashboard
-
-The "Variables & Analytics" tab on the agent editor surfaces the variables list:
-
-- **Custom Variables card** — add / remove names; chip list with delete
-- **`@` autocomplete in prompt + greeting** — type `@` in either field to insert a variable as a styled inline pill
-
-The sandbox test-call form on the Sandbox page also exposes per-variable text inputs when the agent has variables defined, so you can dial-test substitution end-to-end before going live.
+For each campaign contact, Vocobase maps the configured contact fields into the `variables` field used by `/calls/start`. Mapping keys are free-form spreadsheet columns; values must match the agent's variable names.
 
 ## Next steps
 

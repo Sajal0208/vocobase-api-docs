@@ -106,7 +106,7 @@ Always verify the `X-Webhook-Signature` header in production to ensure the reque
 
 ### Use a message queue
 
-For high-volume integrations, push webhook events into a message queue (e.g., Redis, RabbitMQ, SQS) and process them with workers:
+For high-volume integrations, push webhook events into your message queue and process them with workers:
 
 ```javascript
 app.post("/webhooks/vocobase", (req, res) => {

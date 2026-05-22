@@ -8,11 +8,11 @@ description: "Teach your agents the right spelling of product names, jargon, and
 Dictionaries are short lists of domain-specific terms -- brand names, product SKUs, technical jargon, people, places -- that you attach to an agent. The speech-to-text engine biases its transcription toward those terms, so the agent hears "Vocobase" instead of "Vocal base" and "SKU-4471" instead of "skew four thousand four hundred seventy one".
 
 <Note>
-  Dictionaries only affect agents using the **Soniox** STT provider, which is the default for new agents. They have no effect on other providers.
+  Dictionaries only affect agents on a transcription configuration that supports vocabulary biasing. If you are not sure whether your account is enabled for dictionaries, contact Vocobase support.
 </Note>
 
 <Info>
-  **Partner API (v2) only.** These endpoints live under `https://api.vocobase.com/api/v2` and are reached with a `rg_live_...` Bearer token. The older `/api/dictionaries` routes are Clerk-authenticated dashboard APIs and are not reachable from a partner API key.
+  **Partner API (v2) only.** These endpoints live under `https://api.vocobase.com/api/v2` and are reached with a `rg_live_...` Bearer token.
 </Info>
 
 ## When dictionaries help most
@@ -335,5 +335,5 @@ Returns `204 No Content`. The dictionary is removed and detached from every agen
 | Transcripts still wrong after attaching | Dictionary not yet effective on this call -- dictionaries apply at session start. Start a new call. |
 | `400 DICTIONARY_CHAR_LIMIT_EXCEEDED` on attach or update | This agent's combined term characters would exceed 10,000. Detach something else or split the dictionary. Check `error.details` for the offending `agent_id` and `current_chars`. |
 | `400 VALIDATION_ERROR` on `PUT /agent/{id}/dictionaries` with message "One or more dictionary_ids do not exist or are not owned by you" | One of the ids you sent is either wrong or belongs to another partner. The whole request is rejected; fix the list and retry. |
-| Dictionary has no effect on accuracy | You are likely not using the Soniox STT provider. Only Soniox supports biased transcription; other providers ignore attached dictionaries. |
+| Dictionary has no effect on accuracy | Your account or agent may not be using a transcription configuration that supports dictionaries. Contact Vocobase support to verify. |
 | `409 DICTIONARY_NAME_TAKEN` on create or update | Dictionary names must be unique per partner. Rename or update the existing one. |

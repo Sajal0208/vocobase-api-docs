@@ -1,6 +1,6 @@
 ---
 title: "SIP (BYOP) Setup"
-description: "Bring your own SIP carrier — configure inbound + outbound calling via LiveKit-mediated SIP trunking."
+description: "Bring your own SIP carrier for inbound and outbound calling."
 ---
 
 # SIP (BYOP) Setup
@@ -8,7 +8,7 @@ description: "Bring your own SIP carrier — configure inbound + outbound callin
 This guide walks you through connecting your own SIP carrier to Vocobase for inbound and outbound calling.
 
 <Note>
-  **SIP is a Bring-Your-Own-Provider (BYOP) transport.** You bring the carrier (Vobiz, Tata Tele, Knowlarity, or any ITSP that speaks standard SIP); Vocobase provisions LiveKit SIP trunks scoped to your connection and handles media termination. This provider coexists alongside the existing native Vobiz REST/WebSocket provider — pick whichever fits your carrier and tooling.
+  **SIP is a Bring-Your-Own-Provider (BYOP) transport.** You bring a carrier that supports standard SIP, and Vocobase manages the voice-agent connection for inbound and outbound calls.
 </Note>
 
 ## Prerequisites
@@ -64,10 +64,10 @@ This guide walks you through connecting your own SIP carrier to Vocobase for inb
     - **DIDs** — the E.164 phone numbers you provisioned
   </Step>
 
-  <Step title="Save and copy the LiveKit SIP URI">
-    On **Save**, Vocobase provisions per-connection inbound and outbound trunks on LiveKit Cloud and displays the **LiveKit SIP URI** (something like `sip:<projectId>.sip.livekit.cloud`).
+  <Step title="Save and copy the SIP URI">
+    On **Save**, Vocobase displays the SIP URI for this connection.
 
-    Paste that URI into your carrier's DID-origination / outbound routing setting so that calls to your DIDs are forwarded to LiveKit. The exact field name varies by carrier (often called *origination URI*, *SIP termination URL*, or *destination SIP URI*).
+    Paste that URI into your carrier's DID-origination or outbound routing setting so that calls to your DIDs are forwarded to Vocobase. The exact field name varies by carrier (often called *origination URI*, *SIP termination URL*, or *destination SIP URI*).
   </Step>
 </Steps>
 
@@ -145,15 +145,15 @@ A successful response looks like:
 
 ## How it works
 
-- **Outbound** — Vocobase dials your agent into a LiveKit room and instructs LiveKit's SIP service to place a SIP INVITE through the per-connection outbound trunk to your carrier. Your carrier delivers the call to the PSTN.
-- **Inbound** — When a caller dials one of your DIDs, your carrier forwards the SIP INVITE to the LiveKit SIP URI you configured. LiveKit matches it to your per-connection inbound trunk, Vocobase routes it to the correct agent based on the dialed DID, and the bot joins the LiveKit room.
-- **Transfer** — Cold transfers ride on the same trunk: the bot issues a SIP REFER to the carrier with the target number, the carrier bridges the caller to the transfer destination, and the bot leaves the room.
+- **Outbound** — Vocobase starts the call through your SIP carrier and connects the call to your selected agent.
+- **Inbound** — When a caller dials one of your DIDs, your carrier forwards the call to the SIP URI you configured and Vocobase routes it to the assigned agent.
+- **Transfer** — Transfers use the same configured carrier connection and include transfer metadata in the `session.completed` webhook.
 
 ## Next steps
 
 <CardGroup cols={2}>
   <Card title="Vobiz Setup" icon="phone" href="/telephony/vobiz-setup">
-    Native Vobiz REST/WebSocket integration (no SIP trunking required).
+    Configure Vobiz as another telephony provider.
   </Card>
   <Card title="Quick Start" icon="rocket" href="/quickstart">
     Create an agent and make your first call.

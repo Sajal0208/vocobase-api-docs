@@ -127,7 +127,7 @@ session = response.json()["data"]
   "data": {
     "session_id": "550e8400-e29b-41d4-a716-446655440000",
     "agent_id": "a1234567-abcd-1234-abcd-123456789012",
-    "daily_room_url": "https://vocobase.daily.co/abc123",
+    "daily_room_url": "https://voice-session.example.com/abc123",
     "daily_token": "eyJhbGciOi..."
   }
 }
@@ -151,7 +151,7 @@ You can also pass `variables` in the request body to substitute pre-call values 
 | `403` | Account not active or no V2 access | Contact Vocobase support |
 | `404` | Agent not found | Verify the agent UUID and that it's active |
 | `429` | Rate or concurrency limit | Wait and retry |
-| `502` | Bot server temporarily unavailable | Retry after a few seconds |
+| `502` | Voice session temporarily unavailable | Retry after a few seconds |
 
 <Warning>
   Never expose your API key in client-side code. Proxy the session start call through your own backend — your backend adds the API key, gets the credentials, and returns `daily_room_url` + `daily_token` to the browser. The WebRTC connection itself requires no API key.

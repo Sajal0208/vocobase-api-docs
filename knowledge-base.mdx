@@ -39,11 +39,11 @@ Upload Document ──> Link to Agent ──> Agent uses it in calls
 
 ## Upload a file document
 
-Uploading a file is a three-step process: get a presigned URL, upload the file to S3, then confirm the upload.
+Uploading a file is a three-step process: get a presigned URL, upload the file, then confirm the upload.
 
 <Steps>
   <Step title="Get a presigned upload URL">
-    Call `POST /documents/upload` with the file metadata. This creates a document record in `uploading` status and returns a presigned S3 URL.
+    Call `POST /documents/upload` with the file metadata. This creates a document record in `uploading` status and returns a presigned upload URL.
 
     ```bash
     curl -X POST https://api.vocobase.com/api/v2/documents/upload \
@@ -61,7 +61,7 @@ Uploading a file is a three-step process: get a presigned URL, upload the file t
       "success": true,
       "data": {
         "document_id": "d1234567-abcd-1234-abcd-123456789012",
-        "upload_url": "https://s3.amazonaws.com/bucket/path?X-Amz-Signature=...",
+        "upload_url": "https://uploads.example.com/path?signature=...",
         "expires_in": 900
       }
     }
@@ -72,22 +72,22 @@ Uploading a file is a three-step process: get a presigned URL, upload the file t
     </Warning>
   </Step>
 
-  <Step title="Upload the file to S3">
+  <Step title="Upload the file">
     Use the presigned URL to upload your file with a `PUT` request. Set the `Content-Type` header to match the `mime_type` you specified.
 
     ```bash
-    curl -X PUT "https://s3.amazonaws.com/bucket/path?X-Amz-Signature=..." \
+    curl -X PUT "https://uploads.example.com/path?signature=..." \
       -H "Content-Type: application/pdf" \
       --data-binary @"Product FAQ.pdf"
     ```
 
     <Note>
-      This request goes directly to S3, not to the Vocobase API. Do not include the `Authorization` header.
+      This request goes directly to the presigned upload URL, not to the Vocobase API. Do not include the `Authorization` header.
     </Note>
   </Step>
 
   <Step title="Confirm the upload">
-    After the file is uploaded to S3, call `POST /documents/{id}/confirm` to finalize. Vocobase verifies the file exists and transitions the document status from `uploading` to `ready`.
+    After the file is uploaded, call `POST /documents/{id}/confirm` to finalize. Vocobase verifies the file exists and transitions the document status from `uploading` to `ready`.
 
     ```bash
     curl -X POST https://api.vocobase.com/api/v2/documents/d1234567-abcd-1234-abcd-123456789012/confirm \
@@ -218,7 +218,7 @@ curl -X POST https://api.vocobase.com/api/v2/agent/a1b2c3d4-e5f6-7890-abcd-ef123
 }
 ```
 
-The response tells you which documents were newly linked and which were skipped (already linked). A background sync job is queued for each newly linked document.
+The response tells you which documents were newly linked and which were skipped (already linked). Indexing starts for each newly linked document.
 
 <Note>
   - You can link up to **20 documents per request**
@@ -299,7 +299,7 @@ curl -X GET https://api.vocobase.com/api/v2/documents/d1234567-abcd-1234-abcd-12
     "name": "Product FAQ.pdf",
     "type": "file",
     "status": "ready",
-    "download_url": "https://s3.amazonaws.com/bucket/path?X-Amz-Signature=...",
+    "download_url": "https://downloads.example.com/path?signature=...",
     "agents": [
       { "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "name": "Sales Assistant", "sync_status": "synced" },
       { "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901", "name": "Support Bot", "sync_status": "pending" }
@@ -353,7 +353,7 @@ curl -X DELETE https://api.vocobase.com/api/v2/agent/a1b2c3d4-e5f6-7890-abcd-ef1
 
 ### Delete a document permanently
 
-Deleting a document removes the file from S3 (if applicable), unlinks it from all agents, and deletes the record. This action is irreversible.
+Deleting a document removes the stored file if applicable, unlinks it from all agents, and deletes the record. This action is irreversible.
 
 ```bash
 curl -X DELETE https://api.vocobase.com/api/v2/documents/d1234567-abcd-1234-abcd-123456789012 \

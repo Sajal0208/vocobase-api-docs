@@ -36,22 +36,7 @@ The cap fires in two stages so the wind-down sounds natural:
 | Time            | What the bot does |
 |-----------------|-------------------|
 | `cap − 30s`     | Speaks a soft warning: *"Just a heads up — we're approaching the call time limit, so let's wrap up shortly."* The conversation can continue. |
-| `cap`           | Speaks the agent's `endCallMessage` (or a default farewell when none is set), then sends `EndTaskFrame` upstream. The pipeline winds down through the normal end-of-call path — transcript, recording, billing and the `session.completed` webhook all flow as if it were a normal hangup. |
-
-### How this relates to Pipecat Cloud's platform cap
-
-Pipecat Cloud has its own platform-level
-[`max_session_duration`](https://docs.pipecat.ai/pipecat-cloud/fundamentals/active-sessions#session-duration-limits)
-(default **7200s** / 2 hours) that **forcibly closes** the agent's
-connection at the limit. That's an abrupt termination — no farewell,
-no clean session-end webhook. The Vocobase per-agent cap fires earlier
-and gracefully; PCC's cap stays as a last-resort safety net far above
-ours.
-
-| Layer                  | Default          | Failure mode |
-|------------------------|------------------|---------------|
-| Vocobase per-agent cap | 10 min (configurable 1-60 min, or off) | Graceful — warning + farewell + clean end-of-call webhook |
-| PCC platform cap       | 7200s (2 h)      | Force-close; transcript may be lost mid-sentence |
+    | `cap`           | Speaks the agent's `endCallMessage` (or a default farewell when none is set), then ends the call through the normal end-of-call path — transcript, recording, billing and the `session.completed` webhook all flow as if it were a normal hangup. |
 
 ### Setting the cap
 
@@ -77,9 +62,8 @@ curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
 
 Ambient audio mixed under the bot's TTS for the duration of the call
 (office chatter, café noise, white noise, etc.). Looped continuously,
-volume tunable per agent. Implemented via Pipecat's native
-`SoundfileMixer` so it works identically across telephony (8 kHz) and
-WebRTC (16 kHz) — the mixer auto-resamples.
+volume tunable per agent. Vocobase handles playback and format
+normalization automatically.
 
 ### Asset model
 
@@ -118,8 +102,8 @@ Response:
 
 ### Uploading your own asset
 
-Two-step upload — bytes go directly to GCS via a presigned URL, the
-server then validates the WAV header and marks the asset ready.
+Two-step upload — bytes go directly to the presigned upload URL, then
+Vocobase validates the WAV header and marks the asset ready.
 
 **Constraints (enforced server-side):**
 
@@ -140,14 +124,14 @@ curl -X POST https://api.vocobase.com/api/v2/agent/background-audio/upload-url \
     "mime_type": "audio/wav",
     "size_bytes": 1234567
   }'
-# → { "data": { "id": "<uuid>", "upload_url": "https://...", "gcs_key": "..." } }
+# → { "data": { "id": "<uuid>", "upload_url": "https://..." } }
 
-# 2. PUT the bytes directly to GCS
+# 2. PUT the bytes directly to the upload URL
 curl -X PUT "https://..." \
   -H "Content-Type: audio/wav" \
   --data-binary @my-cafe.wav
 
-# 3. Finalize — server downloads, parses the header, marks READY
+# 3. Finalize — Vocobase validates the file and marks it READY
 curl -X POST https://api.vocobase.com/api/v2/agent/background-audio/<id>/finalize \
   -H "Authorization: Bearer rg_live_..."
 ```
