@@ -76,7 +76,7 @@ Get up and running with the Vocobase Partner API. By the end of this guide, you 
   </Step>
 
   <Step title="Create an agent">
-    Create your first voice agent. You will need a `voice_id` from the available voices list — fetch it first with `GET /agent/voices`.
+    Create your first voice agent. The `voice_id` is the catalog `id` returned by `GET /agent/voices` — fetch it first and pick a row that matches the tier, language, and gender you want.
 
     <CodeGroup>
     ```bash cURL
@@ -86,8 +86,7 @@ Get up and running with the Vocobase Partner API. By the end of this guide, you 
       -d '{
         "agent_name": "Sales Assistant",
         "prompt": "You are a friendly sales assistant for Acme Corp. Help callers understand our products and answer their questions.",
-        "voice_id": "a0e99841-438c-4a64-b679-ae501e7d6091",
-        "language": "en",
+        "voice_id": "b49e0d0f-2219-4425-a765-1efd32beb509",
         "agent_type": "outbound",
         "intro_message": "Hello! Thanks for taking my call. How can I help you today?"
       }'
@@ -103,8 +102,7 @@ Get up and running with the Vocobase Partner API. By the end of this guide, you 
       body: JSON.stringify({
         agent_name: "Sales Assistant",
         prompt: "You are a friendly sales assistant for Acme Corp. Help callers understand our products and answer their questions.",
-        voice_id: "a0e99841-438c-4a64-b679-ae501e7d6091",
-        language: "en",
+        voice_id: "b49e0d0f-2219-4425-a765-1efd32beb509",
         agent_type: "outbound",
         intro_message: "Hello! Thanks for taking my call. How can I help you today?"
       })
@@ -125,8 +123,7 @@ Get up and running with the Vocobase Partner API. By the end of this guide, you 
         json={
             "agent_name": "Sales Assistant",
             "prompt": "You are a friendly sales assistant for Acme Corp. Help callers understand our products and answer their questions.",
-            "voice_id": "a0e99841-438c-4a64-b679-ae501e7d6091",
-            "language": "en",
+            "voice_id": "b49e0d0f-2219-4425-a765-1efd32beb509",
             "agent_type": "outbound",
             "intro_message": "Hello! Thanks for taking my call. How can I help you today?"
         }

@@ -1052,7 +1052,7 @@
       "post": {
         "operationId": "createAgent",
         "summary": "Create an agent",
-        "description": "Creates a new voice AI agent. The `voice_id` must be from the partner's allowed voices list (see `GET /agent/voices`). The `language` must be from the partner's allowed languages. Agent names must be unique per partner.",
+        "description": "Creates a new voice AI agent. The `voice_id` must be a voice ID from the voice catalog (see `GET /agent/voices`). Agent names must be unique per partner.",
         "tags": ["Agents"],
         "requestBody": {
           "required": true,
@@ -1060,7 +1060,7 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["agent_name", "prompt", "voice_id", "language", "agent_type"],
+                "required": ["agent_name", "prompt", "voice_id", "agent_type"],
                 "properties": {
                   "agent_name": {
                     "type": "string",
@@ -1075,13 +1075,9 @@
                   },
                   "voice_id": {
                     "type": "string",
-                    "description": "Cartesia voice ID from the allowed voices list.",
-                    "example": "a0e99841-438c-4a64-b679-ae501e7d6091"
-                  },
-                  "language": {
-                    "type": "string",
-                    "description": "Language code from the partner's allowed languages.",
-                    "example": "en"
+                    "format": "uuid",
+                    "description": "Voice ID from the catalog returned by `GET /agent/voices`. The language and gender are taken from the selected voice.",
+                    "example": "b49e0d0f-2219-4425-a765-1efd32beb509"
                   },
                   "agent_type": {
                     "type": "string",
@@ -1299,11 +1295,8 @@
                   },
                   "voice_id": {
                     "type": "string",
-                    "description": "New voice ID from allowed voices."
-                  },
-                  "language": {
-                    "type": "string",
-                    "description": "New language code from allowed languages."
+                    "format": "uuid",
+                    "description": "New voice ID from the catalog returned by `GET /agent/voices`. Updates language and gender to match the selected voice."
                   },
                   "agent_type": {
                     "type": "string",
@@ -1679,20 +1672,20 @@
       "get": {
         "operationId": "listVoices",
         "summary": "List available voices",
-        "description": "Returns the voices available to this partner, filtered from the Cartesia voice catalog. Optionally filter by language.",
+        "description": "Returns the voice catalog. Each voice has a tier (`va-1` or `va-1-pro`) that determines the per-minute rate at billing time. Pass the row's `id` as `voice_id` when creating or updating an agent.",
         "tags": ["Voices"],
         "parameters": [
           {
-            "name": "language",
+            "name": "tier",
             "in": "query",
-            "schema": { "type": "string" },
-            "description": "Filter voices by language code (e.g., `en`, `hi`). Case-insensitive partial match.",
-            "example": "en"
+            "schema": { "type": "string", "enum": ["va-1", "va-1-pro"] },
+            "description": "Filter voices by tier.",
+            "example": "va-1"
           }
         ],
         "responses": {
           "200": {
-            "description": "List of voices.",
+            "description": "Voice catalog.",
             "content": {
               "application/json": {
                 "schema": {
@@ -1705,11 +1698,6 @@
                         "voices": {
                           "type": "array",
                           "items": { "$ref": "#/components/schemas/Voice" }
-                        },
-                        "allowed_languages": {
-                          "type": "array",
-                          "items": { "type": "string" },
-                          "description": "Language codes the partner is allowed to use."
                         }
                       }
                     }
@@ -1720,14 +1708,14 @@
                   "data": {
                     "voices": [
                       {
-                        "id": "a0e99841-438c-4a64-b679-ae501e7d6091",
-                        "name": "Sarah",
-                        "description": "A warm, professional female voice.",
-                        "language": "English",
+                        "id": "b49e0d0f-2219-4425-a765-1efd32beb509",
+                        "display_name": "Sheetal",
+                        "description": "Warm, conversational Hindi narrator.",
+                        "tier": "va-1",
+                        "language": "en",
                         "gender": "female"
                       }
-                    ],
-                    "allowed_languages": ["en", "hi", "es"]
+                    ]
                   }
                 }
               }
@@ -4469,10 +4457,12 @@
       },
       "Voice": {
         "type": "object",
+        "description": "A voice from the platform catalog. Pass `id` as `voice_id` on agent create/update.",
         "properties": {
-          "id": { "type": "string" },
-          "name": { "type": "string" },
+          "id": { "type": "string", "format": "uuid", "description": "Pass this as `voice_id` on agent create/update." },
+          "display_name": { "type": "string" },
           "description": { "type": ["string", "null"] },
+          "tier": { "type": "string", "enum": ["va-1", "va-1-pro"], "description": "Drives the per-minute rate at billing time." },
           "language": { "type": "string" },
           "gender": { "type": ["string", "null"] }
         }
