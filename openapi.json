@@ -67,7 +67,7 @@
       "get": {
         "operationId": "getConfig",
         "summary": "Get partner configuration",
-        "description": "Returns the current partner configuration including webhook status, telephony setup, agent limits, and allowed voices/languages. Sensitive values are masked.",
+        "description": "Returns the current partner configuration including webhook endpoints, telephony setup, agent limits, and allowed voices/languages. Sensitive values are masked.",
         "tags": ["Config"],
         "responses": {
           "200": {
@@ -96,6 +96,18 @@
                       "url": "https://example.com/webhook",
                       "secret": "****"
                     },
+                    "webhooks": [
+                      {
+                        "id": "12345678-abcd-1234-abcd-123456789012",
+                        "label": "prod",
+                        "url": "https://example.com/webhooks/vocobase",
+                        "enabled": true,
+                        "last_delivery_at": "2026-05-25T10:30:00.000Z",
+                        "last_delivery_status": 200,
+                        "created_at": "2026-05-25T10:00:00.000Z",
+                        "updated_at": "2026-05-25T10:30:00.000Z"
+                      }
+                    ],
                     "allowed_telephony_providers": ["twilio", "exotel"],
                     "telephony": {
                       "twilio": {
@@ -139,8 +151,8 @@
     "/config/webhook": {
       "put": {
         "operationId": "updateWebhook",
-        "summary": "Set or update webhook URL",
-        "description": "Configures the webhook URL for receiving call status updates. A new webhook secret is generated on each call. Save the returned secret immediately -- it will not be shown again.",
+        "summary": "Set or update the legacy default webhook URL",
+        "description": "Legacy compatibility endpoint. Creates or replaces the reserved `default` webhook endpoint used by older integrations. A new webhook secret is generated on each call. New integrations should use `POST /config/webhooks` to create labeled endpoints.",
         "tags": ["Config"],
         "requestBody": {
           "required": true,
@@ -193,6 +205,324 @@
           },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/config/webhooks": {
+      "get": {
+        "operationId": "listWebhookEndpoints",
+        "summary": "List webhook endpoints",
+        "description": "Lists all configured webhook endpoints for the authenticated partner. Secrets are never returned.",
+        "tags": ["Config"],
+        "responses": {
+          "200": {
+            "description": "Webhook endpoints retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "endpoints": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/PartnerWebhookEndpoint" }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "endpoints": [
+                      {
+                        "id": "12345678-abcd-1234-abcd-123456789012",
+                        "label": "prod",
+                        "url": "https://example.com/webhooks/vocobase",
+                        "enabled": true,
+                        "last_delivery_at": "2026-05-25T10:30:00.000Z",
+                        "last_delivery_status": 200,
+                        "created_at": "2026-05-25T10:00:00.000Z",
+                        "updated_at": "2026-05-25T10:30:00.000Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "post": {
+        "operationId": "createWebhookEndpoint",
+        "summary": "Create a webhook endpoint",
+        "description": "Creates a labeled webhook endpoint. Each enabled endpoint receives the same webhook events and signs requests with its own secret. The secret is returned once in this response and cannot be read again.",
+        "tags": ["Config"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["label", "url"],
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,30}$",
+                    "description": "Partner-chosen endpoint label. Lowercase letters, numbers, and hyphens only; 1-31 characters.",
+                    "example": "prod"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "HTTPS URL that receives webhook events.",
+                    "example": "https://example.com/webhooks/vocobase"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether the endpoint should receive new webhook events."
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Webhook endpoint created. Save the secret immediately.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/PartnerWebhookEndpoint" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "secret": {
+                              "type": "string",
+                              "description": "HMAC signing secret. Starts with `whsec_`. Returned only once."
+                            },
+                            "message": { "type": "string" }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "12345678-abcd-1234-abcd-123456789012",
+                    "label": "prod",
+                    "url": "https://example.com/webhooks/vocobase",
+                    "enabled": true,
+                    "last_delivery_at": null,
+                    "last_delivery_status": null,
+                    "created_at": "2026-05-25T10:00:00.000Z",
+                    "updated_at": "2026-05-25T10:00:00.000Z",
+                    "secret": "whsec_abc123...",
+                    "message": "Save this secret — it will not be shown again."
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": {
+            "description": "Label already exists or endpoint limit reached.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/config/webhooks/{id}": {
+      "patch": {
+        "operationId": "updateWebhookEndpoint",
+        "summary": "Update a webhook endpoint",
+        "description": "Updates an endpoint's label, URL, or enabled state. Disabled endpoints stop receiving new webhook events.",
+        "tags": ["Config"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Webhook endpoint ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,30}$",
+                    "description": "New endpoint label. The reserved `default` label cannot be assigned manually."
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "New HTTPS webhook URL."
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "description": "Whether this endpoint should receive new webhook events."
+                  }
+                }
+              },
+              "example": { "enabled": false }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Webhook endpoint updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": { "$ref": "#/components/schemas/PartnerWebhookEndpoint" }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": {
+            "description": "Another endpoint already uses the requested label.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "delete": {
+        "operationId": "deleteWebhookEndpoint",
+        "summary": "Delete a webhook endpoint",
+        "description": "Deletes a webhook endpoint. Delivery attempts that were already created may still use the previous URL and secret, but the deleted endpoint stops receiving new events.",
+        "tags": ["Config"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Webhook endpoint ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook endpoint deleted.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string", "format": "uuid" },
+                        "deleted": { "type": "boolean", "const": true }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "12345678-abcd-1234-abcd-123456789012",
+                    "deleted": true
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/config/webhooks/{id}/rotate-secret": {
+      "post": {
+        "operationId": "rotateWebhookEndpointSecret",
+        "summary": "Rotate a webhook endpoint secret",
+        "description": "Generates a new signing secret for the endpoint. The new secret is returned once. Delivery attempts that were already created may still use the previous secret.",
+        "tags": ["Config"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Webhook endpoint ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Webhook endpoint secret rotated. Save the new secret immediately.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": { "type": "string", "format": "uuid" },
+                        "label": { "type": "string" },
+                        "secret": {
+                          "type": "string",
+                          "description": "New HMAC signing secret. Starts with `whsec_`. Returned only once."
+                        },
+                        "message": { "type": "string" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "12345678-abcd-1234-abcd-123456789012",
+                    "label": "prod",
+                    "secret": "whsec_newabc123...",
+                    "message": "Save this secret — it will not be shown again."
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
           "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
@@ -4244,6 +4574,19 @@
           "updated_at": { "type": "string", "format": "date-time" }
         }
       },
+      "PartnerWebhookEndpoint": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "description": "Webhook endpoint ID." },
+          "label": { "type": "string", "description": "Partner-chosen endpoint label." },
+          "url": { "type": "string", "format": "uri", "description": "HTTPS endpoint URL." },
+          "enabled": { "type": "boolean", "description": "Whether this endpoint receives new webhook events." },
+          "last_delivery_at": { "type": ["string", "null"], "format": "date-time" },
+          "last_delivery_status": { "type": ["integer", "null"] },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
       "PartnerConfig": {
         "type": "object",
         "properties": {
@@ -4274,6 +4617,11 @@
               "url": { "type": ["string", "null"], "format": "uri" },
               "secret": { "type": ["string", "null"], "description": "Always masked as `****` when configured." }
             }
+          },
+          "webhooks": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PartnerWebhookEndpoint" },
+            "description": "Configured webhook endpoints. Endpoint secrets are never returned by config reads."
           },
           "telephony": {
             "type": "object",

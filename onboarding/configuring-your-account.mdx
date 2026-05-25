@@ -56,6 +56,7 @@ The response shows your agent limit, allowed voices and languages, webhook statu
       "url": null,
       "secret": null
     },
+    "webhooks": [],
     "telephony": {
       "twilio": { "configured": false },
       "mcube": { "configured": false }
@@ -66,65 +67,81 @@ The response shows your agent limit, allowed voices and languages, webhook statu
 
 ## Set up webhooks
 
-Configure a webhook URL to receive notifications when calls complete. This is how you get transcripts and recording URLs.
+Configure one or more webhook endpoints to receive notifications when calls complete. This is how you get transcripts, extraction results, and recording URLs.
 
 <CodeGroup>
 ```bash cURL
-curl -X PUT https://api.vocobase.com/api/v2/config/webhook \
+curl -X POST https://api.vocobase.com/api/v2/config/webhooks \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
   -H "Content-Type: application/json" \
   -d '{
-    "webhook_url": "https://your-server.com/webhooks/vocobase"
+    "label": "prod",
+    "url": "https://your-server.com/webhooks/vocobase"
   }'
 ```
 
 ```javascript JavaScript
-const response = await fetch("https://api.vocobase.com/api/v2/config/webhook", {
-  method: "PUT",
+const response = await fetch("https://api.vocobase.com/api/v2/config/webhooks", {
+  method: "POST",
   headers: {
     "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
     "Content-Type": "application/json"
   },
   body: JSON.stringify({
-    webhook_url: "https://your-server.com/webhooks/vocobase"
+    label: "prod",
+    url: "https://your-server.com/webhooks/vocobase"
   })
 });
 const result = await response.json();
-console.log(result.data.webhook_secret); // Save this!
+console.log(result.data.secret); // Save this!
 ```
 
 ```python Python
 import requests
 
-response = requests.put(
-    "https://api.vocobase.com/api/v2/config/webhook",
+response = requests.post(
+    "https://api.vocobase.com/api/v2/config/webhooks",
     headers={
         "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
         "Content-Type": "application/json"
     },
-    json={"webhook_url": "https://your-server.com/webhooks/vocobase"}
+    json={
+        "label": "prod",
+        "url": "https://your-server.com/webhooks/vocobase"
+    }
 )
 result = response.json()
-print(result["data"]["webhook_secret"])  # Save this!
+print(result["data"]["secret"])  # Save this!
 ```
 </CodeGroup>
 
-The response includes a webhook secret for verifying signatures:
+The response includes an endpoint secret for verifying signatures:
 
 ```json
 {
   "success": true,
   "data": {
-    "webhook_url": "https://your-server.com/webhooks/vocobase",
-    "webhook_secret": "whsec_a1b2c3d4e5f6g7h8i9j0...",
+    "id": "12345678-abcd-1234-abcd-123456789012",
+    "label": "prod",
+    "url": "https://your-server.com/webhooks/vocobase",
+    "enabled": true,
+    "last_delivery_at": null,
+    "last_delivery_status": null,
+    "created_at": "2026-05-25T10:30:00.000Z",
+    "updated_at": "2026-05-25T10:30:00.000Z",
+    "secret": "whsec_a1b2c3d4e5f6g7h8i9j0...",
     "message": "Save this secret — it will not be shown again."
   }
 }
 ```
 
 <Warning>
-  The `webhook_secret` is only returned once. Store it securely in your environment variables. If you lose it, call `PUT /config/webhook` again to generate a new one.
+  The endpoint `secret` is only returned once. Store it securely in your environment variables. If you lose it, rotate the endpoint secret with `POST /config/webhooks/{id}/rotate-secret`.
 </Warning>
+
+<Note>
+  Older integrations can continue using `PUT /api/v2/config/webhook`; it creates or replaces the reserved `default` endpoint. New integrations should use `/config/webhooks`.
+</Note>
 
 See [Webhook Setup](/webhooks/setup) for details on signature verification.
 
@@ -194,6 +211,18 @@ Run `GET /config` again to confirm everything is configured:
       "url": "https://your-server.com/webhooks/vocobase",
       "secret": "****"
     },
+    "webhooks": [
+      {
+        "id": "12345678-abcd-1234-abcd-123456789012",
+        "label": "prod",
+        "url": "https://your-server.com/webhooks/vocobase",
+        "enabled": true,
+        "last_delivery_at": null,
+        "last_delivery_status": null,
+        "created_at": "2026-05-25T10:30:00.000Z",
+        "updated_at": "2026-05-25T10:30:00.000Z"
+      }
+    ],
     "telephony": {
       "twilio": {
         "configured": true,
@@ -210,7 +239,7 @@ Run `GET /config` again to confirm everything is configured:
 ```
 
 <Tip>
-  Sensitive values like `auth_token`, `jwt_token`, and `webhook_secret` are always masked in `GET /config` responses.
+  Sensitive values like `auth_token`, `jwt_token`, and webhook endpoint secrets are never returned by `GET /config`.
 </Tip>
 
 ## Next steps

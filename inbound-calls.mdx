@@ -495,7 +495,7 @@ echo "\n5. After assignment succeeds, call $DID from a real phone."
 | `404 phone number not found` | `PHONE_NUMBER_ID` is from another partner/provider or was not imported | Re-run `GET /api/v2/phone-numbers?provider=VOBIZ` and use that `id` |
 | `502 VOBIZ_SYNC_FAILED` | Carrier-side assignment failed | Confirm Vobiz credentials and DID ownership, then retry |
 | Assignment succeeds but call reaches the wrong destination | Carrier-side Application binding may be stale | Run `POST /api/v2/phone-numbers/resync` and call again |
-| Call connects but no webhook arrives | Partner webhook is not configured or endpoint rejects delivery | Configure `PUT /api/v2/config/webhook` and check your webhook server logs |
+| Call connects but no webhook arrives | Partner webhook is not configured or endpoint rejects delivery | Configure `POST /api/v2/config/webhooks` and check your webhook server logs |
 
 ---
 

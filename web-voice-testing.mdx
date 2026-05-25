@@ -617,9 +617,9 @@ async def start_voice_session():
 
 ## Receiving the transcript and recording
 
-After the session ends, the platform fires a `session.completed` webhook to your configured webhook URL containing the transcript, recording URL, credit usage, pre-call variables, and any post-call extraction. The `call` block is omitted for browser WebRTC sessions because there's no associated phone call.
+After the session ends, the platform fires a `session.completed` webhook to each enabled webhook endpoint containing the transcript, recording URL, credit usage, pre-call variables, and any post-call extraction. The `call` block is omitted for browser WebRTC sessions because there's no associated phone call.
 
-Configure your webhook URL once via `PUT /api/v2/config/webhook` and the same endpoint receives events for both telephony and WebRTC sessions. See [Webhook Payloads](/webhooks/payloads) for the full schema.
+Configure webhook endpoints with `POST /api/v2/config/webhooks`; enabled endpoints receive events for both telephony and WebRTC sessions. See [Webhook Setup](/webhooks/setup) for setup and [Webhook Payloads](/webhooks/payloads) for the full schema.
 
 If your stack can't accept inbound webhooks, poll `GET /api/v2/sessions/{session_id}` instead — it returns the same fields with a freshly-minted recording URL on each call:
 
