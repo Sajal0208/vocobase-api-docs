@@ -11,7 +11,7 @@ Get up and running with the Vocobase Partner API. By the end of this guide, you 
 
 - A Vocobase account with **approved partner status** ([apply here](/onboarding/becoming-a-partner))
 - Your API key (format: `rg_live_xxxx`)
-- At least one telephony provider configured (Twilio or MCube)
+- At least one telephony provider configured and allowed for your partner account
 
 <Steps>
   <Step title="Get your API key">
@@ -148,7 +148,7 @@ Get up and running with the Vocobase Partner API. By the end of this guide, you 
     ```
 
     <Tip>
-      Save the `id` from the response — you will need it to start calls.
+      Save the `id` from the response - you will need it to start calls. On supported Plivo and Vobiz accounts, agents also accept optional `voicemail_detection_enabled` and `voicemail_message` fields for carrier-side voicemail handling.
     </Tip>
   </Step>
 

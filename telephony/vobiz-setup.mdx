@@ -221,6 +221,26 @@ print(response.json())
 
 Vocobase manages the carrier connection and media path for Vobiz. Partners only need to configure credentials and pass `"provider": "vobiz"` when starting calls.
 
+## Optional: voicemail detection
+
+For Vobiz outbound calls, supported accounts can enable carrier-side voicemail detection per agent. Set `voicemail_detection_enabled` to control detection for that agent. When Vobiz reports voicemail, Vocobase marks the call as voicemail and ends the call.
+
+The same agent field, `voicemail_message`, is accepted for API parity and for providers that can play a post-detection message. Vobiz currently uses the hangup behavior above.
+
+<Note>
+  Carrier-side voicemail detection must be enabled for your Vobiz connection by Vocobase before these agent settings affect live calls.
+</Note>
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/agent/a1b2c3d4-e5f6-7890-abcd-ef1234567890 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "voicemail_detection_enabled": true,
+    "voicemail_message": "Hi, this is Priya from Acme Corp. I will call you back soon."
+  }'
+```
+
 ## Troubleshooting
 
 ### "Vobiz not configured" or 403 on `/calls/start`
