@@ -3385,7 +3385,7 @@
       "get": {
         "operationId": "listCalls",
         "summary": "List calls",
-        "description": "Returns a paginated list of calls, ordered by start time (newest first). Optionally filter by status.",
+        "description": "Returns a paginated list of calls, ordered by start time (newest first). Optionally filter by status. `status` is the call lifecycle/carrier state; use `disposition` on each call for the final outcome such as `voicemail`, `busy`, or `no_answer`.",
         "tags": ["Calls"],
         "parameters": [
           {
@@ -3407,7 +3407,7 @@
               "type": "string",
               "enum": ["pending", "ringing", "in_progress", "completed", "failed", "no_answer", "busy", "canceled"]
             },
-            "description": "Filter by call status (case-insensitive)."
+            "description": "Filter by call lifecycle status (case-insensitive). Voicemail is returned as `disposition: \"voicemail\"`, not as a status."
           }
         ],
         "responses": {
@@ -3938,7 +3938,20 @@
                             "from_number": { "type": "string" },
                             "to_number": { "type": "string" },
                             "direction": { "type": "string" },
-                            "status": { "type": "string" }
+                            "status": {
+                              "type": "string",
+                              "description": "Call lifecycle/carrier status. Voicemail is exposed through `disposition`, not `status`."
+                            },
+                            "disposition": {
+                              "type": ["string", "null"],
+                              "enum": ["completed", "voicemail", "user_hangup_no_speech", "no_answer", "busy", "canceled", "blocked", "failed", null],
+                              "description": "Final call outcome. Use `voicemail` to detect carrier or bot voicemail outcomes."
+                            },
+                            "answered_by": {
+                              "type": ["string", "null"],
+                              "enum": ["human", "machine", "unknown", "not_answered", null],
+                              "description": "Best-known answer classification. `machine` indicates an answering machine or voicemail."
+                            }
                           }
                         }
                       }
@@ -4893,7 +4906,31 @@
           "to_number": { "type": "string" },
           "status": {
             "type": "string",
-            "enum": ["pending", "ringing", "in_progress", "completed", "failed", "no_answer", "busy", "canceled"]
+            "enum": ["pending", "ringing", "in_progress", "completed", "failed", "no_answer", "busy", "canceled"],
+            "description": "Call lifecycle/carrier status. Voicemail is exposed through `disposition`, not `status`."
+          },
+          "disposition": {
+            "type": ["string", "null"],
+            "enum": ["completed", "voicemail", "user_hangup_no_speech", "no_answer", "busy", "canceled", "blocked", "failed", null],
+            "description": "Final call outcome derived from carrier signals and bot-side signals. Use `voicemail` to detect carrier or bot voicemail outcomes."
+          },
+          "answered_by": {
+            "type": ["string", "null"],
+            "enum": ["human", "machine", "unknown", "not_answered", null],
+            "description": "Best-known answer classification. `machine` indicates an answering machine or voicemail."
+          },
+          "hangup_cause": {
+            "type": ["string", "null"],
+            "description": "Raw normalized carrier hangup cause when available."
+          },
+          "hangup_source": {
+            "type": ["string", "null"],
+            "enum": ["caller", "callee", "system", "api", "carrier", "error", "unknown", null],
+            "description": "Best-known party or system that ended the call."
+          },
+          "bill_duration_seconds": {
+            "type": ["integer", "null"],
+            "description": "Carrier-billed duration in seconds when available."
           },
           "provider": { "type": ["string", "null"], "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", null] },
           "duration_seconds": { "type": ["integer", "null"] },
