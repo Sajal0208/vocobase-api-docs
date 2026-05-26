@@ -75,6 +75,8 @@ Every webhook request includes these headers:
       "to_number": "+919876543210",
       "direction": "outbound",
       "status": "completed",
+      "disposition": "completed",
+      "answered_by": "human",
       "transferred": false,
       "transferred_at": null,
       "transfer_target": null
@@ -111,7 +113,9 @@ Every webhook request includes these headers:
 | `call.from_number` | string | Caller phone number (E.164) |
 | `call.to_number` | string | Destination phone number (E.164) |
 | `call.direction` | string | `"outbound"` |
-| `call.status` | string | Final call status: `completed`, `failed`, `no_answer`, `busy`, `canceled` |
+| `call.status` | string | Call lifecycle/carrier status: `completed`, `failed`, `no_answer`, `busy`, `canceled`. Voicemail is exposed through `call.disposition`, not `call.status`. |
+| `call.disposition` | string or null | Final call outcome: `completed`, `voicemail`, `user_hangup_no_speech`, `no_answer`, `busy`, `canceled`, `blocked`, or `failed`. |
+| `call.answered_by` | string or null | Best-known answer classification: `human`, `machine`, `unknown`, or `not_answered`. `machine` indicates an answering machine or voicemail. |
 | `call.transferred` | boolean | `true` if the bot handed the call off to a human via the cold-transfer flow. See [Transferred calls](#transferred-calls) below. |
 | `call.transferred_at` | string (ISO 8601) or null | When the bot left the room and the carrier began bridging the caller to the human. `null` for non-transferred calls. |
 | `call.transfer_target` | string or null | E.164 destination the caller was bridged to. `null` for non-transferred calls. |
@@ -132,6 +136,8 @@ Each entry in the `transcript` array has:
 
 ### Call status values
 
+`call.status` is the lifecycle/carrier state. It intentionally does not include voicemail; use `call.disposition` for the final outcome.
+
 | Status | Description |
 |---|---|
 | `completed` | Call connected and ended normally |
@@ -139,6 +145,19 @@ Each entry in the `transcript` array has:
 | `no_answer` | Recipient did not answer |
 | `busy` | Recipient's line was busy |
 | `canceled` | Call was canceled before connecting |
+
+### Call disposition values
+
+| Disposition | Description |
+|---|---|
+| `completed` | Human-answered call completed normally |
+| `voicemail` | Carrier AMD or bot-side detection classified the answer as voicemail |
+| `user_hangup_no_speech` | The callee answered, then hung up quickly before speaking |
+| `no_answer` | Recipient did not answer |
+| `busy` | Recipient's line was busy |
+| `canceled` | Call was canceled before connecting |
+| `blocked` | Carrier/provider rejected or blocked the call |
+| `failed` | Call failed or ended with an unmapped error outcome |
 
 ### Transferred calls
 
@@ -164,6 +183,8 @@ Use `call.transferred` as the cheap discriminator if your downstream automation 
     "to_number": "+919876543210",
     "direction": "outbound",
     "status": "completed",
+    "disposition": "completed",
+    "answered_by": "human",
     "transferred": true,
     "transferred_at": "2026-05-06T14:32:11.000Z",
     "transfer_target": "+14155559999"
