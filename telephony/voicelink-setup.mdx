@@ -13,7 +13,7 @@ This guide walks you through connecting your VoiceLink account to Vocobase for o
 
 ## Prerequisites
 
-- A VoiceLink account with an API key
+- A VoiceLink account with a panel **username and password**
 - At least one VoiceLink DID (phone number) provisioned for outbound voice
 - An approved Vocobase partner account with `"voicelink"` present in `allowed_telephony_providers` (check `GET /config`)
 
@@ -24,15 +24,11 @@ This guide walks you through connecting your VoiceLink account to Vocobase for o
 ## Step 1: Get your VoiceLink credentials
 
 <Steps>
-  <Step title="Log in to the VoiceLink panel">
-    Sign in to your VoiceLink account.
-  </Step>
-
-  <Step title="Copy your API key">
-    From your account settings, copy your **API key**. Vocobase uses it as the bearer token when calling the VoiceLink API on your behalf.
+  <Step title="Find your VoiceLink panel sign-in">
+    Use the same **username and password** you use to sign in to the VoiceLink panel. Vocobase logs in with these to obtain a short-lived access token when it calls the VoiceLink API on your behalf — your password is stored encrypted and never sent back to you.
 
     <Warning>
-      Your API key grants full access to your VoiceLink account. Treat it like a password.
+      These credentials grant full access to your VoiceLink account. Treat them like any other production secret.
     </Warning>
   </Step>
 
@@ -45,7 +41,7 @@ This guide walks you through connecting your VoiceLink account to Vocobase for o
 
 ## Step 2: Configure VoiceLink in Vocobase
 
-Send the credentials through the Partner API. `api_key` and `did` are required; `base_url` is optional and defaults to the VoiceLink API host.
+Send the credentials through the Partner API. `username`, `password`, and `from_number` are required; `base_url` is optional and defaults to the VoiceLink API host.
 
 <CodeGroup>
 ```bash cURL
@@ -53,8 +49,9 @@ curl -X PUT https://api.vocobase.com/api/v2/config/telephony/voicelink \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
   -H "Content-Type: application/json" \
   -d '{
-    "api_key": "vl_live_xxxxxxxxxxxx",
-    "did": "+918011223344"
+    "username": "acme-voice",
+    "password": "your-voicelink-password",
+    "from_number": "+918011223344"
   }'
 ```
 
@@ -68,8 +65,9 @@ const response = await fetch(
       "Content-Type": "application/json"
     },
     body: JSON.stringify({
-      api_key: "vl_live_xxxxxxxxxxxx",
-      did: "+918011223344"
+      username: "acme-voice",
+      password: "your-voicelink-password",
+      from_number: "+918011223344"
     })
   }
 );
@@ -87,8 +85,9 @@ response = requests.put(
         "Content-Type": "application/json"
     },
     json={
-        "api_key": "vl_live_xxxxxxxxxxxx",
-        "did": "+918011223344"
+        "username": "acme-voice",
+        "password": "your-voicelink-password",
+        "from_number": "+918011223344"
     }
 )
 print(response.json())
@@ -101,8 +100,8 @@ A successful response confirms credentials were stored:
 {
   "success": true,
   "data": {
-    "api_key": "vl_l****xxxx",
-    "did": "+918011223344",
+    "username": "acme-voice",
+    "from_number": "+918011223344",
     "base_url": null,
     "message": "VoiceLink credentials updated successfully."
   }
@@ -110,7 +109,7 @@ A successful response confirms credentials were stored:
 ```
 
 <Tip>
-  Your API key is encrypted at rest and never returned in API responses. It is masked in this response.
+  Your password is encrypted at rest and never returned in API responses.
 </Tip>
 
 ### Optional: custom base URL
@@ -122,8 +121,9 @@ curl -X PUT https://api.vocobase.com/api/v2/config/telephony/voicelink \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
   -H "Content-Type: application/json" \
   -d '{
-    "api_key": "vl_live_xxxxxxxxxxxx",
-    "did": "+918011223344",
+    "username": "acme-voice",
+    "password": "your-voicelink-password",
+    "from_number": "+918011223344",
     "base_url": "https://app.voicelink.co.in"
   }'
 ```
@@ -147,14 +147,14 @@ curl -X GET https://api.vocobase.com/api/v2/config \
     "allowed_telephony_providers": ["twilio", "voicelink"],
     "telephony": {
       "twilio": { "configured": true, "account_sid": "conf****ured", "from_number": "+14155551111" },
-      "voicelink": { "configured": true, "allowed": true, "api_key": "conf****ured", "did": "+918011223344", "base_url": null }
+      "voicelink": { "configured": true, "allowed": true, "username": "acme-voice", "base_url": null, "from_number": "+918011223344" }
     },
     "...": "..."
   }
 }
 ```
 
-`telephony.voicelink.configured: true` confirms the API key and DID landed. Presence in `allowed_telephony_providers` is what gates your ability to start a VoiceLink call — if VoiceLink isn't in that list, contact your Vocobase account manager to enable it.
+`telephony.voicelink.configured: true` confirms the credentials and from-number landed. Presence in `allowed_telephony_providers` is what gates your ability to start a VoiceLink call — if VoiceLink isn't in that list, contact your Vocobase account manager to enable it.
 
 ## Step 4: Make a test call
 
@@ -232,12 +232,20 @@ VoiceLink uses a Generic WebSocket media model. Vocobase manages the media path;
   Inbound calling and call transfer are not yet supported for VoiceLink. Outbound is the supported path today.
 </Note>
 
+## Managing DIDs
+
+The `from_number` you send is stored as the default outbound DID. To manage multiple VoiceLink DIDs and assign a specific agent to each, use the **Telephony** settings in your Vocobase dashboard — add your VoiceLink numbers and pick the agent that should use each one.
+
 ## Troubleshooting
 
 ### "VoiceLink not configured" or 403 on `/calls/start`
 
 - Confirm `"voicelink"` is in `allowed_telephony_providers` from `GET /config`. If it is not, contact your Vocobase account manager.
-- Confirm both `api_key` and `did` were saved (`telephony.voicelink.configured: true`).
+- Confirm `username`, `password`, and a `from_number` were saved (`telephony.voicelink.configured: true`).
+
+### "Invalid VoiceLink username or password"
+
+- Re-check the credentials against the VoiceLink panel sign-in. Re-send `PUT /config/telephony/voicelink` with the correct values.
 
 ### Calls ring but drop immediately
 
@@ -246,11 +254,11 @@ VoiceLink uses a Generic WebSocket media model. Vocobase manages the media path;
 
 ### Caller ID shows the wrong number
 
-- The `did` saved on your Vocobase VoiceLink connection must match a number VoiceLink has provisioned for your account, in E.164 format. Update it via `PUT /config/telephony/voicelink` if it does not.
+- The `from_number` saved on your Vocobase VoiceLink connection must match a number VoiceLink has provisioned for your account, in E.164 format. Update it via `PUT /config/telephony/voicelink` if it does not.
 
 ## Updating credentials
 
-Rotate the API key in VoiceLink, then update Vocobase by re-sending `PUT /api/v2/config/telephony/voicelink` with the new key. You can update the `did` or `base_url` the same way.
+Changed your VoiceLink password? Re-send `PUT /api/v2/config/telephony/voicelink` with the new `password`. This endpoint always requires `username`, `password`, and `from_number` together, so include all three (plus `base_url` if you use a custom host) whenever you update.
 
 ## Next steps
 
