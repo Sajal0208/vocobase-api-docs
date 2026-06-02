@@ -910,7 +910,7 @@
       "put": {
         "operationId": "updateVoiceLinkConfig",
         "summary": "Set or update VoiceLink credentials",
-        "description": "Stores encrypted VoiceLink credentials for outbound calling. `api_key` and `did` are required; `base_url` is optional and defaults to the VoiceLink API host. The `did` must be an E.164 number provisioned on your VoiceLink account. Requires `\"voicelink\"` in `allowed_telephony_providers`.",
+        "description": "Stores VoiceLink credentials for outbound calling. VoiceLink authenticates with a panel `username` and `password`; Vocobase logs in with these to obtain a short-lived access token (the password is stored encrypted and never returned). `username`, `password`, and `from_number` are required; `base_url` is optional and defaults to the VoiceLink API host. The `from_number` must be an E.164 number provisioned on your VoiceLink account and is stored as the connection's default outbound DID. Requires `\"voicelink\"` in `allowed_telephony_providers`.",
         "tags": ["Config"],
         "requestBody": {
           "required": true,
@@ -918,16 +918,21 @@
             "application/json": {
               "schema": {
                 "type": "object",
-                "required": ["api_key", "did"],
+                "required": ["username", "password", "from_number"],
                 "properties": {
-                  "api_key": {
+                  "username": {
                     "type": "string",
-                    "description": "VoiceLink API key (used as the bearer token for the VoiceLink API).",
-                    "example": "vl_live_xxxxxxxxxxxx"
+                    "description": "VoiceLink panel username.",
+                    "example": "acme-voice"
                   },
-                  "did": {
+                  "password": {
                     "type": "string",
-                    "description": "VoiceLink-provisioned number used as the caller ID, in E.164 format.",
+                    "description": "VoiceLink panel password. Stored encrypted; never returned.",
+                    "example": "your-voicelink-password"
+                  },
+                  "from_number": {
+                    "type": "string",
+                    "description": "VoiceLink-provisioned number used as the caller ID, in E.164 format. Stored as the connection's default DID.",
                     "example": "+918011223344"
                   },
                   "base_url": {
@@ -938,8 +943,9 @@
                 }
               },
               "example": {
-                "api_key": "vl_live_xxxxxxxxxxxx",
-                "did": "+918011223344"
+                "username": "acme-voice",
+                "password": "your-voicelink-password",
+                "from_number": "+918011223344"
               }
             }
           }
@@ -956,8 +962,8 @@
                     "data": {
                       "type": "object",
                       "properties": {
-                        "api_key": { "type": "string", "description": "Masked after save." },
-                        "did": { "type": "string" },
+                        "username": { "type": "string" },
+                        "from_number": { "type": "string" },
                         "base_url": { "type": ["string", "null"] },
                         "message": { "type": "string" }
                       }
@@ -967,8 +973,8 @@
                 "example": {
                   "success": true,
                   "data": {
-                    "api_key": "vl_l****xxxx",
-                    "did": "+918011223344",
+                    "username": "acme-voice",
+                    "from_number": "+918011223344",
                     "base_url": null,
                     "message": "VoiceLink credentials updated successfully."
                   }
@@ -4780,9 +4786,9 @@
                 "properties": {
                   "configured": { "type": "boolean" },
                   "allowed": { "type": "boolean", "description": "Whether `voicelink` is in allowed_telephony_providers." },
-                  "api_key": { "type": ["string", "null"], "description": "Masked when configured." },
-                  "did": { "type": ["string", "null"] },
-                  "base_url": { "type": ["string", "null"] }
+                  "username": { "type": ["string", "null"], "description": "VoiceLink panel username (non-secret)." },
+                  "base_url": { "type": ["string", "null"] },
+                  "from_number": { "type": ["string", "null"], "description": "Default outbound DID." }
                 }
               }
             }
