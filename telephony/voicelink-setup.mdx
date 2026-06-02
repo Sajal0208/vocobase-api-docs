@@ -1,0 +1,264 @@
+---
+title: "VoiceLink Setup"
+description: "Configure VoiceLink for outbound calling with the Vocobase API"
+---
+
+# VoiceLink Setup
+
+This guide walks you through connecting your VoiceLink account to Vocobase for outbound calling.
+
+<Note>
+  Configure VoiceLink with the Partner API (`PUT /api/v2/config/telephony/voicelink`). Once VoiceLink is configured, start calls programmatically using `POST /calls/start` with `"provider": "voicelink"`.
+</Note>
+
+## Prerequisites
+
+- A VoiceLink account with an API key
+- At least one VoiceLink DID (phone number) provisioned for outbound voice
+- An approved Vocobase partner account with `"voicelink"` present in `allowed_telephony_providers` (check `GET /config`)
+
+<Tip>
+  If `"voicelink"` is not yet listed in your partner config's `allowed_telephony_providers`, contact your Vocobase account manager to enable it.
+</Tip>
+
+## Step 1: Get your VoiceLink credentials
+
+<Steps>
+  <Step title="Log in to the VoiceLink panel">
+    Sign in to your VoiceLink account.
+  </Step>
+
+  <Step title="Copy your API key">
+    From your account settings, copy your **API key**. Vocobase uses it as the bearer token when calling the VoiceLink API on your behalf.
+
+    <Warning>
+      Your API key grants full access to your VoiceLink account. Treat it like a password.
+    </Warning>
+  </Step>
+
+  <Step title="Identify the DID you will call from">
+    Copy the VoiceLink number you plan to use as the caller ID.
+
+    The number must be in E.164 format (e.g., `+918011223344`) and must be enabled for outbound voice.
+  </Step>
+</Steps>
+
+## Step 2: Configure VoiceLink in Vocobase
+
+Send the credentials through the Partner API. `api_key` and `did` are required; `base_url` is optional and defaults to the VoiceLink API host.
+
+<CodeGroup>
+```bash cURL
+curl -X PUT https://api.vocobase.com/api/v2/config/telephony/voicelink \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "api_key": "vl_live_xxxxxxxxxxxx",
+    "did": "+918011223344"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "https://api.vocobase.com/api/v2/config/telephony/voicelink",
+  {
+    method: "PUT",
+    headers: {
+      "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      api_key: "vl_live_xxxxxxxxxxxx",
+      did: "+918011223344"
+    })
+  }
+);
+const result = await response.json();
+console.log(result);
+```
+
+```python Python
+import requests
+
+response = requests.put(
+    "https://api.vocobase.com/api/v2/config/telephony/voicelink",
+    headers={
+        "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+        "Content-Type": "application/json"
+    },
+    json={
+        "api_key": "vl_live_xxxxxxxxxxxx",
+        "did": "+918011223344"
+    }
+)
+print(response.json())
+```
+</CodeGroup>
+
+A successful response confirms credentials were stored:
+
+```json
+{
+  "success": true,
+  "data": {
+    "api_key": "vl_l****xxxx",
+    "did": "+918011223344",
+    "base_url": null,
+    "message": "VoiceLink credentials updated successfully."
+  }
+}
+```
+
+<Tip>
+  Your API key is encrypted at rest and never returned in API responses. It is masked in this response.
+</Tip>
+
+### Optional: custom base URL
+
+If VoiceLink gave you a dedicated API host, pass it as `base_url`. Omit the field to use the default host.
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/config/telephony/voicelink \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "api_key": "vl_live_xxxxxxxxxxxx",
+    "did": "+918011223344",
+    "base_url": "https://app.voicelink.co.in"
+  }'
+```
+
+## Step 3: Confirm the partner sees VoiceLink as configured
+
+Fetch your partner configuration — the response should now include VoiceLink in `allowed_telephony_providers`:
+
+<CodeGroup>
+```bash cURL
+curl -X GET https://api.vocobase.com/api/v2/config \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+</CodeGroup>
+
+```json
+{
+  "success": true,
+  "data": {
+    "name": "acme-corp",
+    "allowed_telephony_providers": ["twilio", "voicelink"],
+    "telephony": {
+      "twilio": { "configured": true, "account_sid": "conf****ured", "from_number": "+14155551111" },
+      "voicelink": { "configured": true, "allowed": true, "api_key": "conf****ured", "did": "+918011223344", "base_url": null }
+    },
+    "...": "..."
+  }
+}
+```
+
+`telephony.voicelink.configured: true` confirms the API key and DID landed. Presence in `allowed_telephony_providers` is what gates your ability to start a VoiceLink call — if VoiceLink isn't in that list, contact your Vocobase account manager to enable it.
+
+## Step 4: Make a test call
+
+Start an outbound call with `"provider": "voicelink"`:
+
+<CodeGroup>
+```bash cURL
+curl -X POST https://api.vocobase.com/api/v2/calls/start \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "to_number": "+919876543210",
+    "provider": "voicelink"
+  }'
+```
+
+```javascript JavaScript
+const response = await fetch(
+  "https://api.vocobase.com/api/v2/calls/start",
+  {
+    method: "POST",
+    headers: {
+      "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+      "Content-Type": "application/json"
+    },
+    body: JSON.stringify({
+      agent_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+      to_number: "+919876543210",
+      provider: "voicelink"
+    })
+  }
+);
+const result = await response.json();
+console.log(result);
+```
+
+```python Python
+import requests
+
+response = requests.post(
+    "https://api.vocobase.com/api/v2/calls/start",
+    headers={
+        "Authorization": "Bearer rg_live_abc123def456ghi789jkl012",
+        "Content-Type": "application/json"
+    },
+    json={
+        "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "to_number": "+919876543210",
+        "provider": "voicelink"
+    }
+)
+print(response.json())
+```
+</CodeGroup>
+
+```json
+{
+  "success": true,
+  "data": {
+    "call_id": "c1234567-abcd-1234-abcd-123456789012",
+    "session_id": "s1234567-abcd-1234-abcd-123456789012",
+    "status": "pending",
+    "provider": "voicelink",
+    "from_number": "+918011223344",
+    "to_number": "+919876543210",
+    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  }
+}
+```
+
+VoiceLink uses a Generic WebSocket media model. Vocobase manages the media path; partners only need to configure credentials and pass `"provider": "voicelink"` when starting calls.
+
+<Note>
+  Inbound calling and call transfer are not yet supported for VoiceLink. Outbound is the supported path today.
+</Note>
+
+## Troubleshooting
+
+### "VoiceLink not configured" or 403 on `/calls/start`
+
+- Confirm `"voicelink"` is in `allowed_telephony_providers` from `GET /config`. If it is not, contact your Vocobase account manager.
+- Confirm both `api_key` and `did` were saved (`telephony.voicelink.configured: true`).
+
+### Calls ring but drop immediately
+
+- Confirm the destination number is reachable from your VoiceLink account.
+- Check the VoiceLink panel call logs for the exact drop reason.
+
+### Caller ID shows the wrong number
+
+- The `did` saved on your Vocobase VoiceLink connection must match a number VoiceLink has provisioned for your account, in E.164 format. Update it via `PUT /config/telephony/voicelink` if it does not.
+
+## Updating credentials
+
+Rotate the API key in VoiceLink, then update Vocobase by re-sending `PUT /api/v2/config/telephony/voicelink` with the new key. You can update the `did` or `base_url` the same way.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Bring Your Own Phone" icon="phone" href="/telephony/byop-setup">
+    Overview of all supported BYOP providers.
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Create an agent and make your first call.
+  </Card>
+</CardGroup>
