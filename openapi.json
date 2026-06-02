@@ -910,7 +910,7 @@
       "put": {
         "operationId": "updateVoiceLinkConfig",
         "summary": "Set or update VoiceLink credentials",
-        "description": "Stores encrypted VoiceLink credentials for outbound calling. `api_key` and `did` are required; `base_url` is optional and defaults to the VoiceLink API host. The `did` must be an E.164 number provisioned on your VoiceLink account. Requires `\"VOICELINK\"` in `allowed_telephony_providers`.",
+        "description": "Stores encrypted VoiceLink credentials for outbound calling. `api_key` and `did` are required; `base_url` is optional and defaults to the VoiceLink API host. The `did` must be an E.164 number provisioned on your VoiceLink account. Requires `\"voicelink\"` in `allowed_telephony_providers`.",
         "tags": ["Config"],
         "requestBody": {
           "required": true,
@@ -3295,7 +3295,7 @@
                     "type": "string",
                     "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", "voicelink"],
                     "default": "mcube",
-                    "description": "Telephony provider. Defaults to `mcube` if not specified. The provider must be in your partner's `allowed_telephony_providers` list and its credentials must be configured (see the `/config/telephony/*` endpoints). Supported carriers honor the agent's `voicemail_detection_enabled` and `voicemail_message` settings when account-level voicemail detection is enabled. `sip` requires `\"SIP\"` to be in `allowed_telephony_providers` and a SIP carrier connection to be configured for your account. `voicelink` requires `\"VOICELINK\"` to be in `allowed_telephony_providers` and VoiceLink credentials configured via `PUT /config/telephony/voicelink`."
+                    "description": "Telephony provider. Defaults to `mcube` if not specified. The provider must be in your partner's `allowed_telephony_providers` list and its credentials must be configured (see the `/config/telephony/*` endpoints). Supported carriers honor the agent's `voicemail_detection_enabled` and `voicemail_message` settings when account-level voicemail detection is enabled. `sip` requires `\"SIP\"` to be in `allowed_telephony_providers` and a SIP carrier connection to be configured for your account. `voicelink` requires `\"voicelink\"` to be in `allowed_telephony_providers` and VoiceLink credentials configured via `PUT /config/telephony/voicelink`."
                   },
                   "variables": {
                     "type": "object",
@@ -4773,6 +4773,16 @@
                   "configured": { "type": "boolean" },
                   "auth_id": { "type": ["string", "null"], "description": "Masked when configured." },
                   "from_number": { "type": ["string", "null"] }
+                }
+              },
+              "voicelink": {
+                "type": "object",
+                "properties": {
+                  "configured": { "type": "boolean" },
+                  "allowed": { "type": "boolean", "description": "Whether `voicelink` is in allowed_telephony_providers." },
+                  "api_key": { "type": ["string", "null"], "description": "Masked when configured." },
+                  "did": { "type": ["string", "null"] },
+                  "base_url": { "type": ["string", "null"] }
                 }
               }
             }
