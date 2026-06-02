@@ -906,6 +906,82 @@
         }
       }
     },
+    "/config/telephony/voicelink": {
+      "put": {
+        "operationId": "updateVoiceLinkConfig",
+        "summary": "Set or update VoiceLink credentials",
+        "description": "Stores encrypted VoiceLink credentials for outbound calling. `api_key` and `did` are required; `base_url` is optional and defaults to the VoiceLink API host. The `did` must be an E.164 number provisioned on your VoiceLink account. Requires `\"VOICELINK\"` in `allowed_telephony_providers`.",
+        "tags": ["Config"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["api_key", "did"],
+                "properties": {
+                  "api_key": {
+                    "type": "string",
+                    "description": "VoiceLink API key (used as the bearer token for the VoiceLink API).",
+                    "example": "vl_live_xxxxxxxxxxxx"
+                  },
+                  "did": {
+                    "type": "string",
+                    "description": "VoiceLink-provisioned number used as the caller ID, in E.164 format.",
+                    "example": "+918011223344"
+                  },
+                  "base_url": {
+                    "type": "string",
+                    "description": "Optional VoiceLink API base URL. Omit to use the default host.",
+                    "example": "https://app.voicelink.co.in"
+                  }
+                }
+              },
+              "example": {
+                "api_key": "vl_live_xxxxxxxxxxxx",
+                "did": "+918011223344"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VoiceLink credentials updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "api_key": { "type": "string", "description": "Masked after save." },
+                        "did": { "type": "string" },
+                        "base_url": { "type": ["string", "null"] },
+                        "message": { "type": "string" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "api_key": "vl_l****xxxx",
+                    "did": "+918011223344",
+                    "base_url": null,
+                    "message": "VoiceLink credentials updated successfully."
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
     "/config/display-name": {
       "put": {
         "operationId": "updateDisplayName",
@@ -3217,9 +3293,9 @@
                   },
                   "provider": {
                     "type": "string",
-                    "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip"],
+                    "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", "voicelink"],
                     "default": "mcube",
-                    "description": "Telephony provider. Defaults to `mcube` if not specified. The provider must be in your partner's `allowed_telephony_providers` list and its credentials must be configured (see the `/config/telephony/*` endpoints). Supported carriers honor the agent's `voicemail_detection_enabled` and `voicemail_message` settings when account-level voicemail detection is enabled. `sip` requires `\"SIP\"` to be in `allowed_telephony_providers` and a SIP carrier connection to be configured for your account."
+                    "description": "Telephony provider. Defaults to `mcube` if not specified. The provider must be in your partner's `allowed_telephony_providers` list and its credentials must be configured (see the `/config/telephony/*` endpoints). Supported carriers honor the agent's `voicemail_detection_enabled` and `voicemail_message` settings when account-level voicemail detection is enabled. `sip` requires `\"SIP\"` to be in `allowed_telephony_providers` and a SIP carrier connection to be configured for your account. `voicelink` requires `\"VOICELINK\"` to be in `allowed_telephony_providers` and VoiceLink credentials configured via `PUT /config/telephony/voicelink`."
                   },
                   "variables": {
                     "type": "object",
@@ -3247,7 +3323,7 @@
                         "call_id": { "type": "string", "format": "uuid" },
                         "session_id": { "type": "string", "format": "uuid" },
                         "status": { "type": "string", "example": "pending" },
-                        "provider": { "type": "string", "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip"] },
+                        "provider": { "type": "string", "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", "voicelink"] },
                         "from_number": { "type": "string" },
                         "to_number": { "type": "string" },
                         "agent_id": { "type": "string", "format": "uuid" }
@@ -4639,7 +4715,7 @@
           "status": { "type": "string", "enum": ["active", "suspended"] },
           "allowed_telephony_providers": {
             "type": "array",
-            "items": { "type": "string", "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip"] },
+            "items": { "type": "string", "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", "voicelink"] },
             "description": "Providers this partner is allowed to use when starting calls or campaigns. Managed by Vocobase platform admins."
           },
           "webhook": {
@@ -4932,7 +5008,7 @@
             "type": ["integer", "null"],
             "description": "Carrier-billed duration in seconds when available."
           },
-          "provider": { "type": ["string", "null"], "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", null] },
+          "provider": { "type": ["string", "null"], "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", "voicelink", null] },
           "duration_seconds": { "type": ["integer", "null"] },
           "error_message": { "type": ["string", "null"] },
           "started_at": { "type": "string", "format": "date-time" },
