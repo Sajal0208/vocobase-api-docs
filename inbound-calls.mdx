@@ -49,6 +49,10 @@ Call ends → session.completed webhook fires
   Inbound calling is supported with **Twilio**, **Plivo**, and **Vobiz**. MCube inbound is not yet available. The flow below uses Twilio as the example; for Plivo and Vobiz, use the [V2 phone-numbers API](#use-the-v2-phone-numbers-api-plivo--vobiz) at the bottom of this page to manage DIDs and agent assignment programmatically.
 </Note>
 
+<Note>
+  If you create telephony connections through the V2 API, use the returned `connection_id` when syncing DIDs or starting outbound calls. A DID can have only one active owner globally, which keeps inbound routing deterministic.
+</Note>
+
 ---
 
 ## Set up inbound calling
@@ -229,6 +233,7 @@ Use this as a copy-paste runbook when testing the V2 inbound flow.
 export BASE_URL="https://api.vocobase.com/api/v2"
 export API_KEY="rg_live_..."
 export PROVIDER="VOBIZ" # or PLIVO
+export CONNECTION_ID="9b7f1c44-c87f-4f0c-9124-3c802a9c1a20" # optional when only one active connection exists
 export DID="+918065480085"
 export AGENT_ID="00000000-0000-0000-0000-000000000000"
 ```
@@ -247,7 +252,7 @@ Expected:
 - `data.telephony.vobiz.configured` is `true` for Vobiz, or `data.telephony.plivo.configured` is `true` for Plivo
 - the provider appears in `data.allowed_telephony_providers`
 
-If the provider is not configured, configure it first:
+If the provider is not configured, configure it first. For new multi-connection BYOP builds, prefer `POST /api/v2/telephony/connections` and save the returned `connection_id`; the older config endpoints update the default connection.
 
 ```bash
 # Vobiz
@@ -269,6 +274,13 @@ curl -X PUT "$BASE_URL/config/telephony/plivo" \
     "auth_token": "your_plivo_auth_token",
     "from_number": "+14155551234"
   }'
+```
+
+List connections when you need to choose a specific Plivo or Vobiz connection:
+
+```bash
+curl -sS "$BASE_URL/telephony/connections?provider=vobiz" \
+  -H "Authorization: Bearer $API_KEY"
 ```
 
 Create or choose an inbound agent:
@@ -297,7 +309,10 @@ Save the returned `data.id` as `AGENT_ID`.
     curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
       -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
       -H "Content-Type: application/json" \
-      -d '{ "provider": "PLIVO" }'
+      -d '{
+        "provider": "PLIVO",
+        "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
+      }'
     ```
 
     Plivo response:
@@ -321,6 +336,7 @@ Save the returned `data.id` as `AGENT_ID`.
       -H "Content-Type: application/json" \
       -d '{
         "provider": "VOBIZ",
+        "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
         "numbers": ["+918065480085", "+919109518550"]
       }'
     ```
@@ -360,6 +376,8 @@ Save the returned `data.id` as `AGENT_ID`.
             "id": "f1a2c3d4-1111-2222-3333-444455556666",
             "phone_number": "+918065480085",
             "provider": "VOBIZ",
+            "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+            "connection_name": "Vobiz India - Support",
             "friendly_name": null,
             "status": "ACTIVE",
             "is_default": false,
@@ -415,7 +433,10 @@ Save the returned `data.id` as `AGENT_ID`.
     curl -X POST https://api.vocobase.com/api/v2/phone-numbers/resync \
       -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
       -H "Content-Type: application/json" \
-      -d '{ "provider": "VOBIZ" }'
+      -d '{
+        "provider": "VOBIZ",
+        "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
+      }'
     ```
 
     ```json
@@ -446,7 +467,7 @@ Save the returned `data.id` as `AGENT_ID`.
 </Steps>
 
 <Tip>
-  See the per-provider setup guides for credential configuration — [Plivo Setup](/telephony/plivo-setup), [Vobiz Setup](/telephony/vobiz-setup). The endpoints above only work after the partner has uploaded their `auth_id` / `auth_token` via `PUT /api/v2/config/telephony/{plivo|vobiz}`.
+  See the per-provider setup guides for credential configuration — [Plivo Setup](/telephony/plivo-setup), [Vobiz Setup](/telephony/vobiz-setup). For multiple named connections, use [Telephony Connections](/telephony/connections).
 </Tip>
 
 ### End-to-end Vobiz test script
@@ -461,6 +482,10 @@ set -euo pipefail
 : "${DID:?Set DID in E.164 format, e.g. +918065480085}"
 
 BASE_URL="${BASE_URL:-https://api.vocobase.com/api/v2}"
+CONNECTION_FRAGMENT=""
+if [ -n "${CONNECTION_ID:-}" ]; then
+  CONNECTION_FRAGMENT=",\"connection_id\":\"$CONNECTION_ID\""
+fi
 
 echo "1. Check config"
 curl -sS "$BASE_URL/config" \
@@ -470,10 +495,10 @@ echo "\n2. Sync Vobiz DID"
 curl -sS -X POST "$BASE_URL/phone-numbers/sync" \
   -H "Authorization: Bearer $API_KEY" \
   -H "Content-Type: application/json" \
-  -d "{\"provider\":\"VOBIZ\",\"numbers\":[\"$DID\"]}"
+  -d "{\"provider\":\"VOBIZ\"$CONNECTION_FRAGMENT,\"numbers\":[\"$DID\"]}"
 
 echo "\n3. List Vobiz DIDs"
-curl -sS "$BASE_URL/phone-numbers?provider=VOBIZ" \
+curl -sS "$BASE_URL/phone-numbers?provider=VOBIZ${CONNECTION_ID:+&connection_id=$CONNECTION_ID}" \
   -H "Authorization: Bearer $API_KEY"
 
 echo "\n4. Set PHONE_NUMBER_ID from the list response, then run:"
@@ -490,7 +515,9 @@ echo "\n5. After assignment succeeds, call $DID from a real phone."
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | `400 VOBIZ_NOT_CONFIGURED` or `400 PLIVO_NOT_CONFIGURED` | Partner has no active telephony connection for that provider | Run `PUT /api/v2/config/telephony/vobiz` or `PUT /api/v2/config/telephony/plivo`, then retry |
+| `400 CONNECTION_AMBIGUOUS` | Partner has multiple active connections for that provider | Pass `connection_id` from `GET /api/v2/telephony/connections` |
 | `400 VALIDATION_ERROR` on Vobiz sync | Body used `phone_numbers`, omitted `numbers`, or sent invalid E.164 values | Send `{ "provider": "VOBIZ", "numbers": ["+918065480085"] }` |
+| `409 VALIDATION_ERROR` | DID is already active on another connection | Disconnect the old owner or use a different DID |
 | `400 AGENT_NOT_FOUND` | Agent ID belongs to another user, is deleted, or is not a valid UUID | Use an active agent owned by the same partner user |
 | `404 phone number not found` | `PHONE_NUMBER_ID` is from another partner/provider or was not imported | Re-run `GET /api/v2/phone-numbers?provider=VOBIZ` and use that `id` |
 | `502 VOBIZ_SYNC_FAILED` | Carrier-side assignment failed | Confirm Vobiz credentials and DID ownership, then retry |
@@ -513,6 +540,9 @@ echo "\n5. After assignment succeeds, call $DID from a real phone."
   </Card>
   <Card title="Vobiz Setup" icon="phone" href="/telephony/vobiz-setup">
     Configure Vobiz credentials and DIDs.
+  </Card>
+  <Card title="Telephony Connections" icon="settings" href="/telephony/connections">
+    Create and manage multiple named BYOP connections.
   </Card>
   <Card title="Twilio Setup" icon="phone" href="/telephony/twilio-setup">
     Configure Twilio credentials for your account.

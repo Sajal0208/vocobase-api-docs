@@ -8,7 +8,7 @@ description: "Configure VoiceLink for outbound calling with the Vocobase API"
 This guide walks you through connecting your VoiceLink account to Vocobase for outbound calling.
 
 <Note>
-  Configure VoiceLink with the Partner API (`PUT /api/v2/config/telephony/voicelink`). Once VoiceLink is configured, start calls programmatically using `POST /calls/start` with `"provider": "voicelink"`.
+  Configure VoiceLink with the Partner API (`PUT /api/v2/config/telephony/voicelink`) for the default connection. To create multiple named VoiceLink connections, use `POST /api/v2/telephony/connections`. Once VoiceLink is configured, start calls programmatically using `POST /calls/start` with `"provider": "voicelink"`.
 </Note>
 
 ## Prerequisites
@@ -42,6 +42,10 @@ This guide walks you through connecting your VoiceLink account to Vocobase for o
 ## Step 2: Configure VoiceLink in Vocobase
 
 Send the credentials through the Partner API. `username`, `password`, and `from_number` are required; `base_url` is optional and defaults to the VoiceLink API host.
+
+<Note>
+  This endpoint updates your default VoiceLink connection. To create multiple named VoiceLink connections, use `POST /api/v2/telephony/connections` and store the returned `connection_id`.
+</Note>
 
 <CodeGroup>
 ```bash cURL
@@ -158,7 +162,7 @@ curl -X GET https://api.vocobase.com/api/v2/config \
 
 ## Step 4: Make a test call
 
-Start an outbound call with `"provider": "voicelink"`:
+Start an outbound call with `"provider": "voicelink"`. If your partner account has multiple active VoiceLink connections, include `connection_id`.
 
 <CodeGroup>
 ```bash cURL
@@ -168,7 +172,8 @@ curl -X POST https://api.vocobase.com/api/v2/calls/start \
   -d '{
     "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "to_number": "+919876543210",
-    "provider": "voicelink"
+    "provider": "voicelink",
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
   }'
 ```
 
@@ -184,7 +189,8 @@ const response = await fetch(
     body: JSON.stringify({
       agent_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
       to_number: "+919876543210",
-      provider: "voicelink"
+      provider: "voicelink",
+      connection_id: "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
     })
   }
 );
@@ -204,7 +210,8 @@ response = requests.post(
     json={
         "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
         "to_number": "+919876543210",
-        "provider": "voicelink"
+        "provider": "voicelink",
+        "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
     }
 )
 print(response.json())
@@ -219,6 +226,7 @@ print(response.json())
     "session_id": "s1234567-abcd-1234-abcd-123456789012",
     "status": "pending",
     "provider": "voicelink",
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
     "from_number": "+918011223344",
     "to_number": "+919876543210",
     "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
@@ -226,7 +234,7 @@ print(response.json())
 }
 ```
 
-VoiceLink uses a Generic WebSocket media model. Vocobase manages the media path; partners only need to configure credentials and pass `"provider": "voicelink"` when starting calls.
+VoiceLink uses a Generic WebSocket media model. Vocobase manages the media path; partners only need to configure credentials and pass `"provider": "voicelink"` when starting calls. Passing only `"provider": "voicelink"` remains valid while there is exactly one active VoiceLink connection.
 
 <Note>
   Inbound calling and call transfer are not yet supported for VoiceLink. Outbound is the supported path today.
@@ -234,7 +242,7 @@ VoiceLink uses a Generic WebSocket media model. Vocobase manages the media path;
 
 ## Managing DIDs
 
-The `from_number` you send is stored as the default outbound DID. To manage multiple VoiceLink DIDs and assign a specific agent to each, use the **Telephony** settings in your Vocobase dashboard — add your VoiceLink numbers and pick the agent that should use each one.
+The `from_number` you send is stored as the default outbound DID. To manage multiple VoiceLink DIDs, create named V2 telephony connections and select the desired one with `connection_id` when starting outbound calls.
 
 ## Troubleshooting
 
@@ -242,6 +250,10 @@ The `from_number` you send is stored as the default outbound DID. To manage mult
 
 - Confirm `"voicelink"` is in `allowed_telephony_providers` from `GET /config`. If it is not, contact your Vocobase account manager.
 - Confirm `username`, `password`, and a `from_number` were saved (`telephony.voicelink.configured: true`).
+
+### `CONNECTION_AMBIGUOUS` error
+
+- Your account has multiple active VoiceLink connections. Call `GET /api/v2/telephony/connections?provider=voicelink` and pass the desired `connection_id` in `POST /api/v2/calls/start`.
 
 ### "Invalid VoiceLink username or password"
 
@@ -263,6 +275,9 @@ Changed your VoiceLink password? Re-send `PUT /api/v2/config/telephony/voicelink
 ## Next steps
 
 <CardGroup cols={2}>
+  <Card title="Telephony Connections" icon="settings" href="/telephony/connections">
+    Create and manage multiple named connections.
+  </Card>
   <Card title="Bring Your Own Phone" icon="phone" href="/telephony/byop-setup">
     Overview of all supported BYOP providers.
   </Card>

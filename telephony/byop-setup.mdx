@@ -48,7 +48,24 @@ If the provider you need is missing from `allowed_telephony_providers`, contact 
 
 ## Configure credentials
 
-Each provider has its own V2 credential endpoint:
+For new BYOP integrations, create named connections with the V2 telephony connections API:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/telephony/connections \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "plivo",
+    "name": "Plivo India - Sales",
+    "auth_id": "MAxxxxxxxxxxxxxxxxxx",
+    "auth_token": "your_plivo_auth_token",
+    "from_number": "+918011223344"
+  }'
+```
+
+The response includes a stable `connection_id`. Store it when you need to choose between multiple connections for the same provider.
+
+Each provider also has a backward-compatible V2 credential endpoint that updates that provider's default connection:
 
 | Provider | Endpoint |
 |----------|----------|
@@ -59,11 +76,11 @@ Each provider has its own V2 credential endpoint:
 | Vobiz | `PUT /api/v2/config/telephony/vobiz` |
 | VoiceLink | `PUT /api/v2/config/telephony/voicelink` |
 
-Use the provider-specific setup page for the required fields and examples.
+Use the provider-specific setup page for the required fields and examples, or see [Telephony Connections](/telephony/connections) for the multi-connection flow.
 
 ## Start a call
 
-After the provider is enabled and configured, start a call with `POST /api/v2/calls/start` and pass the provider value.
+After the provider is enabled and configured, start a call with `POST /api/v2/calls/start` and pass the provider value. If the partner has multiple active connections for that provider, also pass `connection_id`.
 
 ```bash
 curl -X POST https://api.vocobase.com/api/v2/calls/start \
@@ -72,7 +89,8 @@ curl -X POST https://api.vocobase.com/api/v2/calls/start \
   -d '{
     "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "to_number": "+919876543210",
-    "provider": "twilio"
+    "provider": "twilio",
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
   }'
 ```
 
@@ -84,12 +102,15 @@ curl -X POST https://api.vocobase.com/api/v2/calls/start \
     "session_id": "s1234567-abcd-1234-abcd-123456789012",
     "status": "pending",
     "provider": "twilio",
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
     "from_number": "+14155551234",
     "to_number": "+919876543210",
     "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
   }
 }
 ```
+
+Existing integrations that pass only `provider` keep working while there is exactly one active connection for that provider. When more than one active connection exists, the API returns `CONNECTION_AMBIGUOUS` until `connection_id` is supplied.
 
 ## Inbound numbers
 
@@ -99,8 +120,13 @@ For inbound calling with Plivo or Vobiz, use the V2 phone-numbers API to sync DI
 curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
   -H "Content-Type: application/json" \
-  -d '{ "provider": "PLIVO" }'
+  -d '{
+    "provider": "PLIVO",
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
+  }'
 ```
+
+A DID can have only one active owner globally. This keeps inbound routing deterministic when partners create multiple connections.
 
 See [Inbound Calls](/inbound-calls) for the full DID assignment flow.
 
@@ -110,6 +136,7 @@ See [Inbound Calls](/inbound-calls) for the full DID assignment flow.
 |---------|--------|
 | Provider is not allowed | Ask Vocobase support to enable the provider for your partner account. |
 | Provider is allowed but not configured | Send the provider's V2 credential setup request again. |
+| `CONNECTION_AMBIGUOUS` from `/calls/start` | Pass the `connection_id` returned by `GET /api/v2/telephony/connections`. |
 | Calls fail immediately | Confirm the provider credentials, from-number, and destination number format. |
 | Inbound DID does not route to the expected agent | Re-check the DID assignment with `GET /api/v2/phone-numbers`. |
 
@@ -121,5 +148,8 @@ See [Inbound Calls](/inbound-calls) for the full DID assignment flow.
   </Card>
   <Card title="Inbound Calls" icon="phone-incoming" href="/inbound-calls">
     Assign inbound numbers to agents.
+  </Card>
+  <Card title="Telephony Connections" icon="settings" href="/telephony/connections">
+    Create and manage multiple named connections.
   </Card>
 </CardGroup>
