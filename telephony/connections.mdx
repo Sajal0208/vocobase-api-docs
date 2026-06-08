@@ -1,0 +1,201 @@
+---
+title: "Telephony Connections"
+description: "Create and manage multiple named BYOP telephony connections with the V2 API"
+---
+
+# Telephony Connections
+
+Use V2 telephony connections when a partner needs more than one carrier account, trunk, or DID set for the same provider. Each connection has its own `connection_id`, editable `name`, credentials, and phone numbers.
+
+<Note>
+  The provider-specific `PUT /api/v2/config/telephony/*` endpoints remain backward compatible and update that provider's default connection. For new BYOP builds, prefer `POST /api/v2/telephony/connections` so every connection is named and addressable.
+</Note>
+
+## Supported providers
+
+| Provider | `provider` value | Multiple named connections |
+|----------|------------------|----------------------------|
+| Twilio | `"twilio"` | Yes |
+| Exotel | `"exotel"` | Yes |
+| Plivo | `"plivo"` | Yes |
+| Vobiz | `"vobiz"` | Yes |
+| SIP | `"sip"` | Yes |
+| VoiceLink | `"voicelink"` | Yes |
+
+MCube remains configured through the MCube setup flow and is not selected by `connection_id`.
+
+## Create a connection
+
+Create a connection by passing a provider, a human-readable name, and the provider credentials. The response returns the stable `connection_id` to store in your own system.
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/telephony/connections \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "plivo",
+    "name": "Plivo India - Sales",
+    "auth_id": "MAxxxxxxxxxxxxxxxxxx",
+    "auth_token": "your_plivo_auth_token",
+    "from_number": "+918011223344"
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "connection": {
+      "id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+      "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+      "provider": "plivo",
+      "provider_key": "PLIVO",
+      "name": "Plivo India - Sales",
+      "status": "ACTIVE",
+      "is_default": true,
+      "phone_numbers": [
+        {
+          "id": "f1a2c3d4-1111-2222-3333-444455556666",
+          "phone_number": "+918011223344",
+          "friendly_name": null,
+          "status": "ACTIVE",
+          "is_default": true,
+          "agent": null
+        }
+      ],
+      "created_at": "2026-06-09T08:00:00.000Z",
+      "updated_at": "2026-06-09T08:00:00.000Z"
+    }
+  }
+}
+```
+
+## List connections
+
+Use `GET /api/v2/telephony/connections` to retrieve the connections available to the authenticated partner. Pass `provider` to narrow the list.
+
+```bash
+curl -X GET "https://api.vocobase.com/api/v2/telephony/connections?provider=plivo" \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "connections": [
+      {
+        "id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+        "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+        "provider": "plivo",
+        "provider_key": "PLIVO",
+        "name": "Plivo India - Sales",
+        "status": "ACTIVE",
+        "is_default": true,
+        "last_verified_at": "2026-06-09T08:00:00.000Z",
+        "last_error_message": null,
+        "phone_numbers": [
+          {
+            "id": "f1a2c3d4-1111-2222-3333-444455556666",
+            "phone_number": "+918011223344",
+            "friendly_name": null,
+            "status": "ACTIVE",
+            "is_default": true,
+            "agent": null
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+## Start calls with a connection
+
+When a partner has one active connection for a provider, existing calls that pass only `provider` continue to work:
+
+```json
+{
+  "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "to_number": "+919876543210",
+  "provider": "plivo"
+}
+```
+
+When a partner has multiple active connections for the same provider, pass `connection_id` so routing is deterministic:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/calls/start \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "to_number": "+919876543210",
+    "provider": "plivo",
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
+  }'
+```
+
+If `connection_id` is omitted while multiple active connections exist for that provider, the API returns `CONNECTION_AMBIGUOUS`.
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "CONNECTION_AMBIGUOUS",
+    "message": "connection_id is required because this partner has multiple active plivo connections."
+  }
+}
+```
+
+## Rename a connection
+
+Only the display name is editable through this endpoint. To rotate credentials, create a new connection or use the provider-specific config endpoint for the default connection.
+
+```bash
+curl -X PATCH https://api.vocobase.com/api/v2/telephony/connections/9b7f1c44-c87f-4f0c-9124-3c802a9c1a20 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{ "name": "Plivo India - Support" }'
+```
+
+## Disconnect a connection
+
+Disconnecting a connection disables it for new outbound calls and inbound routing. Existing completed call records remain available.
+
+```bash
+curl -X DELETE https://api.vocobase.com/api/v2/telephony/connections/9b7f1c44-c87f-4f0c-9124-3c802a9c1a20 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+## Phone-number ownership
+
+A phone number can have only one active owner globally. If the same DID is active on another connection, Vocobase rejects the new attachment so inbound routing stays deterministic.
+
+For Plivo and Vobiz inbound DIDs, pass `connection_id` when syncing numbers for a specific connection:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "VOBIZ",
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+    "numbers": ["+918011223344", "+918011223345"]
+  }'
+```
+
+## Dashboard visibility
+
+Connections created through the V2 API appear in the Vocobase dashboard telephony settings with their connection name and ID. Use the same `connection_id` from the dashboard or API response when starting calls from partner systems.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Bring Your Own Phone" icon="phone" href="/telephony/byop-setup">
+    Review the BYOP provider overview.
+  </Card>
+  <Card title="Inbound Calls" icon="phone-incoming" href="/inbound-calls">
+    Assign inbound numbers to agents.
+  </Card>
+</CardGroup>

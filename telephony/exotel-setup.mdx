@@ -32,6 +32,10 @@ Connect your Exotel account to make outbound calls through the Vocobase platform
 
 ## Configure via API
 
+<Note>
+  This endpoint updates your default Exotel connection. To create multiple named Exotel connections, use `POST /api/v2/telephony/connections` and store the returned `connection_id`.
+</Note>
+
 <CodeGroup>
 ```bash cURL
 curl -X PUT https://api.vocobase.com/api/v2/config/telephony/exotel \
@@ -131,7 +135,7 @@ The response will include:
 
 ## Make a test call
 
-Once configured, initiate an outbound call with `provider: "exotel"`:
+Once configured, initiate an outbound call with `provider: "exotel"`. If your partner account has multiple active Exotel connections, include `connection_id`.
 
 <CodeGroup>
 ```bash cURL
@@ -141,7 +145,8 @@ curl -X POST https://api.vocobase.com/api/v2/calls/start \
   -d '{
     "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "to_number": "+919876543210",
-    "provider": "exotel"
+    "provider": "exotel",
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
   }'
 ```
 
@@ -156,6 +161,7 @@ const response = await fetch("https://api.vocobase.com/api/v2/calls/start", {
     agent_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     to_number: "+919876543210",
     provider: "exotel",
+    connection_id: "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
   }),
 });
 ```
@@ -169,12 +175,15 @@ const response = await fetch("https://api.vocobase.com/api/v2/calls/start", {
     "session_id": "s1234567-abcd-1234-abcd-123456789012",
     "status": "pending",
     "provider": "exotel",
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
     "from_number": "+919876543210",
     "to_number": "+919876543210",
     "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
   }
 }
 ```
+
+Passing only `"provider": "exotel"` remains valid while there is exactly one active Exotel connection.
 
 ## How Exotel calls work
 
@@ -190,6 +199,7 @@ const response = await fetch("https://api.vocobase.com/api/v2/calls/start", {
 | Issue | Solution |
 |-------|----------|
 | "Exotel not configured" error | Ensure all 6 fields are set: account_sid, api_key, api_token, subdomain, caller_id, applet_id |
+| `CONNECTION_AMBIGUOUS` error | Call `GET /api/v2/telephony/connections?provider=exotel` and pass the desired `connection_id` in `POST /api/v2/calls/start`. |
 | "Provider not allowed" (403) | Contact Vocobase to enable Exotel for your partner account |
 | Calls fail to connect | Verify credentials in the Exotel dashboard. Check that the applet is active. |
 | Wrong caller ID displayed | Update the `caller_id` field with the correct E.164 number |
@@ -198,6 +208,9 @@ const response = await fetch("https://api.vocobase.com/api/v2/calls/start", {
 ## Next steps
 
 <CardGroup cols={2}>
+  <Card title="Telephony Connections" icon="settings" href="/telephony/connections">
+    Create and manage multiple named connections.
+  </Card>
   <Card title="Twilio Setup" icon="phone" href="/telephony/twilio-setup">
     Configure Twilio as an alternative provider.
   </Card>

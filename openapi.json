@@ -43,7 +43,11 @@
     },
     {
       "name": "Phone Numbers",
-      "description": "Import Plivo/Vobiz DIDs, assign agents for inbound routing, and re-sync carrier Application bindings."
+      "description": "Import DIDs, assign agents for inbound routing, and re-sync carrier Application bindings."
+    },
+    {
+      "name": "Telephony Connections",
+      "description": "Create, list, rename, and disconnect named V2 telephony connections."
     },
     {
       "name": "Campaigns",
@@ -1047,19 +1051,212 @@
         }
       }
     },
+    "/telephony/connections": {
+      "get": {
+        "operationId": "listTelephonyConnections",
+        "summary": "List telephony connections",
+        "description": "Lists active named telephony connections owned by the authenticated partner. Use the optional provider filter to narrow results.",
+        "tags": ["Telephony Connections"],
+        "parameters": [
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": ["twilio", "exotel", "plivo", "vobiz", "sip", "voicelink"]
+            },
+            "description": "Optional provider filter."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Telephony connections.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "connections": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/TelephonyConnection" }
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "post": {
+        "operationId": "createTelephonyConnection",
+        "summary": "Create a telephony connection",
+        "description": "Creates a named BYOP telephony connection. Store the returned `connection_id` and pass it to call-start or phone-number sync endpoints when a partner has multiple active connections for the same provider.",
+        "tags": ["Telephony Connections"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/CreateTelephonyConnectionRequest" }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Connection created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "connection": { "$ref": "#/components/schemas/TelephonyConnection" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "connection": {
+                      "id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                      "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                      "provider": "plivo",
+                      "provider_key": "PLIVO",
+                      "name": "Plivo India - Sales",
+                      "status": "ACTIVE",
+                      "is_default": true,
+                      "phone_numbers": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "403": { "$ref": "#/components/responses/Forbidden" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/telephony/connections/{connection_id}": {
+      "patch": {
+        "operationId": "renameTelephonyConnection",
+        "summary": "Rename a telephony connection",
+        "description": "Updates the display name of an active partner-owned telephony connection. Credentials are not rotated by this endpoint.",
+        "tags": ["Telephony Connections"],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Telephony connection ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["name"],
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 100,
+                    "example": "Plivo India - Support"
+                  }
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Connection renamed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "connection": { "$ref": "#/components/schemas/TelephonyConnection" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "delete": {
+        "operationId": "disconnectTelephonyConnection",
+        "summary": "Disconnect a telephony connection",
+        "description": "Disconnects an active partner-owned telephony connection and inactivates its phone numbers.",
+        "tags": ["Telephony Connections"],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Telephony connection ID."
+          }
+        ],
+        "responses": {
+          "204": { "description": "Connection disconnected." },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
     "/phone-numbers": {
       "get": {
         "operationId": "listPhoneNumbers",
         "summary": "List imported phone numbers",
-        "description": "Lists the partner's imported Plivo and Vobiz DIDs. Use the optional `provider` query to filter to one carrier. The returned phone number `id` is used by `PUT /phone-numbers/{id}` for agent assignment.",
+        "description": "Lists the partner's imported DIDs. Use `provider` or `connection_id` to filter the response. The returned phone number `id` is used by `PUT /phone-numbers/{id}` for agent assignment.",
         "tags": ["Phone Numbers"],
         "parameters": [
           {
             "name": "provider",
             "in": "query",
             "required": false,
-            "schema": { "type": "string", "enum": ["PLIVO", "VOBIZ"] },
+            "schema": {
+              "type": "string",
+              "enum": ["TWILIO", "EXOTEL", "PLIVO", "VOBIZ", "SIP", "VOICELINK"]
+            },
             "description": "Optional provider filter."
+          },
+          {
+            "name": "connection_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional connection filter."
           }
         ],
         "responses": {
@@ -1088,6 +1285,8 @@
                     "phone_numbers": [
                       {
                         "id": "f1a2c3d4-1111-2222-3333-444455556666",
+                        "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                        "connection_name": "Vobiz Mumbai",
                         "phone_number": "+918065480085",
                         "provider": "VOBIZ",
                         "friendly_name": null,
@@ -1112,7 +1311,7 @@
       "post": {
         "operationId": "syncPhoneNumbers",
         "summary": "Sync Plivo or Vobiz DIDs",
-        "description": "Imports DIDs into Vocobase for inbound routing. For Plivo, Vocobase pulls the inventory from Plivo REST using the partner's configured credentials. For Vobiz, pass an explicit `numbers` array because Vobiz inventory pull is not available. Vobiz uses `numbers`, not `phone_numbers`.",
+        "description": "Imports DIDs into Vocobase for inbound routing. For Plivo, Vocobase pulls the inventory from Plivo REST using the selected connection's credentials. For Vobiz, pass an explicit `numbers` array because Vobiz inventory pull is not available. Vobiz uses `numbers`, not `phone_numbers`. Pass `connection_id` when the partner has multiple active connections for the provider.",
         "tags": ["Phone Numbers"],
         "requestBody": {
           "required": true,
@@ -1124,7 +1323,12 @@
                     "type": "object",
                     "required": ["provider"],
                     "properties": {
-                      "provider": { "type": "string", "const": "PLIVO" }
+                      "provider": { "type": "string", "const": "PLIVO" },
+                      "connection_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Optional unless multiple active Plivo connections exist."
+                      }
                     }
                   },
                   {
@@ -1132,6 +1336,11 @@
                     "required": ["provider", "numbers"],
                     "properties": {
                       "provider": { "type": "string", "const": "VOBIZ" },
+                      "connection_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Optional unless multiple active Vobiz connections exist."
+                      },
                       "numbers": {
                         "type": "array",
                         "items": { "type": "string", "pattern": "^\\+[1-9]\\d{6,14}$" },
@@ -1145,12 +1354,16 @@
               "examples": {
                 "plivo": {
                   "summary": "Plivo inventory pull",
-                  "value": { "provider": "PLIVO" }
+                  "value": {
+                    "provider": "PLIVO",
+                    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
+                  }
                 },
                 "vobiz": {
                   "summary": "Vobiz explicit DID list",
                   "value": {
                     "provider": "VOBIZ",
+                    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
                     "numbers": ["+918065480085", "+919109518550"]
                   }
                 }
@@ -1226,10 +1439,18 @@
                 "type": "object",
                 "required": ["provider"],
                 "properties": {
-                  "provider": { "type": "string", "enum": ["PLIVO", "VOBIZ"] }
+                  "provider": { "type": "string", "enum": ["PLIVO", "VOBIZ"] },
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Optional unless multiple active connections exist for this provider."
+                  }
                 }
               },
-              "example": { "provider": "VOBIZ" }
+              "example": {
+                "provider": "VOBIZ",
+                "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
+              }
             }
           }
         },
@@ -3277,7 +3498,7 @@
       "post": {
         "operationId": "startCall",
         "summary": "Start an outbound call",
-        "description": "Initiates an outbound phone call via MCube, Twilio, Exotel, Plivo, Vobiz, or SIP. Requires sufficient credits and available call concurrency; use `GET /calls/concurrency` to inspect current capacity before starting a call. The provider you pass must appear in the partner's `allowed_telephony_providers` list and its credentials must already be configured. The call is placed asynchronously -- use webhooks or polling to track status updates.",
+        "description": "Initiates an outbound phone call via MCube, Twilio, Exotel, Plivo, Vobiz, SIP, or VoiceLink. Requires sufficient credits and available call concurrency; use `GET /calls/concurrency` to inspect current capacity before starting a call. The provider you pass must appear in the partner's `allowed_telephony_providers` list and its credentials must already be configured. For non-MCube providers, pass `connection_id` when the partner has multiple active connections for the same provider. Provider-only calls remain backward compatible when exactly one active connection exists for that provider. The call is placed asynchronously -- use webhooks or polling to track status updates.",
         "tags": ["Calls"],
         "requestBody": {
           "required": true,
@@ -3301,7 +3522,12 @@
                     "type": "string",
                     "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", "voicelink"],
                     "default": "mcube",
-                    "description": "Telephony provider. Defaults to `mcube` if not specified. The provider must be in your partner's `allowed_telephony_providers` list and its credentials must be configured (see the `/config/telephony/*` endpoints). Supported carriers honor the agent's `voicemail_detection_enabled` and `voicemail_message` settings when account-level voicemail detection is enabled. `sip` requires `\"SIP\"` to be in `allowed_telephony_providers` and a SIP carrier connection to be configured for your account. `voicelink` requires `\"voicelink\"` to be in `allowed_telephony_providers` and VoiceLink credentials configured via `PUT /config/telephony/voicelink`."
+                    "description": "Telephony provider. Defaults to `mcube` if not specified. The provider must be in your partner's `allowed_telephony_providers` list and its credentials must be configured."
+                  },
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Telephony connection ID to use for this call. Required when multiple active connections exist for the selected non-MCube provider."
                   },
                   "variables": {
                     "type": "object",
@@ -3330,6 +3556,7 @@
                         "session_id": { "type": "string", "format": "uuid" },
                         "status": { "type": "string", "example": "pending" },
                         "provider": { "type": "string", "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", "voicelink"] },
+                        "connection_id": { "type": ["string", "null"], "format": "uuid" },
                         "from_number": { "type": "string" },
                         "to_number": { "type": "string" },
                         "agent_id": { "type": "string", "format": "uuid" }
@@ -3344,6 +3571,7 @@
                     "session_id": "s1234567-abcd-1234-abcd-123456789012",
                     "status": "pending",
                     "provider": "twilio",
+                    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
                     "from_number": "+14155551234",
                     "to_number": "+919876543210",
                     "agent_id": "a1234567-abcd-1234-abcd-123456789012"
@@ -3634,7 +3862,7 @@
             "description": "Call not found, or recording is not available for this call.",
             "content": {
               "application/json": {
-                "schema": { "$ref": "#/components/schemas/Error" },
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
                 "examples": {
                   "callNotFound": {
                     "summary": "Call not found",
@@ -3839,7 +4067,7 @@
               }
             }
           },
-          "400": { "$ref": "#/components/responses/Error" },
+          "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "404": { "$ref": "#/components/responses/NotFound" },
           "500": { "$ref": "#/components/responses/InternalError" }
@@ -5025,6 +5253,11 @@
             "description": "Carrier-billed duration in seconds when available."
           },
           "provider": { "type": ["string", "null"], "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", "voicelink", null] },
+          "connection_id": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "Telephony connection used for the call, when applicable."
+          },
           "duration_seconds": { "type": ["integer", "null"] },
           "error_message": { "type": ["string", "null"] },
           "started_at": { "type": "string", "format": "date-time" },
@@ -5167,11 +5400,145 @@
           "updated_at": { "type": "string", "format": "date-time" }
         }
       },
+      "CreateTelephonyConnectionRequest": {
+        "type": "object",
+        "required": ["provider", "name"],
+        "properties": {
+          "provider": {
+            "type": "string",
+            "enum": ["twilio", "exotel", "plivo", "vobiz", "sip", "voicelink"],
+            "description": "Telephony provider to connect."
+          },
+          "name": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100,
+            "description": "Human-readable connection name.",
+            "example": "Plivo India - Sales"
+          },
+          "account_sid": {
+            "type": "string",
+            "description": "Twilio/Exotel account SID, or Plivo/Vobiz auth ID."
+          },
+          "auth_id": {
+            "type": "string",
+            "description": "Alias for `account_sid` for Plivo/Vobiz."
+          },
+          "auth_token": {
+            "type": "string",
+            "description": "Provider auth token."
+          },
+          "api_key": {
+            "type": "string",
+            "description": "Exotel API key."
+          },
+          "subdomain": {
+            "type": "string",
+            "description": "Exotel account subdomain."
+          },
+          "caller_id": {
+            "type": "string",
+            "description": "Exotel caller ID."
+          },
+          "from_number": {
+            "type": "string",
+            "pattern": "^\\+[1-9]\\d{6,14}$",
+            "description": "Default outbound DID in E.164 format."
+          },
+          "sip_host": {
+            "type": "string",
+            "description": "SIP carrier host for BYOP SIP connections."
+          },
+          "outbound_username": {
+            "type": "string",
+            "description": "Outbound SIP username."
+          },
+          "outbound_password": {
+            "type": "string",
+            "description": "Outbound SIP password."
+          },
+          "source_ips": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "SIP carrier source IPs or CIDR ranges for inbound calls."
+          },
+          "did_number": {
+            "type": "string",
+            "pattern": "^\\+[1-9]\\d{6,14}$",
+            "description": "DID for SIP or VoiceLink connections."
+          },
+          "sip_transport": {
+            "type": "string",
+            "enum": ["UDP", "TCP", "TLS"],
+            "description": "SIP transport protocol."
+          },
+          "username": {
+            "type": "string",
+            "description": "VoiceLink username."
+          },
+          "password": {
+            "type": "string",
+            "description": "VoiceLink password."
+          },
+          "base_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Optional VoiceLink API base URL."
+          }
+        }
+      },
+      "TelephonyConnection": {
+        "type": "object",
+        "description": "Named V2 telephony connection. Secrets are never returned.",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Stable connection ID to pass to call-start and phone-number endpoints."
+          },
+          "provider": {
+            "type": "string",
+            "enum": ["twilio", "exotel", "plivo", "vobiz", "sip", "voicelink"]
+          },
+          "provider_key": {
+            "type": "string",
+            "enum": ["TWILIO", "EXOTEL", "PLIVO", "VOBIZ", "SIP", "VOICELINK"]
+          },
+          "name": { "type": "string" },
+          "status": {
+            "type": "string",
+            "enum": ["ACTIVE", "INVALID_CREDENTIALS", "DISCONNECTED"]
+          },
+          "is_default": { "type": "boolean" },
+          "last_verified_at": { "type": ["string", "null"], "format": "date-time" },
+          "last_error_message": { "type": ["string", "null"] },
+          "phone_numbers": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/PhoneNumber" }
+          },
+          "livekit_sip_uri": {
+            "type": ["string", "null"],
+            "description": "Returned for SIP create responses when available."
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
       "PhoneNumber": {
         "type": "object",
         "description": "Imported carrier DID managed through the V2 phone-numbers API.",
         "properties": {
           "id": { "type": "string", "format": "uuid" },
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Telephony connection that owns this DID."
+          },
+          "connection_name": {
+            "type": ["string", "null"],
+            "description": "Display name of the owning telephony connection."
+          },
           "phone_number": {
             "type": "string",
             "description": "DID in E.164 format.",
@@ -5179,7 +5546,7 @@
           },
           "provider": {
             "type": "string",
-            "enum": ["PLIVO", "VOBIZ"],
+            "enum": ["TWILIO", "EXOTEL", "PLIVO", "VOBIZ", "SIP", "VOICELINK"],
             "description": "Carrier connection that owns this DID."
           },
           "friendly_name": { "type": ["string", "null"] },
@@ -5237,6 +5604,18 @@
             "example": {
               "success": false,
               "error": { "code": "UNAUTHORIZED", "message": "Invalid or missing API key" }
+            }
+          }
+        }
+      },
+      "Forbidden": {
+        "description": "The API key is valid, but the partner is not allowed to perform this action.",
+        "content": {
+          "application/json": {
+            "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+            "example": {
+              "success": false,
+              "error": { "code": "FORBIDDEN", "message": "Access denied" }
             }
           }
         }
