@@ -61,7 +61,7 @@ curl -X POST https://api.vocobase.com/api/v2/telephony/connections \
     "outbound_password": "carrier-password",
     "source_ips": ["203.0.113.10", "203.0.113.11"],
     "did_number": "+918011223344",
-    "sip_transport": "udp"
+    "sip_transport": "UDP"
   }'
 ```
 
@@ -69,22 +69,25 @@ curl -X POST https://api.vocobase.com/api/v2/telephony/connections \
 {
   "success": true,
   "data": {
-    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
-    "provider": "sip",
-    "provider_key": "SIP",
-    "name": "Tata Tele India",
-    "status": "ACTIVE",
-    "sip_host": "sip.your-carrier.com",
-    "sip_transport": "udp",
-    "livekit_sip_uri": "sip:9b7f1c44-c87f-4f0c-9124-3c802a9c1a20@sip.vocobase.com",
-    "phone_numbers": [
-      {
-        "phone_number": "+918011223344",
-        "status": "ACTIVE",
-        "is_default": true,
-        "agent": null
-      }
-    ]
+    "connection": {
+      "id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+      "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+      "provider": "sip",
+      "provider_key": "SIP",
+      "name": "Tata Tele India",
+      "status": "ACTIVE",
+      "sip_host": "sip.your-carrier.com",
+      "sip_transport": "UDP",
+      "livekit_sip_uri": "sip:9b7f1c44-c87f-4f0c-9124-3c802a9c1a20@sip.vocobase.com",
+      "phone_numbers": [
+        {
+          "phone_number": "+918011223344",
+          "status": "ACTIVE",
+          "is_default": true,
+          "agent": null
+        }
+      ]
+    }
   }
 }
 ```

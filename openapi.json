@@ -1148,6 +1148,21 @@
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "403": { "$ref": "#/components/responses/Forbidden" },
+          "409": {
+            "description": "A requested DID is already active on another connection.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "Phone number +918011223344 is already active on connection 9b7f1c44-c87f-4f0c-9124-3c802a9c1a20. Deactivate or remove it before assigning it to another connection."
+                  }
+                }
+              }
+            }
+          },
           "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
@@ -1421,6 +1436,21 @@
           },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
+          "409": {
+            "description": "A synced DID is already active on another connection.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "Phone number +918065480085 is already active on connection 9b7f1c44-c87f-4f0c-9124-3c802a9c1a20. Deactivate or remove it before assigning it to another connection."
+                  }
+                }
+              }
+            }
+          },
           "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
@@ -1576,6 +1606,21 @@
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "404": { "$ref": "#/components/responses/NotFound" },
+          "409": {
+            "description": "The DID is already active on another connection.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "Phone number +918065480085 is already active on connection 9b7f1c44-c87f-4f0c-9124-3c802a9c1a20. Deactivate or remove it before assigning it to another connection."
+                  }
+                }
+              }
+            }
+          },
           "502": {
             "description": "Carrier Application sync failed. The local assignment was not committed.",
             "content": {

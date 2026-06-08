@@ -517,7 +517,7 @@ echo "\n5. After assignment succeeds, call $DID from a real phone."
 | `400 VOBIZ_NOT_CONFIGURED` or `400 PLIVO_NOT_CONFIGURED` | Partner has no active telephony connection for that provider | Run `PUT /api/v2/config/telephony/vobiz` or `PUT /api/v2/config/telephony/plivo`, then retry |
 | `400 CONNECTION_AMBIGUOUS` | Partner has multiple active connections for that provider | Pass `connection_id` from `GET /api/v2/telephony/connections` |
 | `400 VALIDATION_ERROR` on Vobiz sync | Body used `phone_numbers`, omitted `numbers`, or sent invalid E.164 values | Send `{ "provider": "VOBIZ", "numbers": ["+918065480085"] }` |
-| `409 PHONE_NUMBER_ALREADY_ACTIVE` | DID is already active on another connection | Disconnect the old owner or use a different DID |
+| `409 VALIDATION_ERROR` | DID is already active on another connection | Disconnect the old owner or use a different DID |
 | `400 AGENT_NOT_FOUND` | Agent ID belongs to another user, is deleted, or is not a valid UUID | Use an active agent owned by the same partner user |
 | `404 phone number not found` | `PHONE_NUMBER_ID` is from another partner/provider or was not imported | Re-run `GET /api/v2/phone-numbers?provider=VOBIZ` and use that `id` |
 | `502 VOBIZ_SYNC_FAILED` | Carrier-side assignment failed | Confirm Vobiz credentials and DID ownership, then retry |
