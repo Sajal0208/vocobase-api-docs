@@ -2184,7 +2184,9 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "500": { "$ref": "#/components/responses/InternalError" }
         }
-      },
+      }
+    },
+    "/agent/background-audio/upload-url": {
       "post": {
         "operationId": "createBackgroundAudioUploadUrl",
         "summary": "Mint a presigned upload URL",
