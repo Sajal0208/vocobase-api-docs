@@ -153,7 +153,7 @@ Get up and running with the Vocobase Partner API. By the end of this guide, you 
   </Step>
 
   <Step title="Make your first call">
-    Initiate an outbound call using the agent you just created. Replace the `agent_id` with the ID from the previous step.
+    Initiate an outbound call using the agent you just created. Replace the `agent_id` with the ID from the previous step. If your account has multiple active connections for the selected provider, include `connection_id` from `GET /api/v2/telephony/connections`.
 
     <CodeGroup>
     ```bash cURL
@@ -163,7 +163,8 @@ Get up and running with the Vocobase Partner API. By the end of this guide, you 
       -d '{
         "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
         "to_number": "+919876543210",
-        "provider": "twilio"
+        "provider": "twilio",
+        "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
       }'
     ```
 
@@ -177,7 +178,8 @@ Get up and running with the Vocobase Partner API. By the end of this guide, you 
       body: JSON.stringify({
         agent_id: "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
         to_number: "+919876543210",
-        provider: "twilio"
+        provider: "twilio",
+        connection_id: "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
       })
     });
     const data = await response.json();
@@ -196,7 +198,8 @@ Get up and running with the Vocobase Partner API. By the end of this guide, you 
         json={
             "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
             "to_number": "+919876543210",
-            "provider": "twilio"
+            "provider": "twilio",
+            "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
         }
     )
     print(response.json())
@@ -211,6 +214,7 @@ Get up and running with the Vocobase Partner API. By the end of this guide, you 
         "session_id": "s1234567-abcd-1234-abcd-123456789012",
         "status": "pending",
         "provider": "twilio",
+        "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
         "from_number": "+14155551234",
         "to_number": "+919876543210",
         "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
@@ -218,7 +222,7 @@ Get up and running with the Vocobase Partner API. By the end of this guide, you 
     }
     ```
 
-    The call is placed asynchronously. Set up [webhooks](/webhooks/setup) to receive a notification when the call completes, including the full transcript and recording URL.
+    The `from_number` is resolved from the selected provider connection and returned in the response. The call is placed asynchronously. Set up [webhooks](/webhooks/setup) to receive a notification when the call completes, including the full transcript and recording URL.
   </Step>
 </Steps>
 
