@@ -60,6 +60,7 @@ curl -X POST https://api.vocobase.com/api/v2/telephony/connections \
           "friendly_name": null,
           "status": "ACTIVE",
           "is_default": true,
+          "inbound_enabled": false,
           "agent": null
         }
       ],
@@ -101,6 +102,7 @@ curl -X GET "https://api.vocobase.com/api/v2/telephony/connections?provider=pliv
             "friendly_name": null,
             "status": "ACTIVE",
             "is_default": true,
+            "inbound_enabled": false,
             "agent": null
           }
         ]
@@ -170,7 +172,7 @@ curl -X DELETE https://api.vocobase.com/api/v2/telephony/connections/9b7f1c44-c8
 
 ## Phone-number ownership
 
-A phone number can have only one active owner globally. If the same DID is active on another connection, Vocobase rejects the new attachment so inbound routing stays deterministic.
+A phone number can be active on multiple connections for outbound caller ID reuse. Vocobase only rejects a duplicate when more than one active row for the same DID is enabled for inbound routing.
 
 For Plivo and Vobiz inbound DIDs, pass `connection_id` when syncing numbers for a specific connection:
 

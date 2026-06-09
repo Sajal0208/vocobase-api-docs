@@ -126,7 +126,7 @@ curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
   }'
 ```
 
-A DID can have only one active owner globally. This keeps inbound routing deterministic when partners create multiple connections.
+A DID can be active on multiple connections for outbound caller ID reuse. Inbound routing stays deterministic because only one active row per DID can have `inbound_enabled: true`.
 
 See [Inbound Calls](/inbound-calls) for the full DID assignment flow.
 
