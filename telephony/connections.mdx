@@ -138,6 +138,24 @@ curl -X POST https://api.vocobase.com/api/v2/calls/start \
   }'
 ```
 
+```json
+{
+  "success": true,
+  "data": {
+    "call_id": "c1234567-abcd-1234-abcd-123456789012",
+    "session_id": "s1234567-abcd-1234-abcd-123456789012",
+    "status": "pending",
+    "provider": "plivo",
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+    "from_number": "+918011223344",
+    "to_number": "+919876543210",
+    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  }
+}
+```
+
+`POST /api/v2/calls/start` does not accept a per-call `from_number` override. The caller ID is resolved from the selected connection: Twilio uses the connection default number, Exotel uses the saved caller ID, and Plivo, Vobiz, SIP, and VoiceLink prefer an agent-bound active number before the connection default. The resolved value is returned as `from_number` in the response.
+
 If `connection_id` is omitted while multiple active connections exist for that provider, the API returns `CONNECTION_AMBIGUOUS`.
 
 ```json
