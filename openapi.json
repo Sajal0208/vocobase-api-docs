@@ -1561,7 +1561,7 @@
                 "client_id": 415,
                 "did_id": 812,
                 "call_recording": 1,
-                "user_status": 1,
+                "user_status": 2,
                 "description": "Sales outbound DID"
               }
             }
@@ -6623,7 +6623,7 @@
           "client_id": { "type": "integer", "description": "VoiceLink client ID." },
           "did_id": { "type": "integer", "description": "VoiceLink DID ID." },
           "call_recording": { "type": "integer", "enum": [0, 1] },
-          "user_status": { "type": "integer" },
+          "user_status": { "type": "integer", "enum": [2, 4], "description": "Mapping status: 2 = assigned (active), 4 = inactive. VoiceLink rejects other values." },
           "user_expiry_date": { "type": "string", "format": "date" },
           "description": { "type": "string" },
           "client_auto_renew": { "type": "integer", "enum": [0, 1] }
