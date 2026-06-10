@@ -50,6 +50,10 @@
       "description": "Create, list, rename, and disconnect named V2 telephony connections."
     },
     {
+      "name": "VoiceLink Management",
+      "description": "Manage VoiceLink reseller clients, DID mapping, and readiness sync."
+    },
+    {
       "name": "Campaigns",
       "description": "Create and run outbound calling campaigns. Upload contacts in bulk, start/pause/resume/stop the campaign, and monitor progress."
     },
@@ -1228,6 +1232,910 @@
         ],
         "responses": {
           "204": { "description": "Connection disconnected." },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/voicelink/clients": {
+      "get": {
+        "operationId": "listVoiceLinkClients",
+        "summary": "List VoiceLink clients",
+        "description": "Lists clients from the selected active VoiceLink connection. Pass `connection_id` when the partner has more than one active VoiceLink connection. The VoiceLink upstream response is returned in `data` without Vocobase-side deletion or ownership changes.",
+        "tags": ["VoiceLink Management"],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional unless multiple active VoiceLink connections exist."
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "VoiceLink client search term."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "VoiceLink client status filter."
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1 },
+            "description": "VoiceLink page size."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1 },
+            "description": "VoiceLink page number."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "VoiceLink clients response.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkProxyResponse" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "data": [
+                      {
+                        "id": 415,
+                        "first_name": "Acme",
+                        "last_name": "Sales",
+                        "username": "acme-sales",
+                        "email": "voice@example.com",
+                        "status": 1,
+                        "channel_count": 5
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "post": {
+        "operationId": "createVoiceLinkClient",
+        "summary": "Create a VoiceLink client",
+        "description": "Creates a client in VoiceLink through the selected active VoiceLink connection. VoiceLink remains the source of truth for remote client ownership and status.",
+        "tags": ["VoiceLink Management"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VoiceLinkCreateClientRequest" },
+              "example": {
+                "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                "first_name": "Acme",
+                "last_name": "Sales",
+                "username": "acme-sales",
+                "email": "voice@example.com",
+                "password": "temporary-client-password",
+                "channel_count": 5,
+                "phone": "+918011223344",
+                "is_active": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VoiceLink client created.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkProxyResponse" }
+              }
+            }
+          },
+          "201": {
+            "description": "VoiceLink client created.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkProxyResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/voicelink/clients/{client_id}": {
+      "post": {
+        "operationId": "updateVoiceLinkClient",
+        "summary": "Update a VoiceLink client",
+        "description": "Updates a client in VoiceLink. Fields omitted from the request are omitted from the forwarded VoiceLink update body.",
+        "tags": ["VoiceLink Management"],
+        "parameters": [
+          {
+            "name": "client_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer" },
+            "description": "VoiceLink client ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VoiceLinkUpdateClientRequest" },
+              "example": {
+                "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                "first_name": "Acme",
+                "last_name": "Support",
+                "email": "support@example.com",
+                "channel_count": 10,
+                "is_active": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VoiceLink client updated.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkProxyResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/voicelink/dids/purchased": {
+      "get": {
+        "operationId": "listPurchasedVoiceLinkDids",
+        "summary": "List purchased VoiceLink DIDs",
+        "description": "Lists DIDs already purchased or assigned in VoiceLink. This endpoint is read-only and does not purchase, renew, KYC, or allocate wallet credit.",
+        "tags": ["VoiceLink Management"],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional unless multiple active VoiceLink connections exist."
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "DID search term."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "VoiceLink DID status filter."
+          },
+          {
+            "name": "did_type",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "VoiceLink DID type filter."
+          },
+          {
+            "name": "client_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" },
+            "description": "VoiceLink client ID filter."
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1 }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Purchased DIDs response.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkProxyResponse" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "data": [
+                      {
+                        "id": 812,
+                        "did_id": 812,
+                        "did_number": "918011223344",
+                        "client_id": 415,
+                        "status": "active"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/voicelink/dids/available": {
+      "get": {
+        "operationId": "listAvailableVoiceLinkDids",
+        "summary": "List available VoiceLink DIDs",
+        "description": "Lists DIDs returned by VoiceLink as available for client mapping. Day-one scope is read-only for inventory: purchase, renew, KYC, wallet, and credit allocation operations are excluded.",
+        "tags": ["VoiceLink Management"],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional unless multiple active VoiceLink connections exist."
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" }
+          },
+          {
+            "name": "did_type",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer" }
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1 }
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1 }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Available DIDs response.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkProxyResponse" }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/voicelink/dids/map": {
+      "post": {
+        "operationId": "mapVoiceLinkDid",
+        "summary": "Map a VoiceLink DID to a client",
+        "description": "Maps a VoiceLink DID to a VoiceLink client. VoiceLink remains the source of truth for remote DID ownership; Vocobase does not delete local phone-number rows when remote mapping changes.",
+        "tags": ["VoiceLink Management"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VoiceLinkMapDidRequest" },
+              "example": {
+                "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                "client_id": 415,
+                "did_id": 812,
+                "call_recording": 1,
+                "user_status": 1,
+                "description": "Sales outbound DID"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "DID mapping response.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkProxyResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/voicelink/sync": {
+      "post": {
+        "operationId": "syncVoiceLinkState",
+        "summary": "Sync VoiceLink state and readiness",
+        "description": "Fetches remote VoiceLink clients, DIDs, available DIDs, bots, and routing, then compares them with Vocobase local PhoneNumber rows. By default, remote DIDs are imported into Vocobase local inventory; pass `import_dids: false` for a read-only readiness check. Sync does not silently delete local data.",
+        "tags": ["VoiceLink Management"],
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VoiceLinkSyncRequest" },
+              "example": {
+                "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                "import_dids": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VoiceLink sync and readiness result.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkSyncResponse" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "clients": [],
+                    "dids": [
+                      {
+                        "id": 812,
+                        "did_id": 812,
+                        "did_number": "918011223344",
+                        "phone_number": "+918011223344",
+                        "client_id": 415,
+                        "status": "active",
+                        "is_expired": false,
+                        "raw": {}
+                      }
+                    ],
+                    "available_dids": [],
+                    "bots": [],
+                    "routing": [],
+                    "local_phone_numbers": [],
+                    "readiness": [
+                      {
+                        "key": "918011223344",
+                        "phone_number": "+918011223344",
+                        "state": "NO_BOT",
+                        "issues": ["NO_BOT", "ROUTING_MISSING", "NO_VOCOBASE_AGENT"],
+                        "remote_did": {
+                          "did_id": 812,
+                          "did_number": "918011223344",
+                          "phone_number": "+918011223344",
+                          "client_id": 415,
+                          "is_expired": false,
+                          "raw": {}
+                        },
+                        "local_phone_number": null,
+                        "routing": null,
+                        "bot": null,
+                        "actions": [
+                          "Create an active VoiceLink WebSocket bot for the mapped client",
+                          "Create VoiceLink call routing for this DID",
+                          "Assign a Vocobase agent to the local PhoneNumber row"
+                        ],
+                        "action_items": [
+                          {
+                            "code": "NO_BOT",
+                            "label": "Create an active VoiceLink WebSocket bot for the mapped client"
+                          },
+                          {
+                            "code": "ROUTING_MISSING",
+                            "label": "Create VoiceLink call routing for this DID"
+                          },
+                          {
+                            "code": "NO_VOCOBASE_AGENT",
+                            "label": "Assign a Vocobase agent to the local PhoneNumber row"
+                          }
+                        ]
+                      }
+                    ],
+                    "drift": [
+                      {
+                        "key": "918011223344",
+                        "phone_number": "+918011223344",
+                        "state": "NO_BOT",
+                        "action": "Create an active VoiceLink WebSocket bot for the mapped client",
+                        "did_id": 812,
+                        "client_id": 415
+                      }
+                    ],
+                    "warnings": []
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/voicelink/call-ready": {
+      "post": {
+        "operationId": "makeVoiceLinkDidCallReady",
+        "summary": "Make a VoiceLink DID call-ready",
+        "description": "Runs the safe outbound call-ready workflow for a purchased VoiceLink DID: import the DID into Vocobase if missing, optionally map an unmapped DID to an explicitly supplied `client_id`, ensure an active VoiceLink WebSocket bot for the mapped client, and ensure outbound routing points to that bot. Existing inbound routing is preserved on routing updates. DID mapping happens only with an explicit `client_id` and only when the DID is currently unmapped — a DID mapped to a different client is never re-mapped, and clients are never auto-created. This endpoint does not purchase, renew, run KYC, or allocate wallet credit. Pass `connection_id` when the partner has more than one active VoiceLink connection.",
+        "tags": ["VoiceLink Management"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VoiceLinkCallReadyRequest" },
+              "example": {
+                "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                "did_id": 812,
+                "client_id": 415,
+                "agent_id": "f4df9f8c-df95-46d8-bb0e-6f9f83fd4f55",
+                "bot_name": "Vocobase +918011223344"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Call-ready workflow result.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkCallReadyResponse" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "phone_number": "+918011223344",
+                    "key": "918011223344",
+                    "ready": true,
+                    "steps": [
+                      {
+                        "step": "resolve_did",
+                        "status": "done",
+                        "detail": "Resolved DID +918011223344",
+                        "data": {
+                          "did_id": 812,
+                          "client_id": 415
+                        }
+                      },
+                      {
+                        "step": "ensure_routing",
+                        "status": "done",
+                        "detail": "Updated routing for DID +918011223344 to outbound bot_id=93",
+                        "data": {
+                          "routing_id": 120
+                        }
+                      }
+                    ],
+                    "readiness_before": {
+                      "key": "918011223344",
+                      "phone_number": "+918011223344",
+                      "state": "NO_BOT",
+                      "issues": ["NO_BOT", "ROUTING_MISSING"],
+                      "remote_did": {
+                        "id": 812,
+                        "did_id": 812,
+                        "did_number": "918011223344",
+                        "phone_number": "+918011223344",
+                        "client_id": 415,
+                        "status": "active",
+                        "is_expired": false,
+                        "raw": {}
+                      },
+                      "local_phone_number": null,
+                      "routing": null,
+                      "bot": null,
+                      "actions": [
+                        "Create an active VoiceLink WebSocket bot for the mapped client",
+                        "Create VoiceLink call routing for this DID"
+                      ],
+                      "action_items": [
+                        {
+                          "code": "NO_BOT",
+                          "label": "Create an active VoiceLink WebSocket bot for the mapped client"
+                        },
+                        {
+                          "code": "ROUTING_MISSING",
+                          "label": "Create VoiceLink call routing for this DID"
+                        }
+                      ]
+                    },
+                    "readiness": {
+                      "key": "918011223344",
+                      "phone_number": "+918011223344",
+                      "state": "READY",
+                      "issues": [],
+                      "remote_did": {
+                        "id": 812,
+                        "did_id": 812,
+                        "did_number": "918011223344",
+                        "phone_number": "+918011223344",
+                        "client_id": 415,
+                        "status": "active",
+                        "is_expired": false,
+                        "raw": {}
+                      },
+                      "local_phone_number": {
+                        "id": "0be141f3-f72c-4630-b3bc-a0a5f59bf970",
+                        "phone_number": "+918011223344",
+                        "friendly_name": "918011223344",
+                        "status": "ACTIVE",
+                        "is_default": false,
+                        "inbound_enabled": true,
+                        "agent": {
+                          "id": "f4df9f8c-df95-46d8-bb0e-6f9f83fd4f55",
+                          "name": "Sales Agent"
+                        },
+                        "created_at": "2026-06-09T10:30:00.000Z",
+                        "updated_at": "2026-06-09T10:35:00.000Z"
+                      },
+                      "routing": {
+                        "id": 120,
+                        "phone_number": "+918011223344",
+                        "for_inbound_call": 1,
+                        "for_outbound_call": 3,
+                        "outbound_websocket_bot_id": 93,
+                        "raw": {}
+                      },
+                      "bot": {
+                        "id": 93,
+                        "name": "Vocobase +918011223344",
+                        "status": 1,
+                        "raw": {}
+                      },
+                      "actions": [],
+                      "action_items": []
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/voicelink/bots": {
+      "get": {
+        "operationId": "listVoiceLinkBots",
+        "summary": "List VoiceLink WebSocket bots",
+        "description": "Lists WebSocket bots from the selected active VoiceLink connection. Pass `connection_id` when the partner has more than one active VoiceLink connection. Numeric filters are validated strictly: zero, negative, non-integer, or non-finite values are rejected with a 400 `VALIDATION_ERROR` naming the field.",
+        "tags": ["VoiceLink Management"],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional unless multiple active VoiceLink connections exist."
+          },
+          {
+            "name": "search",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "VoiceLink bot search term."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "enum": [0, 1] },
+            "description": "VoiceLink bot status filter: 1 active, 0 inactive."
+          },
+          {
+            "name": "reseller_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1 },
+            "description": "VoiceLink reseller ID filter."
+          },
+          {
+            "name": "client_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1 },
+            "description": "VoiceLink client ID filter."
+          },
+          {
+            "name": "per_page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 1000 },
+            "description": "VoiceLink page size."
+          },
+          {
+            "name": "page",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1 },
+            "description": "VoiceLink page number."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "VoiceLink bots response.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkProxyResponse" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "data": [
+                      {
+                        "id": 93,
+                        "bot_name": "Vocobase +918011223344",
+                        "client_id": 415,
+                        "websocket_url": "wss://api.pipecat.daily.co/ws/twilio",
+                        "status": 1
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "post": {
+        "operationId": "createVoiceLinkBot",
+        "summary": "Create a VoiceLink WebSocket bot",
+        "description": "Creates a WebSocket bot in VoiceLink for a mapped client. When `websocket_url` is omitted, the bot points to the Vocobase Pipecat Cloud bot endpoint. This endpoint never purchases or renews DIDs, runs KYC, allocates wallet or credit, or deletes local Vocobase data. Numeric fields are validated strictly: zero, negative, non-integer, or non-finite values are rejected with a 400 `VALIDATION_ERROR` naming the field.",
+        "tags": ["VoiceLink Management"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VoiceLinkCreateBotRequest" },
+              "example": {
+                "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                "bot_name": "Vocobase +918011223344",
+                "client_id": 415,
+                "status": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VoiceLink bot created.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkProxyResponse" }
+              }
+            }
+          },
+          "201": {
+            "description": "VoiceLink bot created.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkProxyResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/voicelink/bots/{bot_id}": {
+      "post": {
+        "operationId": "updateVoiceLinkBot",
+        "summary": "Update a VoiceLink WebSocket bot",
+        "description": "Updates a WebSocket bot in VoiceLink. The VoiceLink update REPLACES the bot record, so resend every field you want kept — `bot_name`, `websocket_url`, and `status` are all required on update. This endpoint never purchases or renews DIDs, runs KYC, allocates wallet or credit, or deletes local Vocobase data.",
+        "tags": ["VoiceLink Management"],
+        "parameters": [
+          {
+            "name": "bot_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "minimum": 1 },
+            "description": "VoiceLink bot ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VoiceLinkUpdateBotRequest" },
+              "example": {
+                "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                "bot_name": "Vocobase +918011223344",
+                "websocket_url": "wss://api.pipecat.daily.co/ws/twilio",
+                "status": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VoiceLink bot updated.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkProxyResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/voicelink/call-routing": {
+      "get": {
+        "operationId": "listVoiceLinkCallRouting",
+        "summary": "List VoiceLink call routing",
+        "description": "Lists DID call-routing records from the selected active VoiceLink connection. Pass `connection_id` when the partner has more than one active VoiceLink connection.",
+        "tags": ["VoiceLink Management"],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Optional unless multiple active VoiceLink connections exist."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "VoiceLink call-routing response.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkProxyResponse" },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "data": [
+                      {
+                        "id": 120,
+                        "did_id": 812,
+                        "did_number": "918011223344",
+                        "for_inbound_call": 1,
+                        "for_outbound_call": 3,
+                        "outbound_websocket_bot_id": 93,
+                        "status": 1
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "post": {
+        "operationId": "createVoiceLinkCallRouting",
+        "summary": "Create VoiceLink call routing",
+        "description": "Creates a call-routing record for a DID (one record per DID). Provide either `did_id` or `did_number`. `for_inbound_call` and `for_outbound_call` are VoiceLink mode integers; `3` routes to a WebSocket bot. For the common outbound case, prefer `POST /voicelink/call-ready`, which performs the same setup safely. This endpoint never purchases or renews DIDs, runs KYC, allocates wallet or credit, or deletes local Vocobase data. Numeric fields are validated strictly: zero, negative, non-integer, or non-finite values are rejected with a 400 `VALIDATION_ERROR` naming the field.",
+        "tags": ["VoiceLink Management"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VoiceLinkCreateRoutingRequest" },
+              "example": {
+                "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                "did_id": 812,
+                "for_inbound_call": 1,
+                "for_outbound_call": 3,
+                "outbound_websocket_bot_id": 93,
+                "status": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VoiceLink call routing created.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkProxyResponse" }
+              }
+            }
+          },
+          "201": {
+            "description": "VoiceLink call routing created.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkProxyResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/voicelink/call-routing/{routing_id}": {
+      "post": {
+        "operationId": "updateVoiceLinkCallRouting",
+        "summary": "Update VoiceLink call routing",
+        "description": "Updates a call-routing record in VoiceLink. The VoiceLink update REPLACES the routing record, so resend every field you want kept — `for_inbound_call`, `for_outbound_call`, and `status` are all required on update, including the current inbound values if you only intend to change outbound routing. For the common outbound case, prefer `POST /voicelink/call-ready`, which preserves existing inbound settings automatically. This endpoint never purchases or renews DIDs, runs KYC, allocates wallet or credit, or deletes local Vocobase data.",
+        "tags": ["VoiceLink Management"],
+        "parameters": [
+          {
+            "name": "routing_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "integer", "minimum": 1 },
+            "description": "VoiceLink call-routing record ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VoiceLinkUpdateRoutingRequest" },
+              "example": {
+                "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                "for_inbound_call": 1,
+                "for_outbound_call": 3,
+                "outbound_websocket_bot_id": 93,
+                "status": 1
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "VoiceLink call routing updated.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkProxyResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "404": { "$ref": "#/components/responses/NotFound" },
           "500": { "$ref": "#/components/responses/InternalError" }
@@ -5639,6 +6547,648 @@
           "created_at": { "type": "string", "format": "date-time" },
           "updated_at": { "type": "string", "format": "date-time" }
         }
+      },
+      "VoiceLinkProxyResponse": {
+        "type": "object",
+        "description": "A VoiceLink upstream response wrapped in the V2 success envelope. The `data` shape is forwarded from VoiceLink and may vary by endpoint.",
+        "properties": {
+          "success": { "type": "boolean", "const": true },
+          "data": {
+            "oneOf": [
+              { "type": "object", "additionalProperties": true },
+              { "type": "array", "items": {} },
+              { "type": "null" }
+            ],
+            "description": "VoiceLink upstream response body."
+          }
+        },
+        "required": ["success", "data"]
+      },
+      "VoiceLinkCreateClientRequest": {
+        "type": "object",
+        "required": ["first_name", "last_name", "username", "email", "password", "channel_count"],
+        "properties": {
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional unless multiple active VoiceLink connections exist."
+          },
+          "first_name": { "type": "string" },
+          "last_name": { "type": "string" },
+          "username": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "format": "password" },
+          "channel_count": { "type": "integer", "minimum": 1 },
+          "phone": { "type": "string" },
+          "is_active": { "type": "integer", "enum": [0, 1] },
+          "negative_threshold": { "type": "number" },
+          "pulse_seconds": { "type": "integer" },
+          "inbound_rate": { "type": "number" },
+          "outbound_rate": { "type": "number" },
+          "plan_type": { "type": "string" }
+        }
+      },
+      "VoiceLinkUpdateClientRequest": {
+        "type": "object",
+        "properties": {
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional unless multiple active VoiceLink connections exist."
+          },
+          "first_name": { "type": "string" },
+          "last_name": { "type": "string" },
+          "username": { "type": "string" },
+          "email": { "type": "string", "format": "email" },
+          "password": { "type": "string", "format": "password" },
+          "channel_count": { "type": "integer", "minimum": 1 },
+          "phone": { "type": "string" },
+          "is_active": { "type": "integer", "enum": [0, 1] },
+          "negative_threshold": { "type": "number" },
+          "pulse_seconds": { "type": "integer" },
+          "inbound_rate": { "type": "number" },
+          "outbound_rate": { "type": "number" },
+          "plan_type": { "type": "string" }
+        }
+      },
+      "VoiceLinkMapDidRequest": {
+        "type": "object",
+        "required": ["client_id", "did_id", "call_recording"],
+        "properties": {
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional unless multiple active VoiceLink connections exist."
+          },
+          "client_id": { "type": "integer", "description": "VoiceLink client ID." },
+          "did_id": { "type": "integer", "description": "VoiceLink DID ID." },
+          "call_recording": { "type": "integer", "enum": [0, 1] },
+          "user_status": { "type": "integer" },
+          "user_expiry_date": { "type": "string", "format": "date" },
+          "description": { "type": "string" },
+          "client_auto_renew": { "type": "integer", "enum": [0, 1] }
+        }
+      },
+      "VoiceLinkSyncRequest": {
+        "type": "object",
+        "properties": {
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional unless multiple active VoiceLink connections exist."
+          },
+          "import_dids": {
+            "type": "boolean",
+            "default": true,
+            "description": "When true or omitted, remote purchased DIDs are upserted into Vocobase local PhoneNumber inventory. Set false for a read-only readiness check."
+          }
+        }
+      },
+      "VoiceLinkCreateBotRequest": {
+        "type": "object",
+        "required": ["bot_name", "client_id"],
+        "properties": {
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional unless multiple active VoiceLink connections exist. `connectionId` is accepted for backwards compatibility."
+          },
+          "bot_name": {
+            "type": "string",
+            "description": "Display name for the WebSocket bot."
+          },
+          "client_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "VoiceLink client ID the bot belongs to."
+          },
+          "websocket_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Optional WebSocket URL. Omit to point the bot at the Vocobase Pipecat Cloud bot endpoint."
+          },
+          "webhook_url": {
+            "type": "string",
+            "description": "Optional VoiceLink webhook URL for call events."
+          },
+          "status": {
+            "type": "integer",
+            "enum": [0, 1],
+            "default": 1,
+            "description": "Bot status: 1 active (default), 0 inactive."
+          }
+        }
+      },
+      "VoiceLinkUpdateBotRequest": {
+        "type": "object",
+        "description": "VoiceLink bot update REPLACES the record — resend every field you want kept.",
+        "required": ["bot_name", "websocket_url", "status"],
+        "properties": {
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional unless multiple active VoiceLink connections exist. `connectionId` is accepted for backwards compatibility."
+          },
+          "bot_name": {
+            "type": "string",
+            "description": "Display name for the WebSocket bot."
+          },
+          "websocket_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "WebSocket URL the bot connects to. Required on update because the record is replaced."
+          },
+          "webhook_url": {
+            "type": "string",
+            "description": "Optional VoiceLink webhook URL for call events."
+          },
+          "status": {
+            "type": "integer",
+            "enum": [0, 1],
+            "description": "Bot status: 1 active, 0 inactive."
+          }
+        }
+      },
+      "VoiceLinkCreateRoutingRequest": {
+        "type": "object",
+        "description": "Creates a call-routing record for a DID. Provide either `did_id` or `did_number`.",
+        "anyOf": [
+          { "required": ["did_id", "for_inbound_call", "for_outbound_call"] },
+          { "required": ["did_number", "for_inbound_call", "for_outbound_call"] }
+        ],
+        "properties": {
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional unless multiple active VoiceLink connections exist. `connectionId` is accepted for backwards compatibility."
+          },
+          "did_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "VoiceLink DID ID. Provide either `did_id` or `did_number`."
+          },
+          "did_number": {
+            "type": "string",
+            "description": "DID number. Used when `did_id` is not available."
+          },
+          "for_inbound_call": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "VoiceLink inbound mode: 1 mobile, 2 SIP, 3 WebSocket bot."
+          },
+          "for_outbound_call": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "VoiceLink outbound mode: 2 SIP, 3 WebSocket bot, 4 only-answer."
+          },
+          "inbound_websocket_bot_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "VoiceLink bot ID when `for_inbound_call` is 3."
+          },
+          "inbound_sip_trunk_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "VoiceLink SIP trunk ID when `for_inbound_call` is 2."
+          },
+          "outbound_websocket_bot_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "VoiceLink bot ID when `for_outbound_call` is 3."
+          },
+          "outbound_sip_trunk_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "VoiceLink SIP trunk ID when `for_outbound_call` is 2."
+          },
+          "status": {
+            "type": "integer",
+            "enum": [0, 1],
+            "default": 1,
+            "description": "Routing status: 1 active (default), 0 inactive."
+          }
+        }
+      },
+      "VoiceLinkUpdateRoutingRequest": {
+        "type": "object",
+        "description": "VoiceLink routing update REPLACES the record — resend every field you want kept, including current inbound values when you only intend to change outbound routing.",
+        "required": ["for_inbound_call", "for_outbound_call", "status"],
+        "properties": {
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional unless multiple active VoiceLink connections exist. `connectionId` is accepted for backwards compatibility."
+          },
+          "for_inbound_call": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "VoiceLink inbound mode: 1 mobile, 2 SIP, 3 WebSocket bot. Resend the current value to preserve inbound routing."
+          },
+          "for_outbound_call": {
+            "type": "integer",
+            "minimum": 0,
+            "description": "VoiceLink outbound mode: 2 SIP, 3 WebSocket bot, 4 only-answer."
+          },
+          "inbound_websocket_bot_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "VoiceLink bot ID when `for_inbound_call` is 3."
+          },
+          "inbound_sip_trunk_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "VoiceLink SIP trunk ID when `for_inbound_call` is 2."
+          },
+          "outbound_websocket_bot_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "VoiceLink bot ID when `for_outbound_call` is 3."
+          },
+          "outbound_sip_trunk_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "VoiceLink SIP trunk ID when `for_outbound_call` is 2."
+          },
+          "status": {
+            "type": "integer",
+            "enum": [0, 1],
+            "description": "Routing status: 1 active, 0 inactive."
+          }
+        }
+      },
+      "VoiceLinkCallReadyRequest": {
+        "type": "object",
+        "description": "Request for the safe outbound call-ready workflow. Provide either `did_id` or `did_number`. `connection_id` is optional unless multiple active VoiceLink connections exist.",
+        "anyOf": [
+          { "required": ["did_id"] },
+          { "required": ["did_number"] }
+        ],
+        "properties": {
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional unless multiple active VoiceLink connections exist."
+          },
+          "did_id": {
+            "type": "integer",
+            "description": "VoiceLink DID ID from `/voicelink/dids/purchased`."
+          },
+          "did_number": {
+            "type": "string",
+            "description": "Purchased DID number. Used when `did_id` is not available."
+          },
+          "client_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Optional VoiceLink client ID. Maps the DID to this client only when the DID is currently unmapped — a DID already mapped to a different client is never re-mapped, and clients are never auto-created. Composer-initiated mapping uses `call_recording=0`."
+          },
+          "agent_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional Vocobase agent ID to assign to the imported local PhoneNumber row. Ownership is enforced by Vocobase."
+          },
+          "bot_name": {
+            "type": "string",
+            "description": "Optional name to use if a new VoiceLink WebSocket bot must be created."
+          },
+          "websocket_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Optional WebSocket URL override for bot creation. Omit to use the backend default."
+          }
+        }
+      },
+      "VoiceLinkCallReadyStepName": {
+        "type": "string",
+        "enum": [
+          "resolve_did",
+          "import_did",
+          "assign_agent",
+          "client_mapping",
+          "ensure_bot",
+          "ensure_routing"
+        ]
+      },
+      "VoiceLinkCallReadyStepStatus": {
+        "type": "string",
+        "enum": ["done", "already", "skipped", "failed"]
+      },
+      "VoiceLinkCallReadyStep": {
+        "type": "object",
+        "properties": {
+          "step": { "$ref": "#/components/schemas/VoiceLinkCallReadyStepName" },
+          "status": { "$ref": "#/components/schemas/VoiceLinkCallReadyStepStatus" },
+          "detail": { "type": "string" },
+          "data": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": ["step", "status", "detail"]
+      },
+      "VoiceLinkReadinessState": {
+        "type": "string",
+        "enum": [
+          "READY",
+          "NOT_IMPORTED",
+          "NO_CLIENT_MAPPING",
+          "NO_BOT",
+          "ROUTING_MISSING",
+          "ROUTING_CHANGED",
+          "NO_VOCOBASE_AGENT",
+          "REMOTE_DID_EXPIRED",
+          "REMOTE_DID_DELETED"
+        ]
+      },
+      "VoiceLinkNormalizedRow": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "integer" },
+          "name": { "type": "string" },
+          "status": {
+            "oneOf": [
+              { "type": "string" },
+              { "type": "integer" }
+            ]
+          },
+          "client_id": { "type": "integer" },
+          "raw": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Original VoiceLink row."
+          }
+        },
+        "required": ["raw"]
+      },
+      "VoiceLinkNormalizedDid": {
+        "allOf": [
+          { "$ref": "#/components/schemas/VoiceLinkNormalizedRow" },
+          {
+            "type": "object",
+            "properties": {
+              "did_id": { "type": "integer" },
+              "did_number": { "type": "string" },
+              "phone_number": {
+                "type": ["string", "null"],
+                "description": "Normalized E.164 DID when Vocobase can infer it."
+              },
+              "is_expired": { "type": "boolean" }
+            },
+            "required": ["phone_number", "is_expired"]
+          }
+        ]
+      },
+      "VoiceLinkNormalizedRouting": {
+        "allOf": [
+          { "$ref": "#/components/schemas/VoiceLinkNormalizedRow" },
+          {
+            "type": "object",
+            "properties": {
+              "did_id": { "type": "integer" },
+              "did_number": { "type": "string" },
+              "phone_number": { "type": ["string", "null"] },
+              "for_inbound_call": {
+                "type": "integer",
+                "description": "VoiceLink mode: 1 mobile, 2 SIP, 3 WebSocket bot."
+              },
+              "for_outbound_call": {
+                "type": "integer",
+                "description": "VoiceLink mode: 2 SIP, 3 WebSocket bot, 4 only-answer."
+              },
+              "inbound_websocket_bot_id": { "type": "integer" },
+              "outbound_websocket_bot_id": { "type": "integer" }
+            },
+            "required": ["phone_number"]
+          }
+        ]
+      },
+      "VoiceLinkLocalPhoneNumber": {
+        "type": "object",
+        "properties": {
+          "id": { "type": "string", "format": "uuid" },
+          "phone_number": { "type": "string" },
+          "friendly_name": { "type": ["string", "null"] },
+          "status": { "type": "string" },
+          "is_default": { "type": "boolean" },
+          "inbound_enabled": { "type": "boolean" },
+          "agent": {
+            "type": ["object", "null"],
+            "properties": {
+              "id": { "type": "string", "format": "uuid" },
+              "name": { "type": "string" }
+            }
+          },
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "phone_number", "status", "is_default", "inbound_enabled", "agent"]
+      },
+      "VoiceLinkActionItem": {
+        "type": "object",
+        "description": "A machine code plus human label for one remediation step. `code` is the readiness issue the step resolves.",
+        "properties": {
+          "code": { "$ref": "#/components/schemas/VoiceLinkReadinessState" },
+          "label": { "type": "string" }
+        },
+        "required": ["code", "label"]
+      },
+      "VoiceLinkReadinessItem": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Stable digit-only join key (no `+`) linking the remote DID, routing, and local PhoneNumber rows for this number."
+          },
+          "phone_number": { "type": "string" },
+          "state": { "$ref": "#/components/schemas/VoiceLinkReadinessState" },
+          "issues": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/VoiceLinkReadinessState" }
+          },
+          "remote_did": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/VoiceLinkNormalizedDid" },
+              { "type": "null" }
+            ]
+          },
+          "local_phone_number": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/VoiceLinkLocalPhoneNumber" },
+              { "type": "null" }
+            ]
+          },
+          "routing": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/VoiceLinkNormalizedRouting" },
+              { "type": "null" }
+            ]
+          },
+          "bot": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/VoiceLinkNormalizedRow" },
+              { "type": "null" }
+            ]
+          },
+          "actions": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "Human-readable remediation strings (one per issue)."
+          },
+          "action_items": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/VoiceLinkActionItem" },
+            "description": "Same remediation steps as `{ code, label }` objects for programmatic use."
+          }
+        },
+        "required": ["key", "phone_number", "state", "issues", "remote_did", "local_phone_number", "routing", "bot", "actions", "action_items"]
+      },
+      "VoiceLinkDriftItem": {
+        "type": "object",
+        "properties": {
+          "key": {
+            "type": "string",
+            "description": "Same stable digit-only join key as the readiness row this drift belongs to."
+          },
+          "phone_number": { "type": "string" },
+          "state": { "$ref": "#/components/schemas/VoiceLinkReadinessState" },
+          "action": { "type": "string" },
+          "did_id": {
+            "type": "integer",
+            "description": "Stable VoiceLink DID identifier for repairing this drift row, when known."
+          },
+          "client_id": {
+            "type": "integer",
+            "description": "Stable VoiceLink client identifier for repairing this drift row, when known."
+          },
+          "routing_id": {
+            "type": "integer",
+            "description": "Stable VoiceLink routing identifier for repairing this drift row, when known."
+          },
+          "bot_id": {
+            "type": "integer",
+            "description": "Stable VoiceLink bot identifier for repairing this drift row, when known."
+          },
+          "local_phone_number_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Stable local Vocobase PhoneNumber identifier for repairing this drift row, when known."
+          },
+          "details": {
+            "type": "object",
+            "additionalProperties": true
+          }
+        },
+        "required": ["key", "phone_number", "state", "action"]
+      },
+      "VoiceLinkSyncWarning": {
+        "type": "object",
+        "description": "A non-fatal upstream-fetch problem during sync. When a section fetch fails (or the purchased-DID list is truncated), the dependent readiness inferences are suppressed rather than guessed off incomplete data.",
+        "properties": {
+          "section": {
+            "type": "string",
+            "enum": ["clients", "dids", "available_dids", "bots", "routing"]
+          },
+          "code": {
+            "type": "string",
+            "enum": ["FETCH_FAILED", "TRUNCATED"]
+          },
+          "message": { "type": "string" }
+        },
+        "required": ["section", "code", "message"]
+      },
+      "VoiceLinkSyncResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "const": true },
+          "data": {
+            "type": "object",
+            "properties": {
+              "clients": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/VoiceLinkNormalizedRow" }
+              },
+              "dids": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/VoiceLinkNormalizedDid" }
+              },
+              "available_dids": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/VoiceLinkNormalizedDid" }
+              },
+              "bots": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/VoiceLinkNormalizedRow" }
+              },
+              "routing": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/VoiceLinkNormalizedRouting" }
+              },
+              "local_phone_numbers": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/VoiceLinkLocalPhoneNumber" }
+              },
+              "readiness": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/VoiceLinkReadinessItem" }
+              },
+              "drift": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/VoiceLinkDriftItem" }
+              },
+              "warnings": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/VoiceLinkSyncWarning" },
+                "description": "Non-fatal upstream-fetch issues; empty on a fully-successful sync. When present, dependent readiness inferences are suppressed rather than guessed."
+              }
+            },
+            "required": ["clients", "dids", "available_dids", "bots", "routing", "local_phone_numbers", "readiness", "drift", "warnings"]
+          }
+        },
+        "required": ["success", "data"]
+      },
+      "VoiceLinkCallReadyResult": {
+        "type": "object",
+        "properties": {
+          "phone_number": {
+            "type": ["string", "null"],
+            "description": "Resolved normalized phone number, or null when the DID could not be resolved."
+          },
+          "key": {
+            "type": ["string", "null"],
+            "description": "Digit-only matching key used by readiness comparison."
+          },
+          "ready": {
+            "type": "boolean",
+            "description": "`true` only when recomputed readiness is `READY` after all steps."
+          },
+          "steps": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/VoiceLinkCallReadyStep" }
+          },
+          "readiness_before": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/VoiceLinkReadinessItem" },
+              { "type": "null" }
+            ],
+            "description": "Readiness snapshot captured before provisioning ran; null when the DID could not be resolved."
+          },
+          "readiness": {
+            "oneOf": [
+              { "$ref": "#/components/schemas/VoiceLinkReadinessItem" },
+              { "type": "null" }
+            ],
+            "description": "Recomputed readiness after provisioning and optional agent assignment."
+          }
+        },
+        "required": ["phone_number", "key", "ready", "steps", "readiness_before", "readiness"]
+      },
+      "VoiceLinkCallReadyResponse": {
+        "type": "object",
+        "properties": {
+          "success": { "type": "boolean", "const": true },
+          "data": { "$ref": "#/components/schemas/VoiceLinkCallReadyResult" }
+        },
+        "required": ["success", "data"]
       },
       "ErrorResponse": {
         "type": "object",

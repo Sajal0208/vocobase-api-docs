@@ -1,0 +1,399 @@
+---
+title: "VoiceLink Management"
+description: "Manage VoiceLink clients, DIDs, mapping, and readiness with the V2 API"
+---
+
+# VoiceLink Management
+
+Use the VoiceLink management API when you need to set up clients, map DIDs, and check whether a DID is ready for Vocobase calls without opening the VoiceLink panel.
+
+<Note>
+  VoiceLink remains the source of truth for remote clients, DID ownership, expiration, bots, and routing. Vocobase remains the source of truth for local `PhoneNumber.agentId` assignment. Sync imports or updates local DID rows, but it does not silently delete local data.
+</Note>
+
+## Day-one scope
+
+These APIs cover operational setup only:
+
+| Supported | Not included |
+|-----------|--------------|
+| List/create/update clients, bots, and call routing | DID purchase |
+| List purchased and available DIDs | DID renewal |
+| Map a DID to a client | KYC |
+| Sync remote state into Vocobase | Wallet or credit allocation |
+| Read readiness and drift | Silent local deletion |
+| Make a purchased, mapped DID outbound call-ready | Client auto-creation or implicit DID mapping (mapping happens only with an explicit `client_id`) |
+
+## Connection selection
+
+All endpoints use the authenticated partner's active VoiceLink connection. If the partner has more than one active VoiceLink connection, pass `connection_id` so the backend can choose deterministically.
+
+For `GET` endpoints, pass it in the query string:
+
+```bash
+curl -X GET "https://api.vocobase.com/api/v2/voicelink/clients?connection_id=9b7f1c44-c87f-4f0c-9124-3c802a9c1a20" \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+For `POST` endpoints, pass it in the JSON body:
+
+```json
+{
+  "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
+}
+```
+
+`connectionId` is accepted for compatibility, but use `connection_id` in new integrations.
+
+## Endpoint overview
+
+| Method | Endpoint | Purpose |
+|--------|----------|---------|
+| `GET` | `/api/v2/voicelink/clients` | List VoiceLink clients |
+| `POST` | `/api/v2/voicelink/clients` | Create a VoiceLink client |
+| `POST` | `/api/v2/voicelink/clients/:clientId` | Update a VoiceLink client |
+| `GET` | `/api/v2/voicelink/dids/purchased` | List purchased or assigned DIDs |
+| `GET` | `/api/v2/voicelink/dids/available` | List available DIDs |
+| `POST` | `/api/v2/voicelink/dids/map` | Map a DID to a client |
+| `GET` | `/api/v2/voicelink/bots` | List WebSocket bots |
+| `POST` | `/api/v2/voicelink/bots` | Create a WebSocket bot |
+| `POST` | `/api/v2/voicelink/bots/:botId` | Update a WebSocket bot |
+| `GET` | `/api/v2/voicelink/call-routing` | List DID call routing |
+| `POST` | `/api/v2/voicelink/call-routing` | Create call routing for a DID |
+| `POST` | `/api/v2/voicelink/call-routing/:routingId` | Update call routing |
+| `POST` | `/api/v2/voicelink/sync` | Sync remote state and readiness |
+| `POST` | `/api/v2/voicelink/call-ready` | Make a purchased DID outbound call-ready |
+
+## Create a client
+
+Create a remote VoiceLink client before mapping DIDs to it.
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/voicelink/clients \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+    "first_name": "Acme",
+    "last_name": "Sales",
+    "username": "acme-sales",
+    "email": "voice@example.com",
+    "password": "temporary-client-password",
+    "channel_count": 5,
+    "phone": "+918011223344",
+    "is_active": 1
+  }'
+```
+
+Required fields: `first_name`, `last_name`, `username`, `email`, `password`, and `channel_count`.
+
+## List DIDs
+
+Purchased DIDs are DIDs already owned or assigned in VoiceLink:
+
+```bash
+curl -X GET "https://api.vocobase.com/api/v2/voicelink/dids/purchased?connection_id=9b7f1c44-c87f-4f0c-9124-3c802a9c1a20&per_page=200" \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+Available DIDs are read-only inventory returned by VoiceLink:
+
+```bash
+curl -X GET "https://api.vocobase.com/api/v2/voicelink/dids/available?connection_id=9b7f1c44-c87f-4f0c-9124-3c802a9c1a20" \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+<Warning>
+  The available-DID endpoint does not purchase, renew, KYC, or allocate wallet credit. Complete those operations in VoiceLink.
+</Warning>
+
+## Map a DID to a client
+
+Use the VoiceLink DID ID and client ID:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/voicelink/dids/map \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+    "client_id": 415,
+    "did_id": 812,
+    "call_recording": 1,
+    "user_status": 1,
+    "description": "Sales outbound DID"
+  }'
+```
+
+## Manage WebSocket bots
+
+A VoiceLink WebSocket bot connects a client's calls to Vocobase. These endpoints never purchase or renew DIDs, run KYC, allocate wallet credit, or delete local Vocobase data.
+
+List bots, optionally filtered by `client_id`, `status` (0 or 1), `reseller_id`, `search`, `per_page` (1–1000), and `page`:
+
+```bash
+curl -X GET "https://api.vocobase.com/api/v2/voicelink/bots?connection_id=9b7f1c44-c87f-4f0c-9124-3c802a9c1a20&client_id=415&status=1" \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+Create a bot. `bot_name` and `client_id` are required; omit `websocket_url` to point the bot at the Vocobase bot endpoint:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/voicelink/bots \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+    "bot_name": "Vocobase +918011223344",
+    "client_id": 415,
+    "status": 1
+  }'
+```
+
+Update a bot:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/voicelink/bots/93 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+    "bot_name": "Vocobase +918011223344",
+    "websocket_url": "wss://api.pipecat.daily.co/ws/twilio",
+    "status": 1
+  }'
+```
+
+<Warning>
+  The VoiceLink bot update REPLACES the record — `bot_name`, `websocket_url`, and `status` are all required, and any field you omit is lost. Resend every field you want kept.
+</Warning>
+
+Numeric fields are validated strictly across these endpoints: zero, negative, non-integer, or non-finite values return a 400 `VALIDATION_ERROR` naming the field.
+
+## Call routing
+
+Call routing tells VoiceLink where a DID's inbound and outbound calls go. Mode `3` routes calls to a WebSocket bot.
+
+<Note>
+  For the common outbound case, prefer `POST /api/v2/voicelink/call-ready` — it is the recommended safe path because it preserves existing inbound settings automatically. The raw routing update REPLACES the record, so inbound fields must be resent every time.
+</Note>
+
+List routing records:
+
+```bash
+curl -X GET "https://api.vocobase.com/api/v2/voicelink/call-routing?connection_id=9b7f1c44-c87f-4f0c-9124-3c802a9c1a20" \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+Create routing for a DID (one record per DID). Provide either `did_id` or `did_number`; `for_inbound_call` and `for_outbound_call` are required:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/voicelink/call-routing \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+    "did_id": 812,
+    "for_inbound_call": 1,
+    "for_outbound_call": 3,
+    "outbound_websocket_bot_id": 93,
+    "status": 1
+  }'
+```
+
+Update routing. `for_inbound_call`, `for_outbound_call`, and `status` are all required because the update replaces the record — resend the current inbound values even if you only want to change outbound routing:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/voicelink/call-routing/120 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+    "for_inbound_call": 1,
+    "for_outbound_call": 3,
+    "outbound_websocket_bot_id": 93,
+    "status": 1
+  }'
+```
+
+These endpoints never purchase or renew DIDs, run KYC, allocate wallet credit, or delete local Vocobase data.
+
+## Sync and readiness
+
+Sync fetches remote VoiceLink state and compares it with Vocobase local phone numbers.
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/voicelink/sync \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+    "import_dids": true
+  }'
+```
+
+Set `import_dids: false` for a read-only readiness check. When omitted, `import_dids` defaults to `true`.
+
+```json
+{
+  "success": true,
+  "data": {
+    "clients": [],
+    "dids": [],
+    "available_dids": [],
+    "bots": [],
+    "routing": [],
+    "local_phone_numbers": [],
+    "readiness": [],
+    "drift": [],
+    "warnings": []
+  }
+}
+```
+
+### Readiness states
+
+| State | Meaning |
+|-------|---------|
+| `READY` | Remote DID, client, bot, routing, and local agent assignment are present. |
+| `NOT_IMPORTED` | The DID exists in VoiceLink but is not imported into Vocobase local inventory. |
+| `NO_CLIENT_MAPPING` | VoiceLink has not mapped this DID to a remote client. |
+| `NO_BOT` | No active VoiceLink WebSocket bot exists for the mapped client. |
+| `ROUTING_MISSING` | VoiceLink has no call-routing record for this DID. |
+| `ROUTING_CHANGED` | VoiceLink routing exists but outbound calls no longer point to an active WebSocket bot. |
+| `NO_VOCOBASE_AGENT` | The local Vocobase phone number has no assigned agent. |
+| `REMOTE_DID_EXPIRED` | VoiceLink marks the DID as expired. |
+| `REMOTE_DID_DELETED` | Vocobase has this DID locally, but VoiceLink no longer returns it. |
+
+Use `readiness` for a per-DID checklist and `drift` for a flat action list. Do not delete local rows automatically when `REMOTE_DID_DELETED` appears; confirm in VoiceLink first.
+
+Each readiness row carries a `key` — a stable digit-only join key (no `+`) that links the remote DID, routing, and local phone-number rows for that number — and `action_items`, the same remediation steps as `actions` but as `{ "code", "label" }` objects for programmatic use (`code` is the readiness issue the step resolves).
+
+Each drift row carries the same `key`, plus stable identifiers for repairing the drift without re-deriving them, when known: `did_id`, `client_id`, `routing_id`, `bot_id`, and `local_phone_number_id` (the local Vocobase PhoneNumber UUID).
+
+### Sync warnings
+
+`data.warnings` lists non-fatal upstream-fetch problems; it is empty on a fully successful sync. Each warning has:
+
+| Field | Values |
+|-------|--------|
+| `section` | `clients`, `dids`, `available_dids`, `bots`, `routing` |
+| `code` | `FETCH_FAILED`, `TRUNCATED` |
+| `message` | Human-readable explanation |
+
+When a section fetch fails or the purchased-DID list is truncated, the dependent readiness inferences are suppressed rather than guessed — sync never falsely reports states like `REMOTE_DID_DELETED` or `NO_BOT` off incomplete data.
+
+## Make a DID call-ready
+
+Use `POST /api/v2/voicelink/call-ready` when a purchased DID is already mapped to a VoiceLink client and you want Vocobase to perform the safe outbound setup steps.
+
+The endpoint:
+
+1. Resolves the DID from purchased VoiceLink inventory.
+2. Imports the DID into local Vocobase phone-number inventory if missing.
+3. Maps the DID to an explicitly supplied `client_id`, only if the DID is currently unmapped.
+4. Ensures an active VoiceLink WebSocket bot exists for the mapped client.
+5. Ensures outbound routing points to that bot.
+6. Optionally assigns the local PhoneNumber row to `agent_id`.
+
+<Note>
+  Existing inbound routing is preserved when routing is updated. DID mapping happens only with an explicit `client_id` and only for a currently-unmapped DID — a DID already mapped to a different client is never re-mapped, and clients are never auto-created. This endpoint does not purchase, renew, run KYC, or allocate wallet credit.
+</Note>
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/voicelink/call-ready \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+    "did_id": 812,
+    "client_id": 415,
+    "agent_id": "f4df9f8c-df95-46d8-bb0e-6f9f83fd4f55",
+    "bot_name": "Vocobase +918011223344"
+  }'
+```
+
+Provide either `did_id` or `did_number`. `client_id`, `agent_id`, `bot_name`, and `websocket_url` are optional:
+
+- `client_id` — maps the DID to this VoiceLink client only when the DID is currently unmapped. A DID already mapped to a different client is never re-mapped, and clients are never auto-created. Mapping initiated through this composer uses `call_recording=0`.
+- `agent_id` — assigns the imported local PhoneNumber row to this Vocobase agent. If omitted, the workflow still imports the DID and prepares VoiceLink bot/routing, but readiness remains incomplete until you assign a local Vocobase agent.
+- `bot_name` / `websocket_url` — used only when a new WebSocket bot must be created; both default sensibly (the bot points to the Vocobase endpoint).
+
+```json
+{
+  "success": true,
+  "data": {
+    "phone_number": "+918011223344",
+    "key": "918011223344",
+    "ready": true,
+    "steps": [
+      {
+        "step": "resolve_did",
+        "status": "done",
+        "detail": "Resolved DID +918011223344",
+        "data": {
+          "did_id": 812,
+          "client_id": 415
+        }
+      },
+      {
+        "step": "ensure_routing",
+        "status": "done",
+        "detail": "Updated routing for DID +918011223344 to outbound bot_id=93",
+        "data": {
+          "routing_id": 120
+        }
+      }
+    ],
+    "readiness_before": {
+      "key": "918011223344",
+      "phone_number": "+918011223344",
+      "state": "ROUTING_MISSING",
+      "issues": ["ROUTING_MISSING"],
+      "actions": ["Create VoiceLink call routing for this DID"],
+      "action_items": [
+        {
+          "code": "ROUTING_MISSING",
+          "label": "Create VoiceLink call routing for this DID"
+        }
+      ]
+    },
+    "readiness": {
+      "key": "918011223344",
+      "phone_number": "+918011223344",
+      "state": "READY",
+      "issues": [],
+      "actions": [],
+      "action_items": []
+    }
+  }
+}
+```
+
+`readiness_before` is the readiness snapshot captured before provisioning ran (so you can see exactly what changed); it is `null` when the DID could not be resolved. `readiness` is recomputed after all steps.
+
+`steps[].step` is one of `resolve_did`, `import_did`, `client_mapping`, `ensure_bot`, `ensure_routing`, or `assign_agent`. `steps[].status` can be `done`, `already`, `skipped`, or `failed`. A `failed` step means the workflow stopped at that point and returned the latest readiness state so you can show the next operator action.
+
+## Call-ready checklist
+
+A VoiceLink DID is call-ready for Vocobase outbound calling when:
+
+1. The DID is present and not expired in VoiceLink.
+2. The DID is mapped to a VoiceLink client.
+3. The mapped client has an active WebSocket bot that points to Vocobase.
+4. VoiceLink outbound routing points to that active WebSocket bot.
+5. The local Vocobase PhoneNumber row exists.
+6. The local PhoneNumber row is assigned to the intended Vocobase agent.
+
+The dashboard and `POST /api/v2/voicelink/call-ready` can sync/import DIDs and help create missing bot/routing setup. Agent assignment remains local to Vocobase.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="VoiceLink Setup" icon="phone" href="/telephony/voicelink-setup">
+    Configure VoiceLink credentials and make test calls.
+  </Card>
+  <Card title="Telephony Connections" icon="settings" href="/telephony/connections">
+    Create and select named telephony connections.
+  </Card>
+</CardGroup>
