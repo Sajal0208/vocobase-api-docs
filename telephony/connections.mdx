@@ -21,8 +21,9 @@ Use V2 telephony connections when a partner needs more than one carrier account,
 | Vobiz | `"vobiz"` | Yes |
 | SIP | `"sip"` | Yes |
 | VoiceLink | `"voicelink"` | Yes |
+| MCube | `"mcube"` | Yes |
 
-MCube remains configured through the MCube setup flow and is not selected by `connection_id`.
+MCube connections take `jwt_token` and `exe_number` instead of account credentials — see [MCube Setup](/telephony/mcube-setup). The exenumber is stored as the connection's default phone number and may be in national format (no `+` required).
 
 ## Create a connection
 
