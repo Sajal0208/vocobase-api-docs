@@ -4429,7 +4429,7 @@
       "post": {
         "operationId": "startCall",
         "summary": "Start an outbound call",
-        "description": "Initiates an outbound phone call via MCube, Twilio, Exotel, Plivo, Vobiz, SIP, or VoiceLink. Requires sufficient credits and available call concurrency; use `GET /calls/concurrency` to inspect current capacity before starting a call. The provider you pass must appear in the partner's `allowed_telephony_providers` list and its credentials must already be configured. For non-MCube providers, pass `connection_id` when the partner has multiple active connections for the same provider. Provider-only calls remain backward compatible when exactly one active connection exists for that provider. The request body does not accept a per-call `from_number` override; configure the caller ID on the telephony connection, then select that connection with `connection_id`. The resolved caller ID is returned as `from_number` in the response. The call is placed asynchronously -- use webhooks or polling to track status updates.",
+        "description": "Initiates an outbound phone call via MCube, Twilio, Exotel, Plivo, Vobiz, SIP, or VoiceLink. Requires sufficient credits and available call concurrency; use `GET /calls/concurrency` to inspect current capacity before starting a call. The provider you pass must appear in the partner's `allowed_telephony_providers` list and its credentials must already be configured. For non-MCube providers, pass `connection_id` when the partner has multiple active connections for the same provider. Provider-only calls remain backward compatible when exactly one active connection exists for that provider. Pass `from_number` to choose the caller ID for this call: it must be an active phone number owned on the selected connection (it overrides the agent-bound or default number for Twilio, Plivo, Vobiz, VoiceLink, and SIP; MCube and Exotel caller IDs are fixed, so a differing `from_number` returns 400). When omitted, the caller ID is the agent-bound number where supported, otherwise the connection default. The resolved caller ID is returned as `from_number` in the response. The call is placed asynchronously -- use webhooks or polling to track status updates.",
         "tags": ["Calls"],
         "requestBody": {
           "required": true,
@@ -4459,6 +4459,11 @@
                     "type": "string",
                     "format": "uuid",
                     "description": "Telephony connection ID to use for this call. Required when multiple active connections exist for the selected non-MCube provider. This is how you select which configured `from_number`/DID set should place the call."
+                  },
+                  "from_number": {
+                    "type": "string",
+                    "description": "Optional per-call caller ID in E.164 format. Must be an ACTIVE phone number owned on the selected connection (`connection_id` picks the connection; `from_number` picks the number within it) -- an unknown number returns 400 `VALIDATION_ERROR`, never a silent substitution. Overrides the agent-bound/default number for Twilio, Plivo, Vobiz, VoiceLink, and SIP. MCube and Exotel use a fixed caller ID, so any differing value returns 400. For VoiceLink, the DID should be call-ready (mapped and routed) or the carrier may reject the call. `fromNumber` is accepted for backwards compatibility.",
+                    "example": "+919484957224"
                   },
                   "variables": {
                     "type": "object",
