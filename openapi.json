@@ -54,10 +54,6 @@
       "description": "Manage VoiceLink reseller clients, DID mapping, and readiness sync."
     },
     {
-      "name": "Campaigns",
-      "description": "Create and run outbound calling campaigns. Upload contacts in bulk, start/pause/resume/stop the campaign, and monitor progress."
-    },
-    {
       "name": "Projects",
       "description": "Organize agents into projects. Every agent belongs to exactly one project."
     },
@@ -4429,7 +4425,7 @@
       "post": {
         "operationId": "startCall",
         "summary": "Start an outbound call",
-        "description": "Initiates an outbound phone call via MCube, Twilio, Exotel, Plivo, Vobiz, SIP, or VoiceLink. Requires sufficient credits and available call concurrency; use `GET /calls/concurrency` to inspect current capacity before starting a call. The provider you pass must appear in the partner's `allowed_telephony_providers` list and its credentials must already be configured. For non-MCube providers, pass `connection_id` when the partner has multiple active connections for the same provider. Provider-only calls remain backward compatible when exactly one active connection exists for that provider. Pass `from_number` to choose the caller ID for this call: it must be an active phone number owned on the selected connection (it overrides the agent-bound or default number for Twilio, Plivo, Vobiz, VoiceLink, and SIP; MCube and Exotel caller IDs are fixed, so a differing `from_number` returns 400). When omitted, the caller ID is the agent-bound number where supported, otherwise the connection default. The resolved caller ID is returned as `from_number` in the response. The call is placed asynchronously -- use webhooks or polling to track status updates.",
+        "description": "Initiates an outbound phone call via MCube, Twilio, Exotel, Plivo, Vobiz, SIP, or VoiceLink. Requires sufficient credits and available call concurrency; use `GET /calls/concurrency` to inspect current capacity before starting a call. The provider you pass must appear in the partner's `allowed_telephony_providers` list and its credentials must already be configured. For non-MCube providers, pass `connection_id` when the partner has multiple active connections for the same provider. Provider-only calls remain backward compatible when exactly one active connection exists for that provider. Pass `from_number` to choose the caller ID for this call: it must be an active phone number owned on the selected connection (it overrides the agent-bound or default number for Twilio, Plivo, Vobiz, VoiceLink, and SIP; MCube and Exotel caller IDs are fixed, so a differing `from_number` returns 400). When omitted, the caller ID is the agent-bound number where supported, otherwise the connection default. The resolved caller ID is returned as `from_number` in the response. The call is placed asynchronously. Use `call.status.updated` webhooks or `GET /calls/{id}` to track live status, and use `session.completed` for final transcript, recording, billing, variables, and extraction data.",
         "tags": ["Calls"],
         "requestBody": {
           "required": true,
@@ -5278,400 +5274,6 @@
         }
       }
     },
-    "/campaigns": {
-      "post": {
-        "operationId": "createCampaign",
-        "summary": "Create a campaign",
-        "description": "Creates a new campaign in `draft` status. Add contacts with `POST /campaigns/{id}/contacts`, then start the run with `POST /campaigns/{id}/start`.",
-        "tags": ["Campaigns"],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["name", "agent_id", "provider"],
-                "properties": {
-                  "name": { "type": "string", "description": "Human-readable campaign name." },
-                  "description": { "type": "string", "description": "Optional campaign description." },
-                  "agent_id": { "type": "string", "format": "uuid", "description": "Agent used for every call in this campaign." },
-                  "provider": {
-                    "type": "string",
-                    "enum": ["mcube", "twilio", "exotel"],
-                    "description": "Telephony provider. Must be in `allowed_telephony_providers` and have credentials configured."
-                  },
-                  "concurrency_limit": {
-                    "type": "integer",
-                    "minimum": 1,
-                    "maximum": 10,
-                    "default": 1,
-                    "description": "Maximum concurrent active calls for this campaign. Clamped to 1-10."
-                  }
-                }
-              },
-              "example": {
-                "name": "Black Friday outreach",
-                "description": "Outbound to VIP customers",
-                "agent_id": "a1234567-abcd-1234-abcd-123456789012",
-                "provider": "twilio",
-                "concurrency_limit": 3
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Campaign created in `draft` status.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": { "type": "boolean", "const": true },
-                    "data": { "$ref": "#/components/schemas/Campaign" }
-                  }
-                }
-              }
-            }
-          },
-          "400": { "$ref": "#/components/responses/ValidationError" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": {
-            "description": "Provider access denied (not in `allowed_telephony_providers` or credentials not configured).",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
-          },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      },
-      "get": {
-        "operationId": "listCampaigns",
-        "summary": "List campaigns",
-        "description": "Returns all campaigns created via the partner API, newest first.",
-        "tags": ["Campaigns"],
-        "parameters": [
-          { "name": "limit", "in": "query", "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 50 } },
-          { "name": "offset", "in": "query", "schema": { "type": "integer", "minimum": 0, "default": 0 } },
-          {
-            "name": "status",
-            "in": "query",
-            "schema": { "type": "string", "enum": ["draft", "running", "paused", "completed", "cancelled", "credit_exhausted"] },
-            "description": "Optional status filter."
-          }
-        ],
-        "responses": {
-          "200": {
-            "description": "Campaigns listed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": { "type": "boolean", "const": true },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "campaigns": { "type": "array", "items": { "$ref": "#/components/schemas/Campaign" } },
-                        "total": { "type": "integer" },
-                        "limit": { "type": "integer" },
-                        "offset": { "type": "integer" }
-                      }
-                    }
-                  }
-                }
-              }
-            }
-          },
-          "400": { "$ref": "#/components/responses/ValidationError" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      }
-    },
-    "/campaigns/{id}": {
-      "get": {
-        "operationId": "getCampaign",
-        "summary": "Get a campaign",
-        "description": "Fetches a campaign by ID.",
-        "tags": ["Campaigns"],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "Campaign returned.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": { "type": "boolean", "const": true },
-                    "data": { "$ref": "#/components/schemas/Campaign" }
-                  }
-                }
-              }
-            }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      }
-    },
-    "/campaigns/{id}/contacts": {
-      "post": {
-        "operationId": "addCampaignContacts",
-        "summary": "Add contacts to a campaign",
-        "description": "Bulk-adds contacts to a campaign. The campaign must be in `draft` status. Up to 10,000 contacts per request; duplicates (same phone) are silently skipped. Existing contacts (by phone) are reused -- only new phones create new `Contact` rows.",
-        "tags": ["Campaigns"],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
-        ],
-        "requestBody": {
-          "required": true,
-          "content": {
-            "application/json": {
-              "schema": {
-                "type": "object",
-                "required": ["contacts"],
-                "properties": {
-                  "contacts": {
-                    "type": "array",
-                    "minItems": 1,
-                    "maxItems": 10000,
-                    "items": { "$ref": "#/components/schemas/CampaignContactInput" }
-                  }
-                }
-              },
-              "example": {
-                "contacts": [
-                  { "phone": "+919876543210", "name": "Asha Kumar", "metadata": { "tier": "gold" } },
-                  { "phone": "+14155551234", "name": "Jordan Lee" }
-                ]
-              }
-            }
-          }
-        },
-        "responses": {
-          "201": {
-            "description": "Contacts added.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": { "type": "boolean", "const": true },
-                    "data": {
-                      "type": "object",
-                      "properties": {
-                        "added": { "type": "integer", "description": "Campaign contact rows linked." },
-                        "duplicates": { "type": "integer", "description": "Phones already linked to this campaign (skipped)." },
-                        "contacts_created": { "type": "integer", "description": "New `Contact` rows created." },
-                        "contacts_existing": { "type": "integer", "description": "Existing `Contact` rows reused." }
-                      }
-                    }
-                  }
-                },
-                "example": {
-                  "success": true,
-                  "data": { "added": 1498, "duplicates": 2, "contacts_created": 1300, "contacts_existing": 198 }
-                }
-              }
-            }
-          },
-          "400": { "$ref": "#/components/responses/ValidationError" },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      }
-    },
-    "/campaigns/{id}/start": {
-      "post": {
-        "operationId": "startCampaign",
-        "summary": "Start a campaign",
-        "description": "Transitions the campaign from `draft` to `running`. Requires at least one contact and a minimum credit balance (0.3 display credits = 30 seconds at 1 credit/minute). The provider must still be in `allowed_telephony_providers`.",
-        "tags": ["Campaigns"],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "Campaign started.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": { "type": "boolean", "const": true },
-                    "data": { "$ref": "#/components/schemas/Campaign" }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid state (not `draft`), no contacts, or insufficient credits.",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": {
-            "description": "Provider access denied.",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
-          },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      }
-    },
-    "/campaigns/{id}/pause": {
-      "post": {
-        "operationId": "pauseCampaign",
-        "summary": "Pause a running campaign",
-        "description": "Pauses a `running` campaign. In-flight calls finish; new calls are not dispatched until the campaign resumes.",
-        "tags": ["Campaigns"],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "Campaign paused.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": { "type": "boolean", "const": true },
-                    "data": { "$ref": "#/components/schemas/Campaign" }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Campaign is not in a pausable state (only `running` campaigns can pause).",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      }
-    },
-    "/campaigns/{id}/resume": {
-      "post": {
-        "operationId": "resumeCampaign",
-        "summary": "Resume a paused campaign",
-        "description": "Resumes a `paused` or `credit_exhausted` campaign. If resuming from `credit_exhausted`, the caller must have restored a minimum credit balance.",
-        "tags": ["Campaigns"],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "Campaign resumed.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": { "type": "boolean", "const": true },
-                    "data": { "$ref": "#/components/schemas/Campaign" }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Invalid state or insufficient credits.",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "403": {
-            "description": "Provider access denied.",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
-          },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      }
-    },
-    "/campaigns/{id}/stop": {
-      "post": {
-        "operationId": "stopCampaign",
-        "summary": "Stop (cancel) a campaign",
-        "description": "Cancels a `running`, `paused`, or `credit_exhausted` campaign. All queued contacts are marked `skipped`. This action is terminal -- cancelled campaigns cannot be restarted.",
-        "tags": ["Campaigns"],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "Campaign stopped.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": { "type": "boolean", "const": true },
-                    "data": { "$ref": "#/components/schemas/Campaign" }
-                  }
-                }
-              }
-            }
-          },
-          "400": {
-            "description": "Campaign is not in a stoppable state.",
-            "content": { "application/json": { "schema": { "$ref": "#/components/schemas/ErrorResponse" } } }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      }
-    },
-    "/campaigns/{id}/stats": {
-      "get": {
-        "operationId": "getCampaignStats",
-        "summary": "Get campaign progress stats",
-        "description": "Returns contact counts grouped by status, average call duration, and total credits consumed.",
-        "tags": ["Campaigns"],
-        "parameters": [
-          { "name": "id", "in": "path", "required": true, "schema": { "type": "string", "format": "uuid" } }
-        ],
-        "responses": {
-          "200": {
-            "description": "Stats returned.",
-            "content": {
-              "application/json": {
-                "schema": {
-                  "type": "object",
-                  "properties": {
-                    "success": { "type": "boolean", "const": true },
-                    "data": { "$ref": "#/components/schemas/CampaignStats" }
-                  }
-                },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "queued": 240,
-                    "in_progress": 3,
-                    "completed": 1200,
-                    "failed": 55,
-                    "skipped": 2,
-                    "avg_duration_seconds": 73.4,
-                    "total_credits": 1512.75
-                  }
-                }
-              }
-            }
-          },
-          "401": { "$ref": "#/components/responses/Unauthorized" },
-          "404": { "$ref": "#/components/responses/NotFound" },
-          "500": { "$ref": "#/components/responses/InternalError" }
-        }
-      }
-    },
     "/projects": {
       "get": {
         "operationId": "listProjects",
@@ -5911,6 +5513,105 @@
           "updated_at": { "type": "string", "format": "date-time" }
         }
       },
+      "CallStatusUpdatedWebhook": {
+        "type": "object",
+        "description": "Outbound webhook sent when a telephony call moves to a new normalized call status. Use this event for live partner queue orchestration and concurrency release.",
+        "required": ["event", "timestamp", "data"],
+        "properties": {
+          "event": { "type": "string", "const": "call.status.updated" },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "data": {
+            "type": "object",
+            "required": ["call_id", "status", "terminal", "concurrency_released", "occurred_at"],
+            "properties": {
+              "call_id": { "type": "string", "format": "uuid" },
+              "session_id": { "type": ["string", "null"], "format": "uuid" },
+              "agent_id": { "type": ["string", "null"], "format": "uuid" },
+              "agent_name": { "type": ["string", "null"] },
+              "direction": { "type": ["string", "null"], "enum": ["outbound", "inbound", null] },
+              "from_number": { "type": ["string", "null"] },
+              "to_number": { "type": ["string", "null"] },
+              "status": {
+                "type": "string",
+                "enum": ["pending", "ringing", "in_progress", "completed", "failed", "no_answer", "busy", "canceled"],
+                "description": "Normalized Vocobase call status."
+              },
+              "previous_status": {
+                "type": ["string", "null"],
+                "enum": ["pending", "ringing", "in_progress", "completed", "failed", "no_answer", "busy", "canceled", null]
+              },
+              "terminal": {
+                "type": "boolean",
+                "description": "`true` when the carrier call leg is final."
+              },
+              "concurrency_released": {
+                "type": "boolean",
+                "description": "`true` when partners can start the next call in their own dialer queue."
+              },
+              "provider": { "type": ["string", "null"], "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", "voicelink", null] },
+              "provider_status": { "type": ["string", "null"], "description": "Raw provider status value when available." },
+              "provider_event": { "type": ["string", "null"], "description": "Raw provider event name when available." },
+              "occurred_at": { "type": "string", "format": "date-time" }
+            }
+          }
+        }
+      },
+      "SessionCompletedWebhook": {
+        "type": "object",
+        "description": "Outbound webhook sent after the Vocobase session and post-call pipeline have completed. Use this event for transcript, recording, billing, variables, and extraction data.",
+        "required": ["event", "timestamp", "data"],
+        "properties": {
+          "event": { "type": "string", "const": "session.completed" },
+          "timestamp": { "type": "string", "format": "date-time" },
+          "data": {
+            "type": "object",
+            "required": ["session_id", "agent_id", "duration_seconds", "credits_used", "processing_complete"],
+            "properties": {
+              "session_id": { "type": "string", "format": "uuid" },
+              "agent_id": { "type": "string", "format": "uuid" },
+              "agent_name": { "type": ["string", "null"] },
+              "duration_seconds": { "type": ["integer", "null"] },
+              "credits_used": { "type": "number" },
+              "processing_complete": { "type": "boolean", "const": true },
+              "pipeline_completed_at": { "type": ["string", "null"], "format": "date-time" },
+              "transcript": {
+                "type": ["array", "null"],
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "role": { "type": "string", "enum": ["user", "bot"] },
+                    "content": { "type": "string" },
+                    "timestamp": { "type": "string", "format": "date-time" }
+                  }
+                }
+              },
+              "recording_url": { "type": ["string", "null"], "format": "uri" },
+              "variables": { "type": "object", "additionalProperties": true },
+              "extraction": {
+                "oneOf": [
+                  { "type": "null" },
+                  { "$ref": "#/components/schemas/ExtractionResult" }
+                ]
+              },
+              "call": {
+                "type": ["object", "null"],
+                "properties": {
+                  "call_id": { "type": "string", "format": "uuid" },
+                  "from_number": { "type": "string" },
+                  "to_number": { "type": "string" },
+                  "direction": { "type": "string", "enum": ["outbound", "inbound"] },
+                  "status": { "type": "string", "enum": ["completed", "failed", "no_answer", "busy", "canceled"] },
+                  "disposition": { "type": ["string", "null"], "enum": ["completed", "voicemail", "user_hangup_no_speech", "no_answer", "busy", "canceled", "blocked", "failed", null] },
+                  "answered_by": { "type": ["string", "null"], "enum": ["human", "machine", "unknown", "not_answered", null] },
+                  "transferred": { "type": "boolean" },
+                  "transferred_at": { "type": ["string", "null"], "format": "date-time" },
+                  "transfer_target": { "type": ["string", "null"] }
+                }
+              }
+            }
+          }
+        }
+      },
       "PartnerConfig": {
         "type": "object",
         "properties": {
@@ -5932,7 +5633,7 @@
           "allowed_telephony_providers": {
             "type": "array",
             "items": { "type": "string", "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", "voicelink"] },
-            "description": "Providers this partner is allowed to use when starting calls or campaigns. Managed by Vocobase platform admins."
+            "description": "Providers this partner is allowed to use when starting calls. Managed by Vocobase platform admins."
           },
           "webhook": {
             "type": "object",
@@ -6009,56 +5710,6 @@
             }
           },
           "created_at": { "type": "string", "format": "date-time" }
-        }
-      },
-      "Campaign": {
-        "type": "object",
-        "properties": {
-          "campaign_id": { "type": "string", "format": "uuid" },
-          "name": { "type": "string" },
-          "description": { "type": ["string", "null"] },
-          "agent_id": { "type": "string", "format": "uuid" },
-          "agent_name": { "type": "string" },
-          "provider": { "type": "string", "enum": ["mcube", "twilio", "exotel"] },
-          "concurrency_limit": { "type": "integer", "minimum": 1, "maximum": 10 },
-          "status": {
-            "type": "string",
-            "enum": ["draft", "running", "paused", "completed", "cancelled", "credit_exhausted"],
-            "description": "Lifecycle state. New campaigns start as `draft`. Transition via start / pause / resume / stop. `credit_exhausted` is set automatically when the partner runs out of credits mid-run; resumable once credits are restored."
-          },
-          "total_contacts": { "type": "integer" },
-          "completed_count": { "type": "integer", "description": "Calls that reached a terminal state (completed, failed, no_answer, busy)." },
-          "failed_count": { "type": "integer" },
-          "skipped_count": { "type": "integer", "description": "Contacts skipped when the campaign was stopped." },
-          "started_at": { "type": ["string", "null"], "format": "date-time" },
-          "paused_at": { "type": ["string", "null"], "format": "date-time" },
-          "completed_at": { "type": ["string", "null"], "format": "date-time" },
-          "created_at": { "type": "string", "format": "date-time" }
-        }
-      },
-      "CampaignContactInput": {
-        "type": "object",
-        "required": ["phone"],
-        "properties": {
-          "phone": { "type": "string", "description": "Phone number in E.164 format.", "example": "+919876543210" },
-          "name": { "type": "string", "description": "Optional contact name." },
-          "metadata": {
-            "type": "object",
-            "additionalProperties": true,
-            "description": "Optional JSON payload echoed back in session metadata and webhook events."
-          }
-        }
-      },
-      "CampaignStats": {
-        "type": "object",
-        "properties": {
-          "queued": { "type": "integer", "description": "Contacts waiting to be called." },
-          "in_progress": { "type": "integer", "description": "Calls currently active." },
-          "completed": { "type": "integer", "description": "Calls that reached a terminal state." },
-          "failed": { "type": "integer" },
-          "skipped": { "type": "integer" },
-          "avg_duration_seconds": { "type": ["number", "null"], "description": "Average billed duration across completed calls. Null when no calls have completed." },
-          "total_credits": { "type": "number", "description": "Display credits consumed by this campaign (1 credit = 60 seconds of voice)." }
         }
       },
       "Agent": {

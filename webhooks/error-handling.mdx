@@ -9,16 +9,17 @@ Vocobase automatically retries webhook deliveries that fail. This page explains 
 
 ## Retry policy
 
-When a webhook delivery fails, Vocobase retries up to **3 times** (4 total delivery attempts) with exponential backoff:
+When a webhook delivery fails, Vocobase retries up to **4 times** (5 total delivery attempts):
 
 | Attempt | Delay before attempt |
 |---|---|
 | Initial delivery | Immediate |
-| 1st retry | 1 second |
-| 2nd retry | 2 seconds |
-| 3rd retry | 4 seconds |
+| 1st retry | 5 minutes |
+| 2nd retry | 30 minutes |
+| 3rd retry | 2 hours |
+| 4th retry | 8 hours |
 
-After all retries are exhausted, the webhook delivery is abandoned. The event data is still available via the API — use `GET /calls/{id}` to fetch call details including the transcript and recording URL.
+After all retries are exhausted, the webhook delivery is marked exhausted. The event data is still available via the API — use `GET /calls/{id}` to fetch call details, including live call status and final transcript/recording data when available.
 
 ## What counts as a failure
 
@@ -74,29 +75,37 @@ app.post("/webhooks/vocobase", async (req, res) => {
 
 ### Handle duplicates (idempotency)
 
-Due to retries, your endpoint may receive the same event more than once. Use the `session_id` as an idempotency key:
+Due to retries, your endpoint may receive the same event more than once. Use an idempotency key that includes the event type and the fields that identify the transition:
+
+- `session.completed`: use `session.completed:{session_id}`
+- `call.status.updated`: use `call.status.updated:{call_id}:{status}:{occurred_at}`
 
 ```javascript
 app.post("/webhooks/vocobase", async (req, res) => {
   verifySignature(req);
   res.status(200).json({ received: true });
 
-  const { session_id } = req.body.data;
+  const event = req.body;
+  const data = event.data;
+  const idempotencyKey =
+    event.event === "call.status.updated"
+      ? `${event.event}:${data.call_id}:${data.status}:${data.occurred_at}`
+      : `${event.event}:${data.session_id}`;
 
   // Check if we already processed this event
   const exists = await db.processedEvents.findUnique({
-    where: { session_id }
+    where: { idempotency_key: idempotencyKey }
   });
   if (exists) {
-    console.log(`Duplicate event for session ${session_id}, skipping`);
+    console.log(`Duplicate webhook event ${idempotencyKey}, skipping`);
     return;
   }
 
   // Mark as processed before handling
-  await db.processedEvents.create({ data: { session_id } });
+  await db.processedEvents.create({ data: { idempotency_key: idempotencyKey } });
 
   // Now process the event
-  await handleSessionCompleted(req.body.data);
+  await handleVocobaseWebhook(event);
 });
 ```
 

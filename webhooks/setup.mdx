@@ -1,15 +1,32 @@
 ---
 title: "Webhook Setup"
-description: "Configure webhooks to receive call completion notifications"
+description: "Configure webhooks to receive live call status and session completion notifications"
 ---
 
 # Webhook Setup
 
-Webhooks notify your server when events occur in Vocobase, such as a call completing. Instead of polling the API, you receive a POST request with the full event payload.
+Webhooks notify your server when events occur in Vocobase, such as a call status changing or a session completing. Instead of polling the API, you receive a POST request with the event payload.
 
 ## What webhooks are for
 
-When a call finishes (or fails), Vocobase sends a `session.completed` event to each enabled webhook endpoint. The payload includes:
+Vocobase sends two classes of webhook events to each enabled webhook endpoint:
+
+| Event | Purpose | Use it for |
+|---|---|---|
+| `call.status.updated` | Real-time phone call lifecycle updates from the telephony provider | Partner queue orchestration, live UI state, freeing concurrency when the call reaches a terminal status |
+| `session.completed` | Final Vocobase session data after the bot and post-call pipeline finish | Transcript, recording URL, credits, variables, extraction, and final call metadata |
+
+For outbound telephony calls, use `call.status.updated` to know what is happening right now. Use `session.completed` only when you need final post-call data.
+
+`call.status.updated` includes:
+
+- Current normalized call status
+- Previous status, when available
+- Whether the status is terminal
+- Whether the call slot/concurrency can be released
+- Provider and raw provider status for debugging
+
+`session.completed` includes:
 
 - Full conversation transcript with timestamps
 - Call duration and credits used
@@ -19,7 +36,7 @@ When a call finishes (or fails), Vocobase sends a `session.completed` event to e
 
 ## Configure webhook endpoints
 
-Use webhook endpoints to send the same event to one or more destinations, such as `prod`, `staging`, or an internal audit receiver. Each endpoint has its own URL, enabled flag, delivery history, and signing secret.
+Use webhook endpoints to send the same event stream to one or more destinations, such as `prod`, `staging`, or an internal audit receiver. Each endpoint has its own URL, enabled flag, delivery history, and signing secret.
 
 ```bash
 curl -X POST https://api.vocobase.com/api/v2/config/webhooks \
@@ -93,6 +110,7 @@ curl -X DELETE https://api.vocobase.com/api/v2/config/webhooks/12345678-abcd-123
 - The `default` label is reserved for the legacy single-webhook compatibility route.
 - Each partner can configure up to 5 webhook endpoints.
 - Only enabled endpoints receive new events.
+- Endpoints receive all webhook event types. Branch on the top-level `event` field in your handler.
 - Each endpoint signs requests with its own secret.
 
 <Note>
@@ -177,7 +195,7 @@ app.post("/webhooks/vocobase", (req, res) => {
   }
 
   const event = req.body;
-  console.log("Received event:", event.event, event.session_id);
+  console.log("Received event:", event.event, event.data?.session_id);
 
   // Process the webhook asynchronously
   processWebhookAsync(event);

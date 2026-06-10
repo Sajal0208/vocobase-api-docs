@@ -71,28 +71,6 @@ The `session.completed` webhook echoes the same `variables` map for partner-side
 - **Inbound calls** receive no `variables` field by default; placeholders in the prompt render empty.
 - **Custom functions can read variables.** Values supplied at call start are available to your configured custom functions, so handlers such as CRM lookup or calendar booking can use fields like `customer_id` directly.
 
-## Campaigns: map CSV columns to variables
-
-When using the Campaigns API, you can map per-row contact metadata into pre-call variables for every call the campaign generates:
-
-```bash
-POST /api/v2/campaigns
-Authorization: Bearer rg_live_...
-Content-Type: application/json
-
-{
-  "name": "Q2 Outreach",
-  "agentId": "...",
-  "phoneNumberId": "...",
-  "variableMap": {
-    "First Name": "callee_name",
-    "Phone": "mobile_number"
-  }
-}
-```
-
-For each campaign contact, Vocobase maps the configured contact fields into the `variables` field used by `/calls/start`. Mapping keys are free-form spreadsheet columns; values must match the agent's variable names.
-
 ## Next steps
 
 <CardGroup cols={2}>

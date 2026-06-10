@@ -67,7 +67,7 @@ The response shows your agent limit, allowed voices and languages, webhook statu
 
 ## Set up webhooks
 
-Configure one or more webhook endpoints to receive notifications when calls complete. This is how you get transcripts, extraction results, and recording URLs.
+Configure one or more webhook endpoints to receive live call status updates and final session results. Use `call.status.updated` for partner queue orchestration and concurrency release; use `session.completed` for transcripts, extraction results, and recording URLs.
 
 <CodeGroup>
 ```bash cURL
@@ -249,6 +249,6 @@ Run `GET /config` again to confirm everything is configured:
     Create an agent and make your first call.
   </Card>
   <Card title="Webhook Payloads" icon="webhook" href="/webhooks/payloads">
-    Understand the data you receive when calls complete.
+    Understand live call status and final session payloads.
   </Card>
 </CardGroup>
