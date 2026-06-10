@@ -609,7 +609,7 @@
       "put": {
         "operationId": "updateMcubeConfig",
         "summary": "Set or update MCube credentials",
-        "description": "Stores encrypted MCube JWT token and executive number for outbound calling.",
+        "description": "Stores encrypted MCube JWT token and executive number for outbound calling. Creates or updates the partner\u0027s default MCube telephony connection; for multiple named connections use POST /telephony/connections with provider \"mcube\".",
         "tags": ["Config"],
         "requestBody": {
           "required": true,
@@ -1068,7 +1068,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["twilio", "exotel", "plivo", "vobiz", "sip", "voicelink"]
+              "enum": ["twilio", "exotel", "plivo", "vobiz", "sip", "voicelink", "mcube"]
             },
             "description": "Optional provider filter."
           }
@@ -5962,7 +5962,12 @@
                 "type": "object",
                 "properties": {
                   "configured": { "type": "boolean" },
-                  "exe_number": { "type": ["string", "null"] }
+                  "exe_number": { "type": ["string", "null"] },
+                  "source": {
+                    "type": ["string", "null"],
+                    "enum": ["connection", "legacy_partner_config", null],
+                    "description": "Where the active MCube credentials come from. New integrations should use telephony connections."
+                  }
                 }
               },
               "exotel": {
@@ -6388,7 +6393,7 @@
         "properties": {
           "provider": {
             "type": "string",
-            "enum": ["twilio", "exotel", "plivo", "vobiz", "sip", "voicelink"],
+            "enum": ["twilio", "exotel", "plivo", "vobiz", "sip", "voicelink", "mcube"],
             "description": "Telephony provider to connect."
           },
           "name": {
@@ -6466,6 +6471,16 @@
             "type": "string",
             "format": "uri",
             "description": "Optional VoiceLink API base URL."
+          },
+          "jwt_token": {
+            "type": "string",
+            "description": "MCube JWT authentication token (required for MCube)."
+          },
+          "exe_number": {
+            "type": "string",
+            "pattern": "^\\+?\\d{4,15}$",
+            "description": "MCube exenumber — the line outbound calls are placed from. National format allowed (no + required); stored as the connection's default phone number. Required for MCube.",
+            "example": "9876543232"
           }
         }
       },
@@ -6481,11 +6496,11 @@
           },
           "provider": {
             "type": "string",
-            "enum": ["twilio", "exotel", "plivo", "vobiz", "sip", "voicelink"]
+            "enum": ["twilio", "exotel", "plivo", "vobiz", "sip", "voicelink", "mcube"]
           },
           "provider_key": {
             "type": "string",
-            "enum": ["TWILIO", "EXOTEL", "PLIVO", "VOBIZ", "SIP", "VOICELINK"]
+            "enum": ["TWILIO", "EXOTEL", "PLIVO", "VOBIZ", "SIP", "VOICELINK", "MCUBE"]
           },
           "name": { "type": "string" },
           "status": {
