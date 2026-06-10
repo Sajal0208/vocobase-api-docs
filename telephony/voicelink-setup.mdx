@@ -244,6 +244,8 @@ VoiceLink uses a Generic WebSocket media model. Vocobase manages the media path;
 
 The `from_number` you send is stored as the default outbound DID. To manage multiple VoiceLink DIDs, create named V2 telephony connections and select the desired one with `connection_id` when starting outbound calls.
 
+For client, DID mapping, sync, and readiness checks, use the [VoiceLink Management](/telephony/voicelink-management) guide. It documents the V2 endpoints under `/api/v2/voicelink/*`, including `connection_id` support for multiple active VoiceLink connections.
+
 ## Troubleshooting
 
 ### "VoiceLink not configured" or 403 on `/calls/start`
@@ -277,6 +279,9 @@ Changed your VoiceLink password? Re-send `PUT /api/v2/config/telephony/voicelink
 <CardGroup cols={2}>
   <Card title="Telephony Connections" icon="settings" href="/telephony/connections">
     Create and manage multiple named connections.
+  </Card>
+  <Card title="VoiceLink Management" icon="settings" href="/telephony/voicelink-management">
+    Manage clients, DIDs, mapping, and readiness.
   </Card>
   <Card title="Bring Your Own Phone" icon="phone" href="/telephony/byop-setup">
     Overview of all supported BYOP providers.
