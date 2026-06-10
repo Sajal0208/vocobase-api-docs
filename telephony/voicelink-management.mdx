@@ -120,10 +120,12 @@ curl -X POST https://api.vocobase.com/api/v2/voicelink/dids/map \
     "client_id": 415,
     "did_id": 812,
     "call_recording": 1,
-    "user_status": 1,
+    "user_status": 2,
     "description": "Sales outbound DID"
   }'
 ```
+
+`user_status` is VoiceLink's mapping status: `2` = assigned (active) and `4` = inactive. VoiceLink rejects any other value.
 
 ## Manage WebSocket bots
 
