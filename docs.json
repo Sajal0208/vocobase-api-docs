@@ -43,7 +43,7 @@
       },
       {
         "group": "Telephony",
-        "pages": ["telephony/byop-setup", "telephony/connections", "telephony/twilio-setup", "telephony/mcube-setup", "telephony/exotel-setup", "telephony/plivo-setup", "telephony/vobiz-setup", "telephony/sip-setup", "telephony/voicelink-setup", "telephony/voicelink-management"]
+        "pages": ["telephony/byop-setup", "telephony/connections", "telephony/twilio-setup", "telephony/mcube-setup", "telephony/exotel-setup", "telephony/plivo-setup", "telephony/vobiz-setup", "telephony/tata-smartflo-setup", "telephony/sip-setup", "telephony/voicelink-setup", "telephony/voicelink-management"]
       }
     ]
   },

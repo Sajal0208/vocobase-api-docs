@@ -43,10 +43,11 @@ Call ends → session.completed webhook fires
   - **Twilio** ([Twilio Setup guide](/telephony/twilio-setup))
   - **Plivo** ([Plivo Setup guide](/telephony/plivo-setup))
   - **Vobiz** ([Vobiz Setup guide](/telephony/vobiz-setup))
+  - **Tata Smartflo** ([Tata Smartflo Setup guide](/telephony/tata-smartflo-setup))
 - A phone number with voice capabilities from your chosen provider
 
 <Note>
-  Inbound calling is supported with **Twilio**, **Plivo**, and **Vobiz**. MCube inbound is not yet available. The flow below uses Twilio as the example; for Plivo and Vobiz, use the [V2 phone-numbers API](#use-the-v2-phone-numbers-api-plivo--vobiz) at the bottom of this page to manage DIDs and agent assignment programmatically.
+  Inbound calling is supported with **Twilio**, **Plivo**, **Vobiz**, and **Tata Smartflo**. MCube inbound is not yet available. The flow below uses Twilio as the example; for Plivo, Vobiz, and Tata Smartflo, use the V2 phone-numbers API section at the bottom of this page to manage DIDs and agent assignment programmatically.
 </Note>
 
 <Note>
@@ -221,9 +222,13 @@ See the [Knowledge Base guide](/knowledge-base) for the full workflow.
 
 - If `direction` shows `"outbound"` for an inbound call, ensure you created the agent with `agent_type: "inbound"`, not `"outbound"`
 
-## Use the V2 phone-numbers API (Plivo + Vobiz)
+## Use the V2 phone-numbers API (Plivo + Vobiz + Tata Smartflo)
 
-For **Plivo** and **Vobiz**, you don't need to paste an answer URL into the carrier's portal. Use the V2 phone-numbers endpoints — Vocobase will pull or accept your DID inventory, then auto-bind each DID to a carrier Application pointing at our inbound URL the moment you assign an agent.
+For **Plivo**, **Vobiz**, and **Tata Smartflo**, use the V2 phone-numbers endpoints to sync DIDs, list local inventory, and assign inbound agents. Plivo pulls inventory from the carrier, Vobiz accepts an explicit `numbers` array, and Tata Smartflo pulls DIDs from Smartflo `GET /v1/my_number`.
+
+<Note>
+  Tata Smartflo inbound DIDs must also be routed in the Smartflo panel to the Voice-Bot streaming app so Smartflo invokes Vocobase's Dynamic Voice-Bot resolver for incoming calls.
+</Note>
 
 ### API tester quickstart
 
@@ -232,7 +237,8 @@ Use this as a copy-paste runbook when testing the V2 inbound flow.
 ```bash
 export BASE_URL="https://api.vocobase.com/api/v2"
 export API_KEY="rg_live_..."
-export PROVIDER="VOBIZ" # or PLIVO
+export PROVIDER="VOBIZ" # PLIVO, VOBIZ, or TATA_SMARTFLO
+export CONNECTION_PROVIDER="vobiz" # plivo, vobiz, or tata_smartflo
 export CONNECTION_ID="9b7f1c44-c87f-4f0c-9124-3c802a9c1a20" # optional when only one active connection exists
 export DID="+918065480085"
 export AGENT_ID="00000000-0000-0000-0000-000000000000"
@@ -249,7 +255,7 @@ Expected:
 
 - `success` is `true`
 - `data.status` is `active`
-- `data.telephony.vobiz.configured` is `true` for Vobiz, or `data.telephony.plivo.configured` is `true` for Plivo
+- `data.telephony.vobiz.configured` is `true` for Vobiz, `data.telephony.plivo.configured` is `true` for Plivo, or `data.telephony.tata_smartflo.configured` is `true` for Tata Smartflo
 - the provider appears in `data.allowed_telephony_providers`
 
 If the provider is not configured, configure it first. For new multi-connection BYOP builds, prefer `POST /api/v2/telephony/connections` and save the returned `connection_id`; the older config endpoints update the default connection.
@@ -274,12 +280,23 @@ curl -X PUT "$BASE_URL/config/telephony/plivo" \
     "auth_token": "your_plivo_auth_token",
     "from_number": "+14155551234"
   }'
+
+# Tata Smartflo
+curl -X PUT "$BASE_URL/config/telephony/tata-smartflo" \
+  -H "Authorization: Bearer $API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "email": "ops@example.com",
+    "password": "your-smartflo-password",
+    "from_number": "+918065480085",
+    "base_url": "https://api-smartflo.tatateleservices.com"
+  }'
 ```
 
-List connections when you need to choose a specific Plivo or Vobiz connection:
+List connections when you need to choose a specific Plivo, Vobiz, or Tata Smartflo connection:
 
 ```bash
-curl -sS "$BASE_URL/telephony/connections?provider=vobiz" \
+curl -sS "$BASE_URL/telephony/connections?provider=$CONNECTION_PROVIDER" \
   -H "Authorization: Bearer $API_KEY"
 ```
 
@@ -357,13 +374,42 @@ Save the returned `data.id` as `AGENT_ID`.
     <Warning>
       The Vobiz request body field is `numbers`, not `phone_numbers`.
     </Warning>
+
+    **Tata Smartflo** — Vocobase pulls your DID inventory from Smartflo `GET /v1/my_number`:
+
+    ```bash
+    curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
+      -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+      -H "Content-Type: application/json" \
+      -d '{
+        "provider": "TATA_SMARTFLO",
+        "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
+      }'
+    ```
+
+    Tata Smartflo response:
+
+    ```json
+    {
+      "success": true,
+      "data": {
+        "imported": 2,
+        "skipped": 0,
+        "total_remote": 2
+      }
+    }
+    ```
+
+    <Warning>
+      Syncing a Tata Smartflo DID into Vocobase does not change the Smartflo panel route by itself. Route the DID to the Voice-Bot streaming app in Smartflo before testing inbound calls.
+    </Warning>
   </Step>
 
   <Step title="List imported DIDs">
     List the partner's imported phone numbers and save the `id` for the DID you want to assign:
 
     ```bash
-    curl "https://api.vocobase.com/api/v2/phone-numbers?provider=VOBIZ" \
+    curl "https://api.vocobase.com/api/v2/phone-numbers?provider=$PROVIDER" \
       -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
     ```
 
@@ -425,7 +471,7 @@ Save the returned `data.id` as `AGENT_ID`.
     }
     ```
 
-    If carrier-side assignment fails, you'll get `502 VOBIZ_SYNC_FAILED` or `502 PLIVO_SYNC_FAILED`. Retry after confirming the credentials and DID ownership.
+    If carrier-side assignment fails, you'll get a provider sync error such as `502 VOBIZ_SYNC_FAILED`, `502 PLIVO_SYNC_FAILED`, or `502 TATA_SMARTFLO_SYNC_FAILED`. Retry after confirming the credentials, DID ownership, and provider-side routing.
   </Step>
 
   <Step title="Reconcile with one call">
@@ -464,12 +510,12 @@ Save the returned `data.id` as `AGENT_ID`.
     - `session.completed` webhook fires after hangup
     - webhook `data.call.direction` is `inbound`
     - webhook `data.call.to_number` is the DID
-    - no `VOBIZ_SYNC_FAILED`, `PLIVO_SYNC_FAILED`, or 5xx appears during the assignment or call
+    - no `VOBIZ_SYNC_FAILED`, `PLIVO_SYNC_FAILED`, `TATA_SMARTFLO_SYNC_FAILED`, or 5xx appears during the assignment or call
   </Step>
 </Steps>
 
 <Tip>
-  See the per-provider setup guides for credential configuration — [Plivo Setup](/telephony/plivo-setup), [Vobiz Setup](/telephony/vobiz-setup). For multiple named connections, use [Telephony Connections](/telephony/connections).
+  See the per-provider setup guides for credential configuration — [Plivo Setup](/telephony/plivo-setup), [Vobiz Setup](/telephony/vobiz-setup), and [Tata Smartflo Setup](/telephony/tata-smartflo-setup). For multiple named connections, use [Telephony Connections](/telephony/connections).
 </Tip>
 
 ### End-to-end Vobiz test script
@@ -517,12 +563,15 @@ echo "\n5. After assignment succeeds, call $DID from a real phone."
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
 | `400 VOBIZ_NOT_CONFIGURED` or `400 PLIVO_NOT_CONFIGURED` | Partner has no active telephony connection for that provider | Run `PUT /api/v2/config/telephony/vobiz` or `PUT /api/v2/config/telephony/plivo`, then retry |
+| `400 TATA_SMARTFLO_NOT_CONFIGURED` | Partner has no active Tata Smartflo telephony connection | Run `PUT /api/v2/config/telephony/tata-smartflo`, then retry |
 | `400 CONNECTION_AMBIGUOUS` | Partner has multiple active connections for that provider | Pass `connection_id` from `GET /api/v2/telephony/connections` |
 | `400 VALIDATION_ERROR` on Vobiz sync | Body used `phone_numbers`, omitted `numbers`, or sent invalid E.164 values | Send `{ "provider": "VOBIZ", "numbers": ["+918065480085"] }` |
+| `400 VALIDATION_ERROR` on Tata Smartflo sync | Provider-side DID inventory is unavailable or the provider value is incorrect | Send `{ "provider": "TATA_SMARTFLO" }` and confirm Smartflo API access is enabled |
 | `409 VALIDATION_ERROR` | DID is already inbound-enabled on another active row | Disable inbound routing on the old row, or keep this row outbound-only with `inbound_enabled: false` |
 | `400 AGENT_NOT_FOUND` | Agent ID belongs to another user, is deleted, or is not a valid UUID | Use an active agent owned by the same partner user |
-| `404 phone number not found` | `PHONE_NUMBER_ID` is from another partner/provider or was not imported | Re-run `GET /api/v2/phone-numbers?provider=VOBIZ` and use that `id` |
+| `404 phone number not found` | `PHONE_NUMBER_ID` is from another partner/provider or was not imported | Re-run `GET /api/v2/phone-numbers?provider=<PROVIDER>` and use that `id` |
 | `502 VOBIZ_SYNC_FAILED` | Carrier-side assignment failed | Confirm Vobiz credentials and DID ownership, then retry |
+| `502 TATA_SMARTFLO_SYNC_FAILED` | Tata Smartflo DID sync or inbound routing failed | Confirm Smartflo API access, DID ownership, and Smartflo panel Voice-Bot routing, then retry |
 | Assignment succeeds but call reaches the wrong destination | Carrier-side Application binding may be stale | Run `POST /api/v2/phone-numbers/resync` and call again |
 | Call connects but no webhook arrives | Partner webhook is not configured or endpoint rejects delivery | Configure `POST /api/v2/config/webhooks` and check your webhook server logs |
 
@@ -542,6 +591,9 @@ echo "\n5. After assignment succeeds, call $DID from a real phone."
   </Card>
   <Card title="Vobiz Setup" icon="phone" href="/telephony/vobiz-setup">
     Configure Vobiz credentials and DIDs.
+  </Card>
+  <Card title="Tata Smartflo Setup" icon="phone" href="/telephony/tata-smartflo-setup">
+    Configure Tata Smartflo credentials and DID routing.
   </Card>
   <Card title="Telephony Connections" icon="settings" href="/telephony/connections">
     Create and manage multiple named BYOP connections.

@@ -66,7 +66,7 @@ Sent whenever Vocobase learns that a telephony call moved to a new meaningful ca
 | `data.previous_status` | string or null | Previous normalized status, when known |
 | `data.terminal` | boolean | `true` when this status is final for the carrier call leg |
 | `data.concurrency_released` | boolean | `true` when partners can start the next call in their own queue |
-| `data.provider` | string or null | Telephony provider: `twilio`, `plivo`, `vobiz`, `voicelink`, `sip`, `mcube`, or `exotel` |
+| `data.provider` | string or null | Telephony provider: `twilio`, `plivo`, `vobiz`, `tata_smartflo`, `voicelink`, `sip`, `mcube`, or `exotel` |
 | `data.provider_status` | string or null | Raw provider status value when available |
 | `data.provider_event` | string or null | Raw provider event name when available |
 | `data.occurred_at` | string (ISO 8601) | When the status transition was recorded |
@@ -100,6 +100,7 @@ Partners should branch on `data.status`, not on provider-specific values. Vocoba
 | Twilio, Plivo, Vobiz `no-answer` | `no_answer` |
 | Twilio `canceled`; Plivo/Vobiz `cancel`; VoiceLink canceled classifications | `canceled` |
 | Twilio `failed`; Plivo/Vobiz `timeout`; provider error states | `failed` |
+| Tata Smartflo lifecycle payloads (`call_status` is `Answered` or `Missed`; flat snake_case fields include `call_id`, `uuid`, `hangup_cause`, `start_stamp`, `answer_stamp`, `end_stamp`, `billsec`, `recording_url`, and `direction`) | `Answered` maps to `in_progress` while live and `completed` after hangup; `Missed` maps to `no_answer`; terminal carrier/error causes map to `busy`, `canceled`, or `failed` |
 
 ### External queue orchestration
 

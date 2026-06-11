@@ -19,6 +19,7 @@ Use V2 telephony connections when a partner needs more than one carrier account,
 | Exotel | `"exotel"` | Yes |
 | Plivo | `"plivo"` | Yes |
 | Vobiz | `"vobiz"` | Yes |
+| Tata Smartflo | `"tata_smartflo"` | Yes |
 | SIP | `"sip"` | Yes |
 | VoiceLink | `"voicelink"` | Yes |
 | MCube | `"mcube"` | Yes |
@@ -155,7 +156,7 @@ curl -X POST https://api.vocobase.com/api/v2/calls/start \
 }
 ```
 
-`POST /api/v2/calls/start` does not accept a per-call `from_number` override. The caller ID is resolved from the selected connection: Twilio uses the connection default number, Exotel uses the saved caller ID, and Plivo, Vobiz, SIP, and VoiceLink prefer an agent-bound active number before the connection default. The resolved value is returned as `from_number` in the response.
+`POST /api/v2/calls/start` does not accept a per-call `from_number` override. The caller ID is resolved from the selected connection: Twilio uses the connection default number, Exotel uses the saved caller ID, and Plivo, Vobiz, Tata Smartflo, SIP, and VoiceLink prefer an agent-bound active number before the connection default. The resolved value is returned as `from_number` in the response.
 
 If `connection_id` is omitted while multiple active connections exist for that provider, the API returns `CONNECTION_AMBIGUOUS`.
 

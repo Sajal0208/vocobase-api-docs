@@ -992,6 +992,96 @@
         }
       }
     },
+    "/config/telephony/tata-smartflo": {
+      "put": {
+        "operationId": "updateTataSmartfloConfig",
+        "summary": "Set or update Tata Smartflo credentials",
+        "description": "Stores Tata Smartflo credentials for inbound and outbound BYOP WebSocket calling. Tata Smartflo authenticates with a panel `email` and `password`; Vocobase logs in with these to obtain short-lived API tokens (the password is stored encrypted and never returned). `email`, `password`, and `from_number` are required; `base_url` is optional and defaults to the Tata Smartflo API host. The `from_number` must be an E.164 DID returned by Smartflo `GET /v1/my_number` and is stored as the connection's default outbound DID. Requires `\"tata_smartflo\"` in `allowed_telephony_providers`.",
+        "tags": ["Config"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["email", "password", "from_number"],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "format": "email",
+                    "description": "Tata Smartflo panel email.",
+                    "example": "ops@example.com"
+                  },
+                  "password": {
+                    "type": "string",
+                    "description": "Tata Smartflo panel password. Stored encrypted; never returned.",
+                    "example": "your-smartflo-password"
+                  },
+                  "from_number": {
+                    "type": "string",
+                    "description": "Tata Smartflo DID used as the caller ID, in E.164 format. Stored as the connection's default DID.",
+                    "example": "+918011223344"
+                  },
+                  "base_url": {
+                    "type": "string",
+                    "description": "Optional Tata Smartflo API base URL. Omit to use the default host.",
+                    "example": "https://api-smartflo.tatateleservices.com"
+                  },
+                  "agent_number": {
+                    "type": "string",
+                    "description": "Optional outbound agent leg number. Use only after Vocobase confirms the required Smartflo value for your account."
+                  }
+                }
+              },
+              "example": {
+                "email": "ops@example.com",
+                "password": "your-smartflo-password",
+                "from_number": "+918011223344",
+                "base_url": "https://api-smartflo.tatateleservices.com"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Tata Smartflo credentials updated.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "email": { "type": "string" },
+                        "from_number": { "type": "string" },
+                        "base_url": { "type": ["string", "null"] },
+                        "agent_number": { "type": ["string", "null"] },
+                        "message": { "type": "string" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "email": "ops@example.com",
+                    "from_number": "+918011223344",
+                    "base_url": "https://api-smartflo.tatateleservices.com",
+                    "agent_number": null,
+                    "message": "Tata Smartflo credentials updated successfully."
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
     "/config/display-name": {
       "put": {
         "operationId": "updateDisplayName",
@@ -1064,7 +1154,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["twilio", "exotel", "plivo", "vobiz", "sip", "voicelink", "mcube"]
+              "enum": ["twilio", "exotel", "plivo", "vobiz", "tata_smartflo", "sip", "voicelink", "mcube"]
             },
             "description": "Optional provider filter."
           }
@@ -2151,7 +2241,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["TWILIO", "EXOTEL", "PLIVO", "VOBIZ", "SIP", "VOICELINK"]
+              "enum": ["TWILIO", "EXOTEL", "PLIVO", "VOBIZ", "TATA_SMARTFLO", "SIP", "VOICELINK"]
             },
             "description": "Optional provider filter."
           },
@@ -4425,7 +4515,7 @@
       "post": {
         "operationId": "startCall",
         "summary": "Start an outbound call",
-        "description": "Initiates an outbound phone call via MCube, Twilio, Exotel, Plivo, Vobiz, SIP, or VoiceLink. Requires sufficient credits and available call concurrency; use `GET /calls/concurrency` to inspect current capacity before starting a call. The provider you pass must appear in the partner's `allowed_telephony_providers` list and its credentials must already be configured. For non-MCube providers, pass `connection_id` when the partner has multiple active connections for the same provider. Provider-only calls remain backward compatible when exactly one active connection exists for that provider. Pass `from_number` to choose the caller ID for this call: it must be an active phone number owned on the selected connection (it overrides the agent-bound or default number for Twilio, Plivo, Vobiz, VoiceLink, and SIP; MCube and Exotel caller IDs are fixed, so a differing `from_number` returns 400). When omitted, the caller ID is the agent-bound number where supported, otherwise the connection default. The resolved caller ID is returned as `from_number` in the response. The call is placed asynchronously. Use `call.status.updated` webhooks or `GET /calls/{id}` to track live status, and use `session.completed` for final transcript, recording, billing, variables, and extraction data.",
+        "description": "Initiates an outbound phone call via MCube, Twilio, Exotel, Plivo, Vobiz, Tata Smartflo, SIP, or VoiceLink. Requires sufficient credits and available call concurrency; use `GET /calls/concurrency` to inspect current capacity before starting a call. The provider you pass must appear in the partner's `allowed_telephony_providers` list and its credentials must already be configured. For non-MCube providers, pass `connection_id` when the partner has multiple active connections for the same provider. Provider-only calls remain backward compatible when exactly one active connection exists for that provider. Pass `from_number` to choose the caller ID for this call: it must be an active phone number owned on the selected connection (it overrides the agent-bound or default number for Twilio, Plivo, Vobiz, Tata Smartflo, VoiceLink, and SIP; MCube and Exotel caller IDs are fixed, so a differing `from_number` returns 400). When omitted, the caller ID is the agent-bound number where supported, otherwise the connection default. The resolved caller ID is returned as `from_number` in the response. The call is placed asynchronously. Use `call.status.updated` webhooks or `GET /calls/{id}` to track live status, and use `session.completed` for final transcript, recording, billing, variables, and extraction data.",
         "tags": ["Calls"],
         "requestBody": {
           "required": true,
@@ -4447,7 +4537,7 @@
                   },
                   "provider": {
                     "type": "string",
-                    "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", "voicelink"],
+                    "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "tata_smartflo", "sip", "voicelink"],
                     "default": "mcube",
                     "description": "Telephony provider. Defaults to `mcube` if not specified. The provider must be in your partner's `allowed_telephony_providers` list and its credentials must be configured."
                   },
@@ -4497,7 +4587,7 @@
                         "call_id": { "type": "string", "format": "uuid" },
                         "session_id": { "type": "string", "format": "uuid" },
                         "status": { "type": "string", "example": "pending" },
-                        "provider": { "type": "string", "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", "voicelink"] },
+                        "provider": { "type": "string", "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "tata_smartflo", "sip", "voicelink"] },
                         "connection_id": {
                           "type": ["string", "null"],
                           "format": "uuid",
@@ -5548,7 +5638,7 @@
                 "type": "boolean",
                 "description": "`true` when partners can start the next call in their own dialer queue."
               },
-              "provider": { "type": ["string", "null"], "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", "voicelink", null] },
+              "provider": { "type": ["string", "null"], "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "tata_smartflo", "sip", "voicelink", null] },
               "provider_status": { "type": ["string", "null"], "description": "Raw provider status value when available." },
               "provider_event": { "type": ["string", "null"], "description": "Raw provider event name when available." },
               "occurred_at": { "type": "string", "format": "date-time" }
@@ -5632,7 +5722,7 @@
           "status": { "type": "string", "enum": ["active", "suspended"] },
           "allowed_telephony_providers": {
             "type": "array",
-            "items": { "type": "string", "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", "voicelink"] },
+            "items": { "type": "string", "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "tata_smartflo", "sip", "voicelink"] },
             "description": "Providers this partner is allowed to use when starting calls. Managed by Vocobase platform admins."
           },
           "webhook": {
@@ -5890,7 +5980,7 @@
             "type": ["integer", "null"],
             "description": "Carrier-billed duration in seconds when available."
           },
-          "provider": { "type": ["string", "null"], "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "sip", "voicelink", null] },
+          "provider": { "type": ["string", "null"], "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "tata_smartflo", "sip", "voicelink", null] },
           "connection_id": {
             "type": ["string", "null"],
             "format": "uuid",
@@ -6044,7 +6134,7 @@
         "properties": {
           "provider": {
             "type": "string",
-            "enum": ["twilio", "exotel", "plivo", "vobiz", "sip", "voicelink", "mcube"],
+            "enum": ["twilio", "exotel", "plivo", "vobiz", "tata_smartflo", "sip", "voicelink", "mcube"],
             "description": "Telephony provider to connect."
           },
           "name": {
@@ -6121,7 +6211,22 @@
           "base_url": {
             "type": "string",
             "format": "uri",
-            "description": "Optional VoiceLink API base URL."
+            "description": "Optional VoiceLink or Tata Smartflo API base URL."
+          },
+          "tata_email": {
+            "type": "string",
+            "format": "email",
+            "description": "Tata Smartflo panel email. Required when provider is `tata_smartflo`.",
+            "example": "ops@example.com"
+          },
+          "tata_password": {
+            "type": "string",
+            "description": "Tata Smartflo panel password. Stored encrypted; never returned. Required when provider is `tata_smartflo`.",
+            "example": "your-smartflo-password"
+          },
+          "agent_number": {
+            "type": "string",
+            "description": "Optional Tata Smartflo outbound agent leg number. Use only after Vocobase confirms the required Smartflo value for your account."
           },
           "jwt_token": {
             "type": "string",
@@ -6147,11 +6252,11 @@
           },
           "provider": {
             "type": "string",
-            "enum": ["twilio", "exotel", "plivo", "vobiz", "sip", "voicelink", "mcube"]
+            "enum": ["twilio", "exotel", "plivo", "vobiz", "tata_smartflo", "sip", "voicelink", "mcube"]
           },
           "provider_key": {
             "type": "string",
-            "enum": ["TWILIO", "EXOTEL", "PLIVO", "VOBIZ", "SIP", "VOICELINK", "MCUBE"]
+            "enum": ["TWILIO", "EXOTEL", "PLIVO", "VOBIZ", "TATA_SMARTFLO", "SIP", "VOICELINK", "MCUBE"]
           },
           "name": { "type": "string" },
           "status": {
@@ -6194,7 +6299,7 @@
           },
           "provider": {
             "type": "string",
-            "enum": ["TWILIO", "EXOTEL", "PLIVO", "VOBIZ", "SIP", "VOICELINK"],
+            "enum": ["TWILIO", "EXOTEL", "PLIVO", "VOBIZ", "TATA_SMARTFLO", "SIP", "VOICELINK"],
             "description": "Carrier connection that owns this DID."
           },
           "friendly_name": { "type": ["string", "null"] },
