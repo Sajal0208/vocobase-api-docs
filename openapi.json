@@ -2817,6 +2817,11 @@
                     "maxLength": 2000,
                     "description": "Free-text natural-language instructions spliced into the system prompt under \"When to transfer.\" Write your own conditions in plain English. When null/empty, the section is skipped. Replaces the prior `transfer_triggers` enum array."
                   },
+                  "user_idle_enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Controls whether the agent responds to caller silence using platform-managed idle settings. Defaults to true. When false, the bot will not ask if the caller is still there and will not end the call because of idle silence. Timeout and retry values are not configurable through V2."
+                  },
                   "max_call_duration_secs": {
                     "type": ["integer", "null"],
                     "minimum": 60,
@@ -3045,6 +3050,10 @@
                     "type": ["string", "null"],
                     "maxLength": 2000,
                     "description": "Replace the free-text transfer instructions. Pass `null` or empty string to clear the section. Replaces the prior `transfer_triggers` enum array."
+                  },
+                  "user_idle_enabled": {
+                    "type": "boolean",
+                    "description": "Toggle caller-silence follow-up for this agent. Defaults to true on new agents. Set false to prevent the bot from asking if the caller is still there or ending the call due to idle silence. Timeout and retry values remain platform-managed."
                   },
                   "max_call_duration_secs": {
                     "type": ["integer", "null"],
@@ -5077,7 +5086,7 @@
       "post": {
         "operationId": "transferCall",
         "summary": "Transfer a live call to a human",
-        "description": "Transfers an active in-progress call to a human phone number via Plivo. The bot announces the transfer, then Plivo bridges the caller directly to the destination number. The call's `session.completed` webhook will include transfer metadata when the full call ends.\n\nIf `to` is omitted, the agent's configured `transferNumber` is used. The agent must have `transferEnabled: true`.",
+        "description": "Transfers an active in-progress call to a human phone number via Plivo. The bot announces the transfer, then Plivo bridges the caller directly to the destination number. The call's `session.completed` webhook will include transfer metadata when the full call ends.\n\nIf `to` is omitted, the agent's configured `transfer_number` is used. The agent must have `transfer_enabled: true`.",
         "tags": ["Calls"],
         "parameters": [
           {
@@ -5097,7 +5106,7 @@
                 "properties": {
                   "to": {
                     "type": "string",
-                    "description": "E.164 phone number to transfer to. If omitted, the agent's configured transferNumber is used.",
+                    "description": "E.164 phone number to transfer to. If omitted, the agent's configured `transfer_number` is used.",
                     "example": "+919876543210"
                   }
                 }
@@ -5840,25 +5849,30 @@
             "description": "Custom Analysis config — when present, the platform runs an LLM extraction over each completed call's transcript and ships the result inline in the `session.completed` webhook."
           },
           "project_id": { "type": ["string", "null"], "format": "uuid", "description": "ID of the project this agent belongs to. Defaults to the default project if not specified." },
-          "transferEnabled": { "type": "boolean", "description": "Enable call transfer to a human agent." },
-          "transferNumber": { "type": ["string", "null"], "description": "E.164 phone number to transfer calls to. Required when transferEnabled is true." },
-          "transferMessage": { "type": ["string", "null"], "description": "Announcement spoken before transferring. Max 500 characters." },
+          "transfer_enabled": { "type": "boolean", "description": "Enable call transfer to a human agent." },
+          "transfer_number": { "type": ["string", "null"], "description": "E.164 phone number to transfer calls to. Required when `transfer_enabled` is true." },
+          "transfer_message": { "type": ["string", "null"], "description": "Announcement spoken before transferring. Max 500 characters." },
           "transfer_instructions": {
             "type": ["string", "null"],
             "description": "Free-text natural-language instructions spliced into the system prompt under \"When to transfer.\" Max 2000 characters. Replaces the prior `transferTriggers` enum array."
           },
-          "endCallEnabled": { "type": "boolean", "description": "Enable the agent to end calls on its own." },
-          "endCallMessage": { "type": ["string", "null"], "description": "Farewell message spoken before hanging up. Max 500 characters." },
+          "end_call_enabled": { "type": "boolean", "description": "Enable the agent to end calls on its own." },
+          "end_call_message": { "type": ["string", "null"], "description": "Farewell message spoken before hanging up. Max 500 characters." },
           "end_call_instructions": {
             "type": ["string", "null"],
             "description": "Free-text natural-language instructions spliced into the system prompt under \"When to end the call.\" Max 2000 characters. Replaces the prior `endCallTriggers` enum array."
+          },
+          "user_idle_enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether the agent responds to caller silence using platform-managed idle settings. When false, the bot will not ask if the caller is still there and will not end the call due to idle silence."
           },
           "max_call_duration_secs": {
             "type": ["integer", "null"],
             "minimum": 60,
             "maximum": 3600,
             "default": 600,
-            "description": "Hard cap on call duration in seconds. New agents default to 600 (10 minutes). Set to `null` to disable the cap. Range 60-3600. At `(cap - 30s)` the agent speaks a soft \"wrapping up\" warning; at the cap it speaks the agent's `endCallMessage` (or a default farewell) and gracefully ends the session through the standard end-of-call path so transcript, recording, billing and the `session.completed` webhook all fire normally."
+            "description": "Hard cap on call duration in seconds. New agents default to 600 (10 minutes). Set to `null` to disable the cap. Range 60-3600. At `(cap - 30s)` the agent speaks a soft \"wrapping up\" warning; at the cap it speaks the agent's `end_call_message` (or a default farewell) and gracefully ends the session through the standard end-of-call path so transcript, recording, billing and the `session.completed` webhook all fire normally."
           },
           "background_audio_id": {
             "type": ["string", "null"],
