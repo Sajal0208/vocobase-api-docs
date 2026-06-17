@@ -43,16 +43,16 @@ Webhook fires session.completed for the agent-handled portion
 
 ## Enabling call transfer on an agent
 
-Set `transferEnabled` to `true` when creating or updating an agent. Provide the phone number the caller should be transferred to. The `transfer_instructions` field is plain English guidance for when the agent should transfer:
+Set `transfer_enabled` to `true` when creating or updating an agent. Provide the phone number the caller should be transferred to. The `transfer_instructions` field is plain English guidance for when the agent should transfer:
 
 ```bash
 curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
   -H "Content-Type: application/json" \
   -d '{
-    "transferEnabled": true,
-    "transferNumber": "+14155551234",
-    "transferMessage": "Let me connect you with a human agent now.",
+    "transfer_enabled": true,
+    "transfer_number": "+14155551234",
+    "transfer_message": "Let me connect you with a human agent now.",
     "transfer_instructions": "If the caller asks to speak to a human, agent, supervisor, manager, or representative, transfer the call. If the caller becomes visibly upset, raises their voice, or repeatedly expresses frustration, transfer the call. If the caller has a billing or refund question that requires account access you do not have, transfer the call."
   }'
 ```
@@ -62,9 +62,9 @@ curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
   "success": true,
   "data": {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "transferEnabled": true,
-    "transferNumber": "+14155551234",
-    "transferMessage": "Let me connect you with a human agent now.",
+    "transfer_enabled": true,
+    "transfer_number": "+14155551234",
+    "transfer_message": "Let me connect you with a human agent now.",
     "transfer_instructions": "If the caller asks to speak to a human ...",
     ...
   }
@@ -75,9 +75,9 @@ curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `transferEnabled` | `boolean` | Master toggle. Defaults to `false`. |
-| `transferNumber` | `string` | E.164 phone number to transfer to. Max 32 characters. Required when `transferEnabled` is true. |
-| `transferMessage` | `string` | Announcement spoken right before transferring. Max 500 characters. If empty, the bot uses a platform default. |
+| `transfer_enabled` | `boolean` | Master toggle. Defaults to `false`. |
+| `transfer_number` | `string` | E.164 phone number to transfer to. Max 32 characters. Required when `transfer_enabled` is true. |
+| `transfer_message` | `string` | Announcement spoken right before transferring. Max 500 characters. If empty, the bot uses a platform default. |
 | `transfer_instructions` | `string` (≤2000 chars) | Free-text natural-language instructions for when to transfer. Pass `null` or empty to skip the section. |
 
 ---
@@ -107,8 +107,8 @@ curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
   -H "Content-Type: application/json" \
   -d '{
-    "endCallEnabled": true,
-    "endCallMessage": "Thank you for calling. Have a great day!",
+    "end_call_enabled": true,
+    "end_call_message": "Thank you for calling. Have a great day!",
     "end_call_instructions": "When the caller says goodbye, says they have to go, or otherwise indicates the conversation is over, end the call. If the caller has not spoken for an extended period and is unlikely to respond, end the call."
   }'
 ```
@@ -117,9 +117,28 @@ curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `endCallEnabled` | `boolean` | Master toggle. Defaults to `true`. |
-| `endCallMessage` | `string` | Farewell message spoken before hanging up. Max 500 characters. |
+| `end_call_enabled` | `boolean` | Master toggle. Defaults to `true`. |
+| `end_call_message` | `string` | Farewell message spoken before hanging up. Max 500 characters. |
 | `end_call_instructions` | `string` (≤2000 chars) | Free-text natural-language instructions for when to end the call. Pass `null` or empty to skip the section. |
+
+---
+
+## User idle behavior
+
+Agents default to `user_idle_enabled: true`. With the default setting, Vocobase uses platform-managed silence timing and retry settings to ask whether the caller is still there and may end the call after repeated idle prompts.
+
+Set `user_idle_enabled` to `false` to disable that behavior for an agent:
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "user_idle_enabled": false
+  }'
+```
+
+V2 only exposes the boolean toggle. `user_idle_timeout_secs` and `max_idle_retries` are platform-managed and are not accepted by the agent API.
 
 ---
 
@@ -127,8 +146,8 @@ curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
 
 When a transfer happens:
 
-1. The agent speaks the configured `transferMessage`.
-2. Vocobase transfers the caller to `transferNumber`.
+1. The agent speaks the configured `transfer_message`.
+2. Vocobase transfers the caller to `transfer_number`.
 3. The `session.completed` webhook includes `data.call.transferred: true`.
 
 The `session.completed` partner webhook fires when the agent-handled portion ends. Distinguish a transferred call from a normal hangup via `data.call.transferred` on the webhook payload — see [`session.completed` payload](/webhooks/payloads#transferred-calls).
@@ -165,7 +184,7 @@ curl -X POST https://api.vocobase.com/api/v2/calls/{call_id}/transfer \
 
 | Field | Type | Required | Description |
 |-------|------|----------|-------------|
-| `to` | `string` | No | E.164 number to transfer to. If omitted, the agent's `transferNumber` is used. |
+| `to` | `string` | No | E.164 number to transfer to. If omitted, the agent's `transfer_number` is used. |
 
 ### Response
 
@@ -186,7 +205,7 @@ curl -X POST https://api.vocobase.com/api/v2/calls/{call_id}/transfer \
 
 <Steps>
   <Step title="Enable transfer on your agent">
-    Set `transferEnabled: true`, a valid E.164 `transferNumber`, and clear `transfer_instructions`.
+    Set `transfer_enabled: true`, a valid E.164 `transfer_number`, and clear `transfer_instructions`.
   </Step>
 
   <Step title="Place a test call">
