@@ -31,7 +31,39 @@ Content-Type: application/json
 }
 ```
 
-Pass `extraction_config: null` to disable extraction.
+Pass `extraction_config: null` to **remove** the schema entirely.
+
+### Enable / disable without losing your schema
+
+Automatic extraction runs after a completed call only when the agent has a config
+**and** the `extraction_enabled` master switch is on. The flag defaults to `true`,
+so configured agents extract automatically out of the box.
+
+To pause automatic extraction while keeping your prompt and keys intact, set
+`extraction_enabled: false` instead of nulling the config:
+
+```bash
+PUT /api/v2/agent/{id}
+Authorization: Bearer rg_live_...
+Content-Type: application/json
+
+{ "extraction_enabled": false }
+```
+
+| Field | Effect |
+|---|---|
+| `extraction_config: null` | Removes the schema — prompt and keys are deleted. |
+| `extraction_enabled: false` | Keeps the schema; pauses **automatic** extraction after calls. |
+| `extraction_enabled: true` (default) | Runs automatically after every completed call (when a config exists). |
+
+<Note>
+  Manual replay (`POST /api/v2/calls/{call_id}/extract`) ignores `extraction_enabled` —
+  it runs as long as a config exists. So you can keep iterating on a config with
+  `dry_run` replays while automatic extraction stays paused.
+</Note>
+
+The current `extraction_enabled` value is returned on the agent object from
+`GET /api/v2/agent/{id}`.
 
 ### Supported types
 
