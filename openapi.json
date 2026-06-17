@@ -2822,6 +2822,11 @@
                     "default": true,
                     "description": "Controls whether the agent responds to caller silence using platform-managed idle settings. Defaults to true. When false, the bot will not ask if the caller is still there and will not end the call because of idle silence. Timeout and retry values are not configurable through V2."
                   },
+                  "extraction_enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Master switch for automatic post-call extraction. Defaults to true. When false, extraction is skipped after calls even if an `extraction_config` is later set (the config is preserved). The extraction schema itself is set via PUT /agent/{id} (`extraction_config`)."
+                  },
                   "max_call_duration_secs": {
                     "type": ["integer", "null"],
                     "minimum": 60,
@@ -3017,7 +3022,11 @@
                       { "type": "null" },
                       { "$ref": "#/components/schemas/ExtractionConfig" }
                     ],
-                    "description": "Custom Analysis config — runs an LLM extraction over the transcript after every completed call. Pass `null` to disable extraction."
+                    "description": "Custom Analysis config — runs an LLM extraction over the transcript after every completed call. Pass `null` to remove the config entirely. To pause extraction while keeping the config, use `extraction_enabled: false` instead."
+                  },
+                  "extraction_enabled": {
+                    "type": "boolean",
+                    "description": "Master switch for AUTOMATIC post-call extraction. Defaults to true. When false, extraction is skipped after calls even if `extraction_config` is set — the config is preserved, not deleted. Manual replay (`POST /calls/{call_id}/extract`) ignores this flag and runs as long as a config exists."
                   },
                   "end_call_enabled": {
                     "type": "boolean",
@@ -5846,7 +5855,12 @@
               { "type": "null" },
               { "$ref": "#/components/schemas/ExtractionConfig" }
             ],
-            "description": "Custom Analysis config — when present, the platform runs an LLM extraction over each completed call's transcript and ships the result inline in the `session.completed` webhook."
+            "description": "Custom Analysis config — when present AND `extraction_enabled` is true, the platform runs an LLM extraction over each completed call's transcript and ships the result inline in the `session.completed` webhook."
+          },
+          "extraction_enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Master switch for automatic post-call extraction. When false, extraction is skipped after calls even if `extraction_config` is set (the config is preserved). Manual replay via `POST /calls/{call_id}/extract` still works."
           },
           "project_id": { "type": ["string", "null"], "format": "uuid", "description": "ID of the project this agent belongs to. Defaults to the default project if not specified." },
           "transfer_enabled": { "type": "boolean", "description": "Enable call transfer to a human agent." },
