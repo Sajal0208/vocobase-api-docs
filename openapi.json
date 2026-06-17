@@ -2822,6 +2822,11 @@
                     "default": true,
                     "description": "Controls whether the agent responds to caller silence using platform-managed idle settings. Defaults to true. When false, the bot will not ask if the caller is still there and will not end the call because of idle silence. Timeout and retry values are not configurable through V2."
                   },
+                  "extraction_enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Master switch for automatic post-call extraction. Defaults to true. When false, extraction is skipped after calls even if an `extraction_config` is later set (the config is preserved). The extraction schema itself is set via PUT /agent/{id} (`extraction_config`)."
+                  },
                   "max_call_duration_secs": {
                     "type": ["integer", "null"],
                     "minimum": 60,
