@@ -131,6 +131,75 @@ Content-Type: application/json
 
 `dry_run: true` returns the values without persisting and without re-firing the partner webhook (useful for prompt iteration). The replay always uses the agent's **current** `extraction_config`, not the config at original-call time. Returns 400 when the agent has no `extraction_config` defined.
 
+## 5. Auto-export every extraction to Google Sheets
+
+Instead of (or alongside) handling the webhook, you can have Vocobase append each completed call's extraction to a Google Sheet automatically — via a **post-call lifecycle hook**, with no endpoint to host.
+
+### Prerequisite: connect Google Sheets on the agent
+
+The agent must have an **active** `google_sheets` integration bound to it:
+
+```bash
+POST /api/v2/agent/{id}/tools/google_sheets
+Authorization: Bearer rg_live_...
+Content-Type: application/json
+
+{ "connection_id": "conn_..." }
+```
+
+See [B2B2B Customers](/b2b2b-customers) for the hosted connect-link flow that issues a Google `connection_id`.
+
+### Add the post-call hook
+
+```bash
+POST /api/v2/agents/{agentId}/lifecycle-hooks
+Authorization: Bearer rg_live_...
+Content-Type: application/json
+
+{
+  "stage": "POST_CALL",
+  "name": "Dump extraction to sheet",
+  "toolSlug": "google_sheets",
+  "toolFn": "append_extraction",
+  "input": { "spreadsheet_id": "1BxiMVs0XRA5nFMdKvBdBZjgmUUqptlbs74OgvE2upms" }
+}
+```
+
+<Note>
+  Lifecycle-hook body fields are **camelCase** (`toolSlug`, `toolFn`) — unlike the snake_case agent fields elsewhere on this page. `append_extraction` is **POST_CALL only**. The `spreadsheet_id` is the ID in the sheet URL: `docs.google.com/spreadsheets/d/`**`THIS_PART`**`/edit` (not the `#gid=...` tab). Add `"sheet_name": "Leads"` to target a specific tab — defaults to `Sheet1`.
+</Note>
+
+On every completed call, Vocobase appends one row:
+
+```
+[ timestamp, session_id, ...extraction values ]
+```
+
+Values follow your `extraction_config.keys` **order**, so columns stay stable across calls even when a value is `null`.
+
+### Pick your own columns
+
+Prefer explicit columns? Use `append_row` and template the cells with `{{extraction.<field>}}` (a standalone placeholder keeps its type — numbers stay numeric):
+
+```bash
+POST /api/v2/agents/{agentId}/lifecycle-hooks
+Authorization: Bearer rg_live_...
+Content-Type: application/json
+
+{
+  "stage": "POST_CALL",
+  "name": "Append selected fields",
+  "toolSlug": "google_sheets",
+  "toolFn": "append_row",
+  "input": {
+    "spreadsheet_id": "1BxiMVs0...",
+    "values": ["{{extraction.outcome}}", "{{extraction.callback_at}}", "{{extraction.interested}}"]
+  }
+}
+```
+
+Hook failures are logged to your integration call log and **never block** call completion or the `session.completed` webhook.
+
 ## Failure semantics
 
 Extraction failures **never block webhook delivery**. The `session.completed` payload always ships, with `extraction.status` indicating outcome:
