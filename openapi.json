@@ -3405,7 +3405,7 @@
                         "speed": 1.0,
                         "volume": 1.0,
                         "temperature": null,
-                        "language": "en",
+                        "language": "hi",
                         "gender": "female",
                         "gemini_location": null,
                         "preview_text": "Hello, this is a short preview of my voice.",
@@ -3508,6 +3508,7 @@
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" },
           "502": {
             "description": "Voice preview generation failed.",
             "content": {
@@ -6063,7 +6064,11 @@
           "status": { "type": "string", "enum": ["active"] },
           "last_validated_at": { "type": ["string", "null"], "format": "date-time" },
           "validation_error": { "type": ["string", "null"] },
-          "metadata": {},
+          "metadata": {
+            "type": "object",
+            "description": "Provider-specific metadata for the voice configuration.",
+            "additionalProperties": true
+          },
           "created_at": { "type": "string", "format": "date-time" },
           "updated_at": { "type": "string", "format": "date-time" }
         },
