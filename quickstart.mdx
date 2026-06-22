@@ -76,7 +76,7 @@ Get up and running with the Vocobase Partner API. By the end of this guide, you 
   </Step>
 
   <Step title="Create an agent">
-    Create your first voice agent. The `voice_id` is the catalog `id` returned by `GET /agent/voices` — fetch it first and pick a row that matches the tier, language, and gender you want.
+    Create your first voice agent. The `voice_id` is the catalog `id` returned by `GET /agent/voices` — fetch it first and pick a row that matches the tier, language, and gender you want. Use `GET /agent/voice-tiers` to list supported tiers, then filter the catalog with `GET /agent/voices?tier=va-1`.
 
     <CodeGroup>
     ```bash cURL

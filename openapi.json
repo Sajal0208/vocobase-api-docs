@@ -27,7 +27,7 @@
     },
     {
       "name": "Voices",
-      "description": "List available voices for agent configuration."
+      "description": "List voice tiers, available voices, and stream preview audio for agent configuration."
     },
     {
       "name": "Documents",
@@ -3359,14 +3359,14 @@
       "get": {
         "operationId": "listVoices",
         "summary": "List available voices",
-        "description": "Returns the voice catalog. Each voice has a tier (`va-1` or `va-1-pro`) that determines the per-minute rate at billing time. Pass the row's `id` as `voice_id` when creating or updating an agent.",
+        "description": "Returns the voice catalog. Each voice has a tier (`va-1` or `va-1-pro`) that determines the per-minute rate at billing time. Pass the row's `id` as `voice_id` when creating or updating an agent. If `tier` is provided, it must be one of the tiers returned by `GET /agent/voice-tiers`.",
         "tags": ["Voices"],
         "parameters": [
           {
             "name": "tier",
             "in": "query",
             "schema": { "type": "string", "enum": ["va-1", "va-1-pro"] },
-            "description": "Filter voices by tier.",
+            "description": "Filter voices by tier. Invalid tiers return `400 VALIDATION_ERROR`.",
             "example": "va-1"
           }
         ],
@@ -3398,10 +3398,68 @@
                         "id": "b49e0d0f-2219-4425-a765-1efd32beb509",
                         "display_name": "Sheetal",
                         "description": "Warm, conversational Hindi narrator.",
+                        "provider": "cartesia",
+                        "model_name": "sonic-3.5",
                         "tier": "va-1",
+                        "provider_voice_id": "a0e99841-438c-4a64-b679-ae501e7d6091",
+                        "speed": 1.0,
+                        "volume": 1.0,
+                        "temperature": null,
                         "language": "en",
-                        "gender": "female"
+                        "gender": "female",
+                        "gemini_location": null,
+                        "preview_text": "Hello, this is a short preview of my voice.",
+                        "status": "active",
+                        "last_validated_at": "2026-06-01T10:00:00.000Z",
+                        "validation_error": null,
+                        "metadata": {},
+                        "created_at": "2026-06-01T09:00:00.000Z",
+                        "updated_at": "2026-06-01T10:00:00.000Z"
                       }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/agent/voice-tiers": {
+      "get": {
+        "operationId": "listVoiceTiers",
+        "summary": "List voice tiers",
+        "description": "Returns the public voice model tiers supported by Vocobase. Use the `tier` value with `GET /agent/voices?tier=...`.",
+        "tags": ["Voices"],
+        "responses": {
+          "200": {
+            "description": "Voice tier catalog.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "tiers": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/VoiceTier" }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "tiers": [
+                      { "tier": "va-1", "label": "VA 1" },
+                      { "tier": "va-1-pro", "label": "VA 1 Pro" }
                     ]
                   }
                 }
@@ -3410,6 +3468,61 @@
           },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/agent/voices/{id}/preview": {
+      "get": {
+        "operationId": "previewVoice",
+        "summary": "Stream voice preview audio",
+        "description": "Generates and streams an MP3 demo preview for a voice catalog row. The `id` path parameter is the `id` returned by `GET /agent/voices`, not the provider voice id.",
+        "tags": ["Voices"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Voice catalog id returned by `GET /agent/voices`."
+          },
+          {
+            "name": "text",
+            "in": "query",
+            "schema": { "type": "string", "maxLength": 500 },
+            "description": "Optional preview text override. When omitted, Vocobase uses the voice's configured preview text.",
+            "example": "Hello, this is a short preview of the selected voice."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "MP3 audio stream.",
+            "content": {
+              "audio/mpeg": {
+                "schema": {
+                  "type": "string",
+                  "format": "binary"
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "502": {
+            "description": "Voice preview generation failed.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "PREVIEW_FAILED",
+                    "message": "Failed to generate voice preview"
+                  }
+                }
+              }
+            }
+          }
         }
       }
     },
@@ -5920,6 +6033,15 @@
           "preview_url": { "type": "string", "description": "15-minute presigned preview URL." }
         }
       },
+      "VoiceTier": {
+        "type": "object",
+        "description": "A public Vocobase voice model tier.",
+        "properties": {
+          "tier": { "type": "string", "enum": ["va-1", "va-1-pro"] },
+          "label": { "type": "string", "example": "VA 1 Pro" }
+        },
+        "required": ["tier", "label"]
+      },
       "Voice": {
         "type": "object",
         "description": "A voice from the platform catalog. Pass `id` as `voice_id` on agent create/update.",
@@ -5927,10 +6049,25 @@
           "id": { "type": "string", "format": "uuid", "description": "Pass this as `voice_id` on agent create/update." },
           "display_name": { "type": "string" },
           "description": { "type": ["string", "null"] },
+          "provider": { "type": "string", "enum": ["cartesia", "inworld", "gemini"] },
+          "model_name": { "type": "string" },
           "tier": { "type": "string", "enum": ["va-1", "va-1-pro"], "description": "Drives the per-minute rate at billing time." },
+          "provider_voice_id": { "type": "string", "description": "Provider-native voice id or voice name. Use `id`, not this field, when creating agents or previewing audio." },
+          "speed": { "type": "number" },
+          "volume": { "type": ["number", "null"] },
+          "temperature": { "type": ["number", "null"] },
           "language": { "type": "string" },
-          "gender": { "type": ["string", "null"] }
-        }
+          "gender": { "type": ["string", "null"] },
+          "gemini_location": { "type": ["string", "null"] },
+          "preview_text": { "type": ["string", "null"], "description": "Default text used by the preview endpoint when no `text` query parameter is provided." },
+          "status": { "type": "string", "enum": ["active"] },
+          "last_validated_at": { "type": ["string", "null"], "format": "date-time" },
+          "validation_error": { "type": ["string", "null"] },
+          "metadata": {},
+          "created_at": { "type": "string", "format": "date-time" },
+          "updated_at": { "type": "string", "format": "date-time" }
+        },
+        "required": ["id", "display_name", "provider", "model_name", "tier", "provider_voice_id", "speed", "language", "status", "created_at", "updated_at"]
       },
       "Document": {
         "type": "object",
