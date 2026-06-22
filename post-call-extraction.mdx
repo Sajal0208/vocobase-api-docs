@@ -177,9 +177,37 @@ On every completed call, Vocobase appends one row:
 
 Values follow your `extraction_config.keys` **order**, so columns stay stable across calls even when a value is `null`.
 
-### Pick your own columns
+### Map columns explicitly
 
-Prefer explicit columns? Use `append_row` and template the cells with `{{extraction.<field>}}` (a standalone placeholder keeps its type — numbers stay numeric):
+To control the column layout, pass `input.columns` on `append_extraction` — an ordered list of `{ header, value }` pairs. Each `value` is a template token (`{{extraction.<field>}}`, or a call-metadata field), and a standalone placeholder keeps its type (numbers stay numeric). This is what the dashboard's column-mapping UI generates.
+
+```bash
+POST /api/v2/agents/{agentId}/lifecycle-hooks
+Authorization: Bearer rg_live_...
+Content-Type: application/json
+
+{
+  "stage": "POST_CALL",
+  "name": "Mapped extraction export",
+  "toolSlug": "google_sheets",
+  "toolFn": "append_extraction",
+  "input": {
+    "spreadsheet_id": "1BxiMVs0...",
+    "columns": [
+      { "header": "Outcome",     "value": "{{extraction.outcome}}" },
+      { "header": "Callback at", "value": "{{extraction.callback_at}}" },
+      { "header": "Interested",  "value": "{{extraction.interested}}" },
+      { "header": "Caller",      "value": "{{caller_phone}}" }
+    ]
+  }
+}
+```
+
+A **header row** (the `header`s) is written once — only when the target tab is empty. Available call-metadata tokens: `{{session_id}}`, `{{caller_phone}}`, `{{callee_phone}}`, `{{duration_secs}}`, `{{ended_at}}`, `{{transcript_summary}}`. Omit `columns` to fall back to the default all-keys row shown above.
+
+### Append a raw row
+
+For full control with no header management, use `append_row` with a flat `values` array of templates:
 
 ```bash
 POST /api/v2/agents/{agentId}/lifecycle-hooks
