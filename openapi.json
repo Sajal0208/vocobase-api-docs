@@ -2742,6 +2742,11 @@
                     "default": true,
                     "description": "Per-agent toggle for carrier-side voicemail detection on supported outbound providers. Account-level provider support must also be enabled."
                   },
+                  "screener_handling_enabled": {
+                    "type": "boolean",
+                    "default": false,
+                    "description": "Per-agent toggle for phone screener handling on outbound calls. Requires `voicemail_detection_enabled` to be true and platform screener handling to be enabled."
+                  },
                   "voicemail_message": {
                     "type": ["string", "null"],
                     "maxLength": 500,
@@ -2978,6 +2983,10 @@
                   "voicemail_detection_enabled": {
                     "type": "boolean",
                     "description": "Toggle carrier-side voicemail detection for this agent on supported outbound providers."
+                  },
+                  "screener_handling_enabled": {
+                    "type": "boolean",
+                    "description": "Toggle phone screener handling for this agent on outbound calls. Requires `voicemail_detection_enabled` to be true and platform screener handling to be enabled."
                   },
                   "voicemail_message": {
                     "type": ["string", "null"],
@@ -5947,6 +5956,10 @@
           "voicemail_detection_enabled": {
             "type": "boolean",
             "description": "Whether carrier-side voicemail detection is enabled for this agent on supported outbound providers."
+          },
+          "screener_handling_enabled": {
+            "type": "boolean",
+            "description": "Whether phone screener handling is enabled for this agent on outbound calls."
           },
           "voicemail_message": {
             "type": ["string", "null"],
