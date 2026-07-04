@@ -39,7 +39,7 @@ Inbound Routing Policies are pre-answer call routing hooks for inbound phone cal
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | UUID | Policy ID |
+| `id` | string | Opaque policy ID |
 | `scope` | string | `PHONE_NUMBER` in phase-1 |
 | `phone_number_id` | UUID | Associated DID reference |
 | `agent_id` | UUID \| null | Agent currently attached to this policy context |
@@ -81,19 +81,19 @@ curl -sS https://api.vocobase.com/api/v2/inbound-route-policies \
 ```
 
 ```bash
-curl -sS https://api.vocobase.com/api/v2/inbound-route-policies/4b6f9a13-7b7b-4c4e-9c67-2bbf8dbd6f1d \
+curl -sS https://api.vocobase.com/api/v2/inbound-route-policies/clxj3rx7z000008l51s9vh3hf \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
 ```
 
 ```bash
-curl -X PATCH https://api.vocobase.com/api/v2/inbound-route-policies/4b6f9a13-7b7b-4c4e-9c67-2bbf8dbd6f1d \
+curl -X PATCH https://api.vocobase.com/api/v2/inbound-route-policies/clxj3rx7z000008l51s9vh3hf \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
   -H "Content-Type: application/json" \
   -d '{ "timeout_ms": 2500, "failure_action": "REJECT" }'
 ```
 
 ```bash
-curl -X DELETE https://api.vocobase.com/api/v2/inbound-route-policies/4b6f9a13-7b7b-4c4e-9c67-2bbf8dbd6f1d \
+curl -X DELETE https://api.vocobase.com/api/v2/inbound-route-policies/clxj3rx7z000008l51s9vh3hf \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
 ```
 
@@ -198,4 +198,3 @@ ${timestamp}.${raw_json_body}
 ```
 
 If `SELECT_AGENT` returns an agent outside the partner account, Vocobase uses the configured `failure_action`.
-

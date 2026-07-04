@@ -2680,7 +2680,7 @@
                   "data": {
                     "policies": [
                       {
-                        "id": "4b6f9a13-7b7b-4c4e-9c67-2bbf8dbd6f1d",
+                        "id": "clxj3rx7z000008l51s9vh3hf",
                         "partner_config_id": "8f7c95c6-6f2e-4f8f-bd1a-a6c9d9f4e2e3",
                         "scope": "PHONE_NUMBER",
                         "phone_number_id": "f1a2c3d4-1111-2222-3333-444455556666",
@@ -2757,7 +2757,7 @@
                   "success": true,
                   "data": {
                     "policy": {
-                      "id": "4b6f9a13-7b7b-4c4e-9c67-2bbf8dbd6f1d",
+                      "id": "clxj3rx7z000008l51s9vh3hf",
                       "partner_config_id": "8f7c95c6-6f2e-4f8f-bd1a-a6c9d9f4e2e3",
                       "scope": "PHONE_NUMBER",
                       "phone_number_id": "f1a2c3d4-1111-2222-3333-444455556666",
@@ -2814,8 +2814,8 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "format": "uuid" },
-            "description": "Policy ID."
+            "schema": { "type": "string" },
+            "description": "Opaque policy ID."
           }
         ],
         "responses": {
@@ -2839,7 +2839,7 @@
                   "success": true,
                   "data": {
                     "policy": {
-                      "id": "4b6f9a13-7b7b-4c4e-9c67-2bbf8dbd6f1d",
+                      "id": "clxj3rx7z000008l51s9vh3hf",
                       "partner_config_id": "8f7c95c6-6f2e-4f8f-bd1a-a6c9d9f4e2e3",
                       "scope": "PHONE_NUMBER",
                       "phone_number_id": "f1a2c3d4-1111-2222-3333-444455556666",
@@ -2882,8 +2882,8 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "format": "uuid" },
-            "description": "Policy ID."
+            "schema": { "type": "string" },
+            "description": "Opaque policy ID."
           }
         ],
         "requestBody": {
@@ -2945,8 +2945,8 @@
             "name": "id",
             "in": "path",
             "required": true,
-            "schema": { "type": "string", "format": "uuid" },
-            "description": "Policy ID."
+            "schema": { "type": "string" },
+            "description": "Opaque policy ID."
           }
         ],
         "responses": {
@@ -6118,7 +6118,7 @@
         "type": "object",
         "description": "Normalized inbound routing policy object.",
         "properties": {
-          "id": { "type": "string", "format": "uuid" },
+          "id": { "type": "string", "description": "Opaque policy ID." },
           "scope": { "$ref": "#/components/schemas/InboundRoutePolicyScope" },
           "phone_number_id": { "type": "string", "format": "uuid" },
           "partner_config_id": { "type": "string", "format": "uuid" },
