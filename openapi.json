@@ -5463,7 +5463,7 @@
                             },
                             "disposition": {
                               "type": ["string", "null"],
-                              "enum": ["completed", "voicemail", "user_hangup_no_speech", "no_answer", "busy", "canceled", "blocked", "failed", null],
+                              "enum": ["completed", "voicemail", "user_hangup_no_speech", "no_answer", "busy", "canceled", "blocked", "failed", "transferred", null],
                               "description": "Final call outcome. Use `voicemail` to detect carrier or bot voicemail outcomes."
                             },
                             "answered_by": {
@@ -5759,6 +5759,10 @@
               "session_id": { "type": ["string", "null"], "format": "uuid" },
               "agent_id": { "type": ["string", "null"], "format": "uuid" },
               "agent_name": { "type": ["string", "null"] },
+              "client_reference_id": {
+                "type": ["string", "null"],
+                "description": "Partner-supplied correlation key from `POST /calls/start`, when provided."
+              },
               "direction": { "type": ["string", "null"], "enum": ["outbound", "inbound", null] },
               "from_number": { "type": ["string", "null"] },
               "to_number": { "type": ["string", "null"] },
@@ -5771,6 +5775,25 @@
                 "type": ["string", "null"],
                 "enum": ["pending", "ringing", "in_progress", "completed", "failed", "no_answer", "busy", "canceled", null]
               },
+              "disposition": {
+                "type": ["string", "null"],
+                "enum": ["completed", "voicemail", "user_hangup_no_speech", "no_answer", "busy", "canceled", "blocked", "failed", "transferred", null],
+                "description": "Final call outcome when known. Usually null on non-terminal updates."
+              },
+              "answered_by": {
+                "type": ["string", "null"],
+                "enum": ["human", "machine", "unknown", "not_answered", null],
+                "description": "Best-known answer classification. `machine` indicates an answering machine or voicemail."
+              },
+              "hangup_cause": {
+                "type": ["string", "null"],
+                "description": "Raw normalized carrier hangup cause when available."
+              },
+              "hangup_source": {
+                "type": ["string", "null"],
+                "enum": ["caller", "callee", "system", "api", "carrier", "error", "unknown", null],
+                "description": "Best-known party or system that ended the call."
+              },
               "terminal": {
                 "type": "boolean",
                 "description": "`true` when the carrier call leg is final."
@@ -5778,6 +5801,20 @@
               "concurrency_released": {
                 "type": "boolean",
                 "description": "`true` when partners can start the next call in their own dialer queue."
+              },
+              "account_concurrency": {
+                "oneOf": [
+                  { "type": "null" },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "limit": { "type": ["integer", "null"], "description": "Maximum concurrent calls for the account. Null means unlimited." },
+                      "active": { "type": "integer", "description": "Currently active calls counted against the account." },
+                      "remaining": { "type": ["integer", "null"], "description": "Remaining slots. Null means unlimited." }
+                    }
+                  }
+                ],
+                "description": "Account-wide concurrency snapshot at event time."
               },
               "provider": { "type": ["string", "null"], "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "tata_smartflo", "sip", "voicelink", null] },
               "provider_status": { "type": ["string", "null"], "description": "Raw provider status value when available." },
@@ -5832,7 +5869,7 @@
                   "to_number": { "type": "string" },
                   "direction": { "type": "string", "enum": ["outbound", "inbound"] },
                   "status": { "type": "string", "enum": ["completed", "failed", "no_answer", "busy", "canceled"] },
-                  "disposition": { "type": ["string", "null"], "enum": ["completed", "voicemail", "user_hangup_no_speech", "no_answer", "busy", "canceled", "blocked", "failed", null] },
+                  "disposition": { "type": ["string", "null"], "enum": ["completed", "voicemail", "user_hangup_no_speech", "no_answer", "busy", "canceled", "blocked", "failed", "transferred", null] },
                   "answered_by": { "type": ["string", "null"], "enum": ["human", "machine", "unknown", "not_answered", null] },
                   "transferred": { "type": "boolean" },
                   "transferred_at": { "type": ["string", "null"], "format": "date-time" },
@@ -6142,7 +6179,7 @@
           },
           "disposition": {
             "type": ["string", "null"],
-            "enum": ["completed", "voicemail", "user_hangup_no_speech", "no_answer", "busy", "canceled", "blocked", "failed", null],
+            "enum": ["completed", "voicemail", "user_hangup_no_speech", "no_answer", "busy", "canceled", "blocked", "failed", "transferred", null],
             "description": "Final call outcome derived from carrier signals and bot-side signals. Use `voicemail` to detect carrier or bot voicemail outcomes."
           },
           "answered_by": {

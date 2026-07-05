@@ -22,8 +22,11 @@ For outbound telephony calls, use `call.status.updated` to know what is happenin
 
 - Current normalized call status
 - Previous status, when available
+- Final call disposition and answer classification when available
+- Hangup cause/source when the provider supplied them
 - Whether the status is terminal
 - Whether the call slot/concurrency can be released
+- Account-wide concurrency snapshot for queue orchestration
 - Provider and raw provider status for debugging
 
 `session.completed` includes:
