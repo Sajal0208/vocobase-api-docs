@@ -34,13 +34,23 @@ Sent whenever Vocobase learns that a telephony call moved to a new meaningful ca
     "session_id": "s1234567-abcd-1234-abcd-123456789012",
     "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "agent_name": "Sales Assistant",
+    "client_reference_id": "lead-9821",
     "direction": "outbound",
     "from_number": "+14155551234",
     "to_number": "+919876543210",
     "status": "ringing",
+    "disposition": null,
+    "answered_by": null,
+    "hangup_cause": null,
+    "hangup_source": null,
     "previous_status": "pending",
     "terminal": false,
     "concurrency_released": false,
+    "account_concurrency": {
+      "limit": 10,
+      "active": 4,
+      "remaining": 6
+    },
     "provider": "twilio",
     "provider_status": "ringing",
     "provider_event": "ringing",
@@ -59,13 +69,19 @@ Sent whenever Vocobase learns that a telephony call moved to a new meaningful ca
 | `data.session_id` | string (UUID) or null | Associated session identifier. Normally present for calls started through `POST /calls/start`. |
 | `data.agent_id` | string (UUID) | The agent assigned to the call |
 | `data.agent_name` | string or null | Agent display name |
+| `data.client_reference_id` | string or null | Partner-supplied correlation key from `POST /calls/start`, when provided |
 | `data.direction` | string | `outbound` or `inbound` |
 | `data.from_number` | string | Caller phone number |
 | `data.to_number` | string | Destination phone number |
 | `data.status` | string | Normalized Vocobase call status. See [Call status values](#call-status-values). |
+| `data.disposition` | string or null | Final call outcome when known: `completed`, `voicemail`, `user_hangup_no_speech`, `no_answer`, `busy`, `canceled`, `blocked`, `failed`, or `transferred`. Usually `null` on non-terminal updates. |
+| `data.answered_by` | string or null | Best-known answer classification: `human`, `machine`, `unknown`, or `not_answered`. `machine` indicates an answering machine or voicemail. |
+| `data.hangup_cause` | string or null | Raw normalized carrier hangup cause when available |
+| `data.hangup_source` | string or null | Best-known party or system that ended the call: `caller`, `callee`, `system`, `api`, `carrier`, `error`, or `unknown` |
 | `data.previous_status` | string or null | Previous normalized status, when known |
 | `data.terminal` | boolean | `true` when this status is final for the carrier call leg |
 | `data.concurrency_released` | boolean | `true` when partners can start the next call in their own queue |
+| `data.account_concurrency` | object or null | Account-wide concurrency snapshot at event time. `limit`/`remaining` are `null` for unlimited accounts. |
 | `data.provider` | string or null | Telephony provider: `twilio`, `plivo`, `vobiz`, `tata_smartflo`, `voicelink`, `sip`, `mcube`, or `exotel` |
 | `data.provider_status` | string or null | Raw provider status value when available |
 | `data.provider_event` | string or null | Raw provider event name when available |
@@ -225,7 +241,7 @@ Sent when a Vocobase session has reached final post-call processing. For telepho
 | `call.to_number` | string | Destination phone number (E.164) |
 | `call.direction` | string | `"outbound"` |
 | `call.status` | string | Final call lifecycle/carrier status at the time `session.completed` is emitted. Voicemail is exposed through `call.disposition`, not `call.status`. |
-| `call.disposition` | string or null | Final call outcome: `completed`, `voicemail`, `user_hangup_no_speech`, `no_answer`, `busy`, `canceled`, `blocked`, or `failed`. |
+| `call.disposition` | string or null | Final call outcome: `completed`, `voicemail`, `user_hangup_no_speech`, `no_answer`, `busy`, `canceled`, `blocked`, `failed`, or `transferred`. |
 | `call.answered_by` | string or null | Best-known answer classification: `human`, `machine`, `unknown`, or `not_answered`. `machine` indicates an answering machine or voicemail. |
 | `call.transferred` | boolean | `true` if the bot handed the call off to a human via the cold-transfer flow. See [Transferred calls](#transferred-calls) below. |
 | `call.transferred_at` | string (ISO 8601) or null | When the bot left the room and the carrier began bridging the caller to the human. `null` for non-transferred calls. |
@@ -269,6 +285,7 @@ Each entry in the `transcript` array has:
 | `canceled` | Call was canceled before connecting |
 | `blocked` | Carrier/provider rejected or blocked the call |
 | `failed` | Call failed or ended with an unmapped error outcome |
+| `transferred` | Call was handed off to a human via the cold-transfer flow |
 
 ### Transferred calls
 
