@@ -5,15 +5,15 @@ description: "Evaluate inbound calls before AI session creation and route each c
 
 # Inbound Routing Policies
 
-Inbound Routing Policies are pre-answer call routing hooks for inbound phone calls. They are useful for owner routing, blocked-number control, dynamic agent switching, and transfer/reject fallbacks before AI starts.
+Inbound Routing Policies are webhook-backed pre-answer routing hooks for inbound phone calls. Vocobase resolves the inbound DID, finds the applicable policy, calls your policy webhook, and only then decides whether to create an AI session, select another agent, transfer the call, or reject it.
 
 <Note>
-  This feature is generic. In phase-1 it is implemented for Vobiz inbound first and currently supports `scope: PHONE_NUMBER`.
+  Policies currently run for Vobiz and Plivo inbound calls. Runtime scope priority is `PHONE_NUMBER` -> `AGENT` -> `PARTNER`.
 </Note>
 
 ## API
 
-### Endpoints
+### Policy endpoints
 
 - `GET /api/v2/inbound-route-policies`
 - `POST /api/v2/inbound-route-policies`
@@ -21,40 +21,68 @@ Inbound Routing Policies are pre-answer call routing hooks for inbound phone cal
 - `PATCH /api/v2/inbound-route-policies/{id}`
 - `DELETE /api/v2/inbound-route-policies/{id}`
 
+### Decision-log endpoint
+
+- `GET /api/v2/inbound-route-decisions`
+
+Decision logs are newest-first and scoped to the authenticated partner. Query filters:
+
+| Query | Notes |
+|---|---|
+| `policy_id` | Filter by inbound policy ID. |
+| `phone_number_id` | Filter by DID row ID. |
+| `action` | `ANSWER_WITH_AI`, `SELECT_AGENT`, `TRANSFER`, or `REJECT`. |
+| `provider` | `vobiz` or `plivo`. |
+| `limit` | Defaults to `50`, maximum `200`. |
+| `cursor` | Opaque cursor returned as `next_cursor`. |
+
+## Scope Resolution
+
+Vocobase evaluates enabled policies in this order:
+
+1. `PHONE_NUMBER`: exact policy for the inbound DID row.
+2. `AGENT`: fallback policy for the agent assigned to the DID.
+3. `PARTNER`: default policy for the partner.
+
+If no policy matches, Vocobase continues with the normal AI answer path.
+
 ### Request fields
 
 | Field | Type | Required | Notes |
 |---|---|---|---|
-| `scope` | `PHONE_NUMBER` | Yes | Phase-1 policy scope only. |
-| `phone_number_id` | UUID | Yes (POST) / No (PATCH) | Must be active and inbound-enabled, and owned by the partner. |
-| `name` | string (1–200) | Yes (POST) / No (PATCH) | Policy label for your own reference. |
+| `scope` | `PHONE_NUMBER` \| `AGENT` \| `PARTNER` | Yes | Selects the policy level. |
+| `phone_number_id` | UUID | For `PHONE_NUMBER` | Must reference an active inbound-enabled Vobiz or Plivo DID owned by the partner. |
+| `agent_id` | UUID | For `AGENT` | Must reference an active agent owned by the partner. |
+| `name` | string (1-200) | Yes (POST) / No (PATCH) | Policy label for your own reference. |
 | `enabled` | boolean | No (default: `true`) | Toggle policy evaluation without deleting it. |
-| `webhook_url` | HTTPS URI | Yes (POST) / No (PATCH) | Must pass inbound URL validation. |
+| `webhook_url` | HTTPS URI | Yes (POST) / No (PATCH) | Receives the `inbound.route` webhook. |
 | `webhook_secret` | string or null | No | Write-only secret used to sign webhook requests. `null` clears it on update. |
 | `timeout_ms` | integer | No (default: `2000`) | Must be between `250` and `5000`. |
-| `failure_action` | `ANSWER_WITH_AI` \| `REJECT` | No (default: `ANSWER_WITH_AI`) | Action to take on webhook timeout/failure/invalid response. |
+| `failure_action` | `ANSWER_WITH_AI` \| `REJECT` | No (default: `ANSWER_WITH_AI`) | Action to take on webhook timeout, failure, or invalid response. |
 | `allowed_actions` | string[] | No | Restricts actions returned by your webhook. Omit to allow all actions. |
 
 ### Response fields
 
 | Field | Type | Notes |
 |---|---|---|
-| `id` | string | Opaque policy ID |
-| `scope` | string | `PHONE_NUMBER` in phase-1 |
-| `phone_number_id` | UUID | Associated DID reference |
-| `agent_id` | UUID \| null | Agent currently attached to this policy context |
-| `partner_config_id` | UUID | Owning partner config |
-| `name` | string | Policy label |
-| `enabled` | boolean | `false` disables evaluation |
-| `webhook_url` | URI | Target endpoint for `inbound.route` |
-| `has_webhook_secret` | boolean | `true` when a secret is configured |
-| `timeout_ms` | integer | Decision timeout in ms |
-| `failure_action` | `ANSWER_WITH_AI` \| `REJECT` | Default action on failure |
-| `allowed_actions` | array<string> \| null | Restriction list; `null` means no explicit allowlist |
-| `created_at` | ISO timestamp | Creation time |
-| `updated_at` | ISO timestamp | Last edit time |
+| `id` | string | Opaque policy ID. |
+| `scope` | string | `PHONE_NUMBER`, `AGENT`, or `PARTNER`. |
+| `phone_number_id` | UUID \| null | DID target for phone-number policies. |
+| `agent_id` | UUID \| null | Agent target for agent policies or the DID's default agent. |
+| `partner_config_id` | UUID | Owning partner config. |
+| `name` | string | Policy label. |
+| `enabled` | boolean | `false` disables evaluation. |
+| `webhook_url` | URI | Target endpoint for `inbound.route`. |
+| `has_webhook_secret` | boolean | `true` when a signing secret is configured. |
+| `timeout_ms` | integer | Decision timeout in ms. |
+| `failure_action` | `ANSWER_WITH_AI` \| `REJECT` | Default action on failure. |
+| `allowed_actions` | array<string> \| null | Restriction list; `null` means no explicit allowlist. |
+| `created_at` | ISO timestamp | Creation time. |
+| `updated_at` | ISO timestamp | Last edit time. |
 
-### Example: create policy
+## Examples
+
+### Create a phone-number policy
 
 ```bash
 curl -X POST https://api.vocobase.com/api/v2/inbound-route-policies \
@@ -73,31 +101,45 @@ curl -X POST https://api.vocobase.com/api/v2/inbound-route-policies \
   }'
 ```
 
-### Example: list, get, patch, delete
+### Create an agent fallback policy
 
 ```bash
-curl -sS https://api.vocobase.com/api/v2/inbound-route-policies \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
-```
-
-```bash
-curl -sS https://api.vocobase.com/api/v2/inbound-route-policies/clxj3rx7z000008l51s9vh3hf \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
-```
-
-```bash
-curl -X PATCH https://api.vocobase.com/api/v2/inbound-route-policies/clxj3rx7z000008l51s9vh3hf \
+curl -X POST https://api.vocobase.com/api/v2/inbound-route-policies \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
   -H "Content-Type: application/json" \
-  -d '{ "timeout_ms": 2500, "failure_action": "REJECT" }'
+  -d '{
+    "scope": "AGENT",
+    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "name": "Sales agent fallback",
+    "webhook_url": "https://partner.example.com/webhooks/vocobase/sales-agent",
+    "failure_action": "ANSWER_WITH_AI"
+  }'
 ```
 
+### Create a partner default policy
+
 ```bash
-curl -X DELETE https://api.vocobase.com/api/v2/inbound-route-policies/clxj3rx7z000008l51s9vh3hf \
+curl -X POST https://api.vocobase.com/api/v2/inbound-route-policies \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "scope": "PARTNER",
+    "name": "Partner default inbound route",
+    "webhook_url": "https://partner.example.com/webhooks/vocobase/default-inbound",
+    "failure_action": "ANSWER_WITH_AI"
+  }'
+```
+
+### Query recent decisions
+
+```bash
+curl -sS "https://api.vocobase.com/api/v2/inbound-route-decisions?phone_number_id=f1a2c3d4-1111-2222-3333-444455556666&limit=25" \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
 ```
 
-## Webhook event sent by Vocobase
+Decision rows include `provider`, `provider_call_id`, `from_number`, `to_number`, `action`, `decision_source`, `failure_reason`, `transfer_to_number`, `webhook_status`, `webhook_latency_ms`, `created_session_id`, and `created_phone_call_id`.
+
+## Webhook Event Sent By Vocobase
 
 Vocobase sends this event to `webhook_url` before creating any session:
 
@@ -105,7 +147,7 @@ Vocobase sends this event to `webhook_url` before creating any session:
 {
   "event": "inbound.route",
   "version": "2026-07-04",
-  "provider": "vobiz",
+  "provider": "plivo",
   "call": {
     "provider_call_id": "a1b2c3d4-5e6f-7890-1234-56789abcde01",
     "from_number": "+919999999999",
@@ -124,10 +166,10 @@ Vocobase sends this event to `webhook_url` before creating any session:
 
 | Header | Description |
 |---|---|
-| `X-Vocobase-Event` | Always `inbound.route` |
-| `X-Vocobase-Timestamp` | Unix milliseconds at send time |
-| `X-Vocobase-Signature` | `v1=<hmac_sha256(timestamp.raw_body)>` when webhook secret is set |
-| `Content-Type` | `application/json` |
+| `X-Vocobase-Event` | Always `inbound.route`. |
+| `X-Vocobase-Timestamp` | Unix milliseconds at send time. |
+| `X-Vocobase-Signature` | `v1=<hmac_sha256(timestamp.raw_body)>` when webhook secret is set. |
+| `Content-Type` | `application/json`. |
 
 Vocobase computes HMAC over:
 
@@ -135,66 +177,21 @@ Vocobase computes HMAC over:
 ${timestamp}.${raw_json_body}
 ```
 
-## Supported webhook actions
+## Supported Webhook Actions
 
 | Action | Meaning | Payload |
 |---|---|---|
-| `ANSWER_WITH_AI` | Route call to AI (default). Optional `variables` are merged into session variables. | `{ "action": "ANSWER_WITH_AI", "variables": { "customer_status": "unknown", "language": "en" } }` |
-| `SELECT_AGENT` | Route call to a different agent. | `{ "action": "SELECT_AGENT", "agent_id": "agent_id", "variables": { "owner_level": "vip" } }` |
-| `TRANSFER` | Hang the caller up from AI and transfer to a destination number. | `{ "action": "TRANSFER", "to_number": "+919999999999", "reason": "known_customer_owner" }` |
+| `ANSWER_WITH_AI` | Route call to AI. Optional `variables` are merged into session variables. | `{ "action": "ANSWER_WITH_AI", "variables": { "customer_status": "unknown", "language": "en" } }` |
+| `SELECT_AGENT` | Route call to a different agent owned by the same partner. | `{ "action": "SELECT_AGENT", "agent_id": "agent_id", "variables": { "owner_level": "vip" } }` |
+| `TRANSFER` | Transfer to a destination number without creating an AI session. | `{ "action": "TRANSFER", "to_number": "+919999999999", "reason": "known_customer_owner" }` |
 | `REJECT` | End call without AI. | `{ "action": "REJECT", "reason": "blocked_number" }` |
 
-## Response handling and failure behavior
+## Response Handling And Failure Behavior
 
-- HTTP `202` / `204` from webhook -> continue as `ANSWER_WITH_AI`.
-- Non-2xx -> apply `failure_action`.
-- Timeout, network failure, invalid JSON, unknown action, or disallowed action -> apply `failure_action`.
+- HTTP `202` or `204` from webhook: continue as `ANSWER_WITH_AI`.
+- HTTP 2xx with JSON body: use the returned action.
+- Non-2xx response: apply `failure_action`.
+- Timeout, network failure, invalid JSON, unknown action, disallowed action, or unauthorized selected agent: apply `failure_action`.
 - Default `failure_action` is `ANSWER_WITH_AI` unless explicitly set to `REJECT`.
-
-## Examples
-
-### 1) Known caller transfer
-
-```json
-{
-  "action": "TRANSFER",
-  "to_number": "+919876543210",
-  "reason": "Known caller owner routing"
-}
-```
-
-### 2) Unknown caller continue AI with variables
-
-```json
-{
-  "action": "ANSWER_WITH_AI",
-  "variables": {
-    "caller_type": "new_lead",
-    "campaign_id": "summer-sales"
-  }
-}
-```
-
-### 3) Blocked number reject
-
-```json
-{
-  "action": "REJECT",
-  "reason": "blocked_number"
-}
-```
-
-### 4) Dynamic agent selection
-
-```json
-{
-  "action": "SELECT_AGENT",
-  "agent_id": "e3b1f7a9-4f23-4d2f-9150-6f2f0df7a111",
-  "variables": {
-    "region": "south_metro",
-    "customer_tier": "premium"
-  }
-}
-```
 
 If `SELECT_AGENT` returns an agent outside the partner account, Vocobase uses the configured `failure_action`.

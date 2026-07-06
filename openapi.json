@@ -2653,7 +2653,7 @@
       "get": {
         "operationId": "listInboundRoutePolicies",
         "summary": "List inbound routing policies",
-        "description": "Returns every inbound routing policy configured for the authenticated partner. Phase-1 supports `scope: PHONE_NUMBER` policies only.",
+        "description": "Returns every inbound routing policy configured for the authenticated partner. Enabled policies resolve in priority order: PHONE_NUMBER, then AGENT, then PARTNER.",
         "tags": ["Inbound Routing Policies"],
         "responses": {
           "200": {
@@ -2693,7 +2693,7 @@
                           "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                           "name": "Inbound Sales"
                         },
-                        "name": "Known-caller transfer policy",
+                        "name": "Inbound owner routing",
                         "enabled": true,
                         "webhook_url": "https://partner.example.com/inbound-policy",
                         "has_webhook_secret": true,
@@ -2716,7 +2716,7 @@
       "post": {
         "operationId": "createInboundRoutePolicy",
         "summary": "Create inbound routing policy",
-        "description": "Creates a policy for pre-answer inbound call routing. Phase-1 requires `scope` to be `PHONE_NUMBER` and requires an active inbound-enabled number owned by the partner.",
+        "description": "Creates a webhook-backed policy for pre-answer inbound call routing. PHONE_NUMBER policies target one active inbound-enabled Vobiz or Plivo DID, AGENT policies target an active agent, and PARTNER policies apply as the partner default.",
         "tags": ["Inbound Routing Policies"],
         "requestBody": {
           "required": true,
@@ -2726,7 +2726,7 @@
               "example": {
                 "scope": "PHONE_NUMBER",
                 "phone_number_id": "f1a2c3d4-1111-2222-3333-444455556666",
-                "name": "Vobiz known-caller transfer",
+                "name": "Inbound owner routing",
                 "enabled": true,
                 "webhook_url": "https://partner.example.com/webhooks/vocobase/inbound-route",
                 "timeout_ms": 2000,
@@ -2767,7 +2767,7 @@
                       },
                       "agent_id": null,
                       "agent": null,
-                      "name": "Vobiz known-caller transfer",
+                      "name": "Inbound owner routing",
                       "enabled": true,
                       "webhook_url": "https://partner.example.com/webhooks/vocobase/inbound-route",
                       "has_webhook_secret": false,
@@ -2785,7 +2785,7 @@
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "409": {
-            "description": "A policy already exists for this phone number.",
+            "description": "A policy already exists for this scope target.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
@@ -2793,7 +2793,7 @@
                   "success": false,
                   "error": {
                     "code": "POLICY_ALREADY_EXISTS",
-                    "message": "A policy already exists for this phone number"
+                    "message": "A policy already exists for this scope target"
                   }
                 }
               }
@@ -2852,7 +2852,7 @@
                         "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                         "name": "Inbound Sales"
                       },
-                      "name": "Known-caller transfer policy",
+                        "name": "Inbound owner routing",
                       "enabled": true,
                       "webhook_url": "https://partner.example.com/webhooks/vocobase/inbound-route",
                       "has_webhook_secret": true,
@@ -2875,7 +2875,7 @@
       "patch": {
         "operationId": "updateInboundRoutePolicy",
         "summary": "Update inbound routing policy",
-        "description": "Updates one or more fields for an existing policy. `phone_number_id` can be reassigned only to another active inbound-enabled number owned by the partner.",
+        "description": "Updates one or more fields for an existing policy. If scope or target IDs change, PHONE_NUMBER requires phone_number_id, AGENT requires agent_id, and PARTNER clears both target IDs.",
         "tags": ["Inbound Routing Policies"],
         "parameters": [
           {
@@ -2918,7 +2918,7 @@
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "404": { "$ref": "#/components/responses/NotFound" },
           "409": {
-            "description": "A policy already exists for this phone number.",
+            "description": "A policy already exists for this scope target.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
@@ -2926,7 +2926,7 @@
                   "success": false,
                   "error": {
                     "code": "POLICY_ALREADY_EXISTS",
-                    "message": "A policy already exists for this phone number"
+                    "message": "A policy already exists for this scope target"
                   }
                 }
               }
@@ -2953,6 +2953,116 @@
           "204": { "description": "Policy deleted." },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/inbound-route-decisions": {
+      "get": {
+        "operationId": "listInboundRouteDecisions",
+        "summary": "List inbound routing decisions",
+        "description": "Returns newest-first decision logs for inbound routing policies, scoped to the authenticated partner. Use these rows to audit webhook status, latency, fallback reasons, transfers, rejections, and AI session creation.",
+        "tags": ["Inbound Routing Policies"],
+        "parameters": [
+          {
+            "name": "policy_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Filter by inbound route policy ID."
+          },
+          {
+            "name": "phone_number_id",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Filter by DID/phone-number row ID."
+          },
+          {
+            "name": "action",
+            "in": "query",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/InboundRouteAction" },
+            "description": "Filter by final policy action."
+          },
+          {
+            "name": "provider",
+            "in": "query",
+            "required": false,
+            "schema": { "$ref": "#/components/schemas/InboundRouteProvider" },
+            "description": "Filter by inbound provider."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "integer", "minimum": 1, "maximum": 200, "default": 50 },
+            "description": "Page size. Defaults to 50 and is capped at 200."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": { "type": "string" },
+            "description": "Opaque cursor returned by the previous response."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Inbound route decisions.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "decisions": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/InboundRouteDecision" }
+                        },
+                        "next_cursor": { "type": ["string", "null"] }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "decisions": [
+                      {
+                        "id": "clxdecision000108l5d8p6b2aa",
+                        "policy_id": "clxj3rx7z000008l51s9vh3hf",
+                        "phone_number_id": "f1a2c3d4-1111-2222-3333-444455556666",
+                        "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "selected_agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "provider": "plivo",
+                        "provider_call_id": "a1b2c3d4-5e6f-7890-1234-56789abcde01",
+                        "from_number": "+919999999999",
+                        "to_number": "+918888888888",
+                        "action": "ANSWER_WITH_AI",
+                        "decision_source": "webhook",
+                        "failure_reason": null,
+                        "transfer_to_number": null,
+                        "webhook_status": 200,
+                        "webhook_latency_ms": 184,
+                        "variables": { "caller_type": "known" },
+                        "created_session_id": "f7a57c89-437a-47ad-94f1-3d5d196ea3d5",
+                        "created_phone_call_id": "d29e4f7e-cf91-4972-a2de-d41f0e1eb67d",
+                        "metadata": { "policy_scope": "PHONE_NUMBER" },
+                        "created_at": "2026-07-06T10:00:00.000Z"
+                      }
+                    ],
+                    "next_cursor": null
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
           "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
@@ -6101,8 +6211,8 @@
       },
       "InboundRoutePolicyScope": {
         "type": "string",
-        "description": "Policy scope. Only `PHONE_NUMBER` is supported in phase 1.",
-        "enum": ["PHONE_NUMBER"]
+        "description": "Policy scope. Runtime resolution priority is PHONE_NUMBER, then AGENT, then PARTNER.",
+        "enum": ["PHONE_NUMBER", "AGENT", "PARTNER"]
       },
       "InboundRouteAction": {
         "type": "string",
@@ -6114,18 +6224,32 @@
         "description": "Fallback action used when the policy webhook times out, fails, or returns an invalid response.",
         "enum": ["ANSWER_WITH_AI", "REJECT"]
       },
+      "InboundRouteDecisionSource": {
+        "type": "string",
+        "description": "Where the final route decision came from.",
+        "enum": ["webhook", "status", "failure_action"]
+      },
+      "InboundRouteProvider": {
+        "type": "string",
+        "description": "Inbound provider currently supported by inbound routing policies.",
+        "enum": ["vobiz", "plivo"]
+      },
       "InboundRoutePolicy": {
         "type": "object",
         "description": "Normalized inbound routing policy object.",
         "properties": {
           "id": { "type": "string", "description": "Opaque policy ID." },
           "scope": { "$ref": "#/components/schemas/InboundRoutePolicyScope" },
-          "phone_number_id": { "type": "string", "format": "uuid" },
+          "phone_number_id": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "Policy target when scope is PHONE_NUMBER. Null for AGENT and PARTNER policies."
+          },
           "partner_config_id": { "type": "string", "format": "uuid" },
           "agent_id": {
             "type": ["string", "null"],
             "format": "uuid",
-            "description": "The currently linked agent for `SELECT_AGENT` fallback behavior."
+            "description": "Policy target when scope is AGENT, or the default DID agent for PHONE_NUMBER policies."
           },
           "name": { "type": "string", "maxLength": 200 },
           "enabled": { "type": "boolean" },
@@ -6172,10 +6296,20 @@
       },
       "InboundRoutePolicyCreateRequest": {
         "type": "object",
-        "required": ["scope", "phone_number_id", "name", "webhook_url"],
+        "description": "Create a webhook-backed inbound routing policy. PHONE_NUMBER requires phone_number_id, AGENT requires agent_id, and PARTNER rejects both target IDs.",
+        "required": ["scope", "name", "webhook_url"],
         "properties": {
           "scope": { "$ref": "#/components/schemas/InboundRoutePolicyScope" },
-          "phone_number_id": { "type": "string", "format": "uuid" },
+          "phone_number_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Required when scope is PHONE_NUMBER. Must reference an active inbound-enabled Vobiz or Plivo DID owned by the partner."
+          },
+          "agent_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Required when scope is AGENT. Must reference an active agent owned by the partner."
+          },
           "name": {
             "type": "string",
             "minLength": 1,
@@ -6220,9 +6354,19 @@
       },
       "InboundRoutePolicyUpdateRequest": {
         "type": "object",
+        "description": "Patch a webhook-backed inbound routing policy. If scope or target IDs change, PHONE_NUMBER requires phone_number_id, AGENT requires agent_id, and PARTNER clears both target IDs.",
         "properties": {
           "scope": { "$ref": "#/components/schemas/InboundRoutePolicyScope" },
-          "phone_number_id": { "type": "string", "format": "uuid" },
+          "phone_number_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "PHONE_NUMBER target DID. Use only with scope PHONE_NUMBER."
+          },
+          "agent_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "AGENT target. Use only with scope AGENT."
+          },
           "name": {
             "type": "string",
             "minLength": 1,
@@ -6264,13 +6408,59 @@
         },
         "minProperties": 1
       },
+      "InboundRouteDecision": {
+        "type": "object",
+        "description": "Audit row for one resolved inbound route decision.",
+        "properties": {
+          "id": { "type": "string", "description": "Opaque decision-log ID." },
+          "policy_id": { "type": ["string", "null"], "description": "Policy that produced the decision, if any." },
+          "phone_number_id": { "type": ["string", "null"], "format": "uuid" },
+          "agent_id": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "Default agent from the resolved inbound DID context."
+          },
+          "selected_agent_id": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "Selected agent for ANSWER_WITH_AI/SELECT_AGENT outcomes."
+          },
+          "provider": { "$ref": "#/components/schemas/InboundRouteProvider" },
+          "provider_call_id": { "type": "string" },
+          "from_number": { "type": ["string", "null"] },
+          "to_number": { "type": ["string", "null"] },
+          "action": { "$ref": "#/components/schemas/InboundRouteAction" },
+          "decision_source": { "$ref": "#/components/schemas/InboundRouteDecisionSource" },
+          "failure_reason": {
+            "type": ["string", "null"],
+            "description": "Fallback or destination failure reason, when applicable."
+          },
+          "transfer_to_number": {
+            "type": ["string", "null"],
+            "description": "Destination number for TRANSFER decisions."
+          },
+          "webhook_status": {
+            "type": ["integer", "null"],
+            "description": "HTTP status returned by the policy webhook."
+          },
+          "webhook_latency_ms": {
+            "type": ["integer", "null"],
+            "description": "Elapsed webhook request time in milliseconds."
+          },
+          "variables": { "type": ["object", "null"], "additionalProperties": true },
+          "created_session_id": { "type": ["string", "null"], "format": "uuid" },
+          "created_phone_call_id": { "type": ["string", "null"], "format": "uuid" },
+          "metadata": { "type": ["object", "null"], "additionalProperties": true },
+          "created_at": { "type": "string", "format": "date-time" }
+        }
+      },
       "InboundRouteWebhookPayload": {
         "type": "object",
         "required": ["event", "version", "provider", "call", "phone_number", "agent", "partner"],
         "properties": {
           "event": { "type": "string", "const": "inbound.route" },
           "version": { "type": "string", "const": "2026-07-04" },
-          "provider": { "type": "string", "const": "vobiz" },
+          "provider": { "$ref": "#/components/schemas/InboundRouteProvider" },
           "call": {
             "type": "object",
             "properties": {
