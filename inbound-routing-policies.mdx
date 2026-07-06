@@ -68,7 +68,7 @@ If no policy matches, Vocobase continues with the normal AI answer path.
 | `id` | string | Opaque policy ID. |
 | `scope` | string | `PHONE_NUMBER`, `AGENT`, or `PARTNER`. |
 | `phone_number_id` | UUID \| null | DID target for phone-number policies. |
-| `agent_id` | UUID \| null | Agent target for agent policies or the DID's default agent. |
+| `agent_id` | UUID \| null | Agent target for `AGENT` policies. Null for `PHONE_NUMBER` and `PARTNER` policies. |
 | `partner_config_id` | UUID | Owning partner config. |
 | `name` | string | Policy label. |
 | `enabled` | boolean | `false` disables evaluation. |

@@ -2688,11 +2688,8 @@
                           "id": "f1a2c3d4-1111-2222-3333-444455556666",
                           "number": "+918065480085"
                         },
-                        "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-                        "agent": {
-                          "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-                          "name": "Inbound Sales"
-                        },
+                        "agent_id": null,
+                        "agent": null,
                         "name": "Inbound owner routing",
                         "enabled": true,
                         "webhook_url": "https://partner.example.com/inbound-policy",
@@ -2847,12 +2844,9 @@
                         "id": "f1a2c3d4-1111-2222-3333-444455556666",
                         "number": "+918065480085"
                       },
-                      "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-                      "agent": {
-                        "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-                        "name": "Inbound Sales"
-                      },
-                        "name": "Inbound owner routing",
+                      "agent_id": null,
+                      "agent": null,
+                      "name": "Inbound owner routing",
                       "enabled": true,
                       "webhook_url": "https://partner.example.com/webhooks/vocobase/inbound-route",
                       "has_webhook_secret": true,
@@ -6249,7 +6243,7 @@
           "agent_id": {
             "type": ["string", "null"],
             "format": "uuid",
-            "description": "Policy target when scope is AGENT, or the default DID agent for PHONE_NUMBER policies."
+            "description": "Policy target when scope is AGENT. Null for PHONE_NUMBER and PARTNER policies."
           },
           "name": { "type": "string", "maxLength": 200 },
           "enabled": { "type": "boolean" },
