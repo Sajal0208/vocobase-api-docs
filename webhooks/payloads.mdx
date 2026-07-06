@@ -19,7 +19,7 @@ Every webhook request includes these headers:
 
 ## Event: `inbound.route`
 
-This event is sent when a partner-configured pre-answer policy is available for an inbound call.
+This event is sent when a partner-configured pre-answer policy is available for a Vobiz or Plivo inbound call.
 
 ### Payload structure
 
@@ -27,7 +27,7 @@ This event is sent when a partner-configured pre-answer policy is available for 
 {
   "event": "inbound.route",
   "version": "2026-07-04",
-  "provider": "vobiz",
+  "provider": "plivo",
   "call": {
     "provider_call_id": "call-id",
     "from_number": "+919999999999",
@@ -68,6 +68,8 @@ Partners return JSON with an `action` value:
 
 When action is `TRANSFER`, `to_number` must be E.164.
 When action is `SELECT_AGENT`, `agent_id` must be set.
+
+Vocobase records each resolved route decision for partner observability. Query `GET /api/v2/inbound-route-decisions` to inspect action, source, webhook status, webhook latency, failure reason, transfer target, and created session or phone-call IDs.
 
 ## Event: `call.status.updated`
 
