@@ -1,0 +1,175 @@
+---
+title: "Voicemail & Screener Detection"
+description: "Detect answering machines and phone screeners on outbound calls, and control how your agent reacts to each"
+---
+
+# Voicemail & Screener Detection
+
+Two per-agent toggles that govern how your agent handles a call that
+**isn't** answered by the person you're trying to reach. On outbound
+calls the answering party is often not a live human — it may be a
+carrier **voicemail** system, or a **screener** (an automated
+"Who's calling?" gatekeeper, or a person triaging the call before
+handing off). These settings let the agent recognize each case and
+respond appropriately instead of talking to a dial tone.
+
+- **`voicemail_detection_enabled`** — recognize when a call reaches
+  voicemail and either leave a set message or hang up.
+- **`screener_handling_enabled`** — recognize a screener and navigate
+  it toward the intended human.
+
+Both apply to **outbound calls only**. Inbound callers are live humans
+who dialed you deliberately, so answer-type detection never runs on
+inbound — enabling these toggles has no effect there.
+
+---
+
+## How the two toggles relate
+
+Screener handling is a strict extension of voicemail detection, not an
+independent feature. Enabling it **requires `voicemail_detection_enabled`
+to be `true`** on the same agent — the underlying detector classifies
+every answered outbound call as one of `HUMAN`, `VOICEMAIL`, or
+`SCREENER`, and the screener branch only runs when detection is on.
+
+| Agent configuration | What the agent detects |
+|---------------------|------------------------|
+| Both toggles off | Nothing — the agent starts speaking immediately on answer. |
+| `voicemail_detection_enabled: true` only | `HUMAN` vs `VOICEMAIL`. Screeners are treated as humans. |
+| Both `true` | `HUMAN` vs `VOICEMAIL` vs `SCREENER`, with dedicated screener navigation. |
+
+Setting `screener_handling_enabled: true` while
+`voicemail_detection_enabled` is `false` has no runtime effect — the
+screener branch stays dormant until voicemail detection is also on.
+
+<Note>
+Both features also depend on platform-level enablement that partners do
+not control directly: voicemail detection requires **account-level
+provider support** on a supported outbound carrier, and screener
+handling requires **platform screener handling** to be enabled for your
+account. If a toggle appears to have no effect on live calls even with
+the agent flags set correctly, contact your partner account manager to
+confirm these are switched on.
+</Note>
+
+---
+
+## Voicemail detection
+
+When enabled, the agent detects that an outbound call has reached a
+carrier voicemail system and reacts based on `voicemail_message`:
+
+- **`voicemail_message` set** — the agent speaks that message verbatim,
+  then ends the call.
+- **`voicemail_message` empty or `null`** — the agent hangs up silently
+  on voicemail, leaving no message.
+
+`voicemail_message` is capped at **500 characters**. Pass `null` or an
+empty string to clear it.
+
+### Enabling voicemail detection
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
+  -H "Authorization: Bearer rg_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "voicemail_detection_enabled": true,
+    "voicemail_message": "Hi, this is Ria from Acme. Sorry we missed you — we'\''ll try again shortly, or call us back at your convenience."
+  }'
+```
+
+### Leaving no message
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
+  -H "Authorization: Bearer rg_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "voicemail_detection_enabled": true,
+    "voicemail_message": null
+  }'
+```
+
+---
+
+## Screener handling
+
+A screener is anything that answers the call but isn't your intended
+recipient and expects the caller to identify themselves before
+connecting — an automated "Who may I ask is calling?" prompt, a
+receptionist, or a personal-assistant gatekeeper. With
+`screener_handling_enabled: true`, the agent recognizes this case
+(distinct from voicemail) and works to get past the screener toward the
+target human rather than delivering its main script to the gatekeeper.
+
+Because this rides on the voicemail detector, enable both toggles
+together:
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
+  -H "Authorization: Bearer rg_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "voicemail_detection_enabled": true,
+    "screener_handling_enabled": true
+  }'
+```
+
+### Disabling screener handling
+
+Turn off just the screener branch while keeping voicemail detection on:
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
+  -H "Authorization: Bearer rg_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{ "screener_handling_enabled": false }'
+```
+
+---
+
+## Setting both at agent creation
+
+Both toggles (and `voicemail_message`) can be set when you first create
+the agent, not only via update:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/agent \
+  -H "Authorization: Bearer rg_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_name": "Outbound Sales",
+    "prompt": "You are a friendly sales rep for Acme...",
+    "voicemail_detection_enabled": true,
+    "screener_handling_enabled": true,
+    "voicemail_message": "Sorry we missed you — we'\''ll try again soon."
+  }'
+```
+
+---
+
+## Reading the current configuration
+
+Both flags and the message are returned on the agent object from
+`GET /api/v2/agent/{agent_id}` (and in the list response):
+
+```json
+{
+  "id": "...",
+  "agent_name": "Outbound Sales",
+  "voicemail_detection_enabled": true,
+  "screener_handling_enabled": true,
+  "voicemail_message": "Sorry we missed you — we'll try again soon."
+}
+```
+
+---
+
+## Field reference
+
+| Field | Type | Notes |
+|-------|------|-------|
+| `voicemail_detection_enabled` | boolean | Detect carrier voicemail on supported outbound providers. Requires account-level provider support. |
+| `screener_handling_enabled` | boolean | Detect and navigate phone screeners on outbound calls. Requires `voicemail_detection_enabled: true` and platform screener handling. |
+| `voicemail_message` | string \| null | Message spoken verbatim on voicemail detection (max 500 chars). `null`/empty ⇒ hang up silently. |
