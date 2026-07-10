@@ -3243,6 +3243,13 @@
                     "default": true,
                     "description": "Controls whether the agent responds to caller silence using platform-managed idle settings. Defaults to true. When false, the bot will not ask if the caller is still there and will not end the call because of idle silence. Timeout and retry values are not configurable through V2."
                   },
+                  "tool_ack_config": {
+                    "oneOf": [
+                      { "type": "null" },
+                      { "$ref": "#/components/schemas/ToolAckConfig" }
+                    ],
+                    "description": "Per-agent spoken acknowledgement while a tool call (e.g. `search_knowledge_base`) runs. New agents default to enabled with `mode` set to `dynamic` when this field is omitted. Pass `null` to opt the new agent out, or an object to customize."
+                  },
                   "extraction_enabled": {
                     "type": "boolean",
                     "default": true,
@@ -3448,6 +3455,13 @@
                       { "$ref": "#/components/schemas/ExtractionConfig" }
                     ],
                     "description": "Custom Analysis config — runs an LLM extraction over the transcript after every completed call. Pass `null` to remove the config entirely. To pause extraction while keeping the config, use `extraction_enabled: false` instead."
+                  },
+                  "tool_ack_config": {
+                    "oneOf": [
+                      { "type": "null" },
+                      { "$ref": "#/components/schemas/ToolAckConfig" }
+                    ],
+                    "description": "Per-agent spoken acknowledgement while a tool call runs. Omit to leave the current setting unchanged; pass `null` to disable, or an object to update. No default is applied on update (unlike create)."
                   },
                   "extraction_enabled": {
                     "type": "boolean",
@@ -6744,6 +6758,13 @@
             ],
             "description": "Custom Analysis config — when present AND `extraction_enabled` is true, the platform runs an LLM extraction over each completed call's transcript and ships the result inline in the `session.completed` webhook."
           },
+          "tool_ack_config": {
+            "oneOf": [
+              { "type": "null" },
+              { "$ref": "#/components/schemas/ToolAckConfig" }
+            ],
+            "description": "Per-agent tool-call acknowledgement configuration, or `null` when the feature is off. See the ToolAckConfig schema."
+          },
           "extraction_enabled": {
             "type": "boolean",
             "default": true,
@@ -6977,6 +6998,27 @@
           "status": { "type": "string" },
           "started_at": { "type": "string", "format": "date-time" },
           "ended_at": { "type": ["string", "null"], "format": "date-time" }
+        }
+      },
+      "ToolAckConfig": {
+        "type": "object",
+        "description": "Per-agent spoken acknowledgement played when the agent starts an eligible tool call, to mask tool latency such as a knowledge-base lookup. Never fires for `end_call` or `transfer_call`. The object is forwarded to the voice engine as-is, so nested keys are camelCase.",
+        "properties": {
+          "enabled": {
+            "type": "boolean",
+            "description": "Turn the spoken acknowledgement on or off."
+          },
+          "mode": {
+            "type": "string",
+            "enum": ["static", "dynamic"],
+            "description": "`static` speaks a random built-in phrase (no added latency). `dynamic` has the LLM generate a short, context- and language-aware line each time (adds roughly 300-800 ms and one extra inference per tool call)."
+          },
+          "maxWords": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 200,
+            "description": "Dynamic mode only: soft word cap on the generated acknowledgement. Defaults to 10."
+          }
         }
       },
       "ExtractionConfig": {
