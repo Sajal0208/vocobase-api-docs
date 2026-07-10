@@ -1247,6 +1247,45 @@
       }
     },
     "/telephony/connections/{connection_id}": {
+      "get": {
+        "operationId": "getTelephonyConnection",
+        "summary": "Retrieve a telephony connection",
+        "description": "Returns a single active partner-owned telephony connection by ID, including all of its active DIDs and the agent linked to each. Use this to keep an external system synced with the connection's numbers and agent assignments as shown in the Vocobase dashboard.",
+        "tags": ["Telephony Connections"],
+        "parameters": [
+          {
+            "name": "connection_id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Telephony connection ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Telephony connection with its active phone numbers and linked agents.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "connection": { "$ref": "#/components/schemas/TelephonyConnection" }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
       "patch": {
         "operationId": "renameTelephonyConnection",
         "summary": "Rename a telephony connection",
