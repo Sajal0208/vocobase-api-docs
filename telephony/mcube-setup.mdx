@@ -1,17 +1,18 @@
 ---
 title: "MCube Setup"
-description: "Configure MCube for outbound calling with the Vocobase API"
+description: "Configure MCube for outbound and inbound calling with the Vocobase API"
 ---
 
 # MCube Setup
 
-This guide walks you through connecting your MCube account to Vocobase for outbound calling. MCube is a popular telephony provider in India with support for local and toll-free numbers.
+This guide walks you through connecting your MCube account to Vocobase for outbound and inbound calling. MCube is a popular telephony provider in India with support for local and toll-free numbers.
 
 ## Prerequisites
 
 - An [MCube](https://www.mcube.com) account with API access enabled
 - Your MCube JWT authentication token
 - Your MCube executive number
+- Every inbound DID in E.164 format
 - An approved Vocobase partner account with an API key
 
 ## Step 1: Get your MCube credentials
@@ -53,6 +54,10 @@ curl -X POST https://api.vocobase.com/api/v2/telephony/connections \
 ```
 
 The exenumber is stored as the connection's default phone number (national format is fine — no `+` required) and is used as the line your outbound calls are placed from.
+
+<Warning>
+  The executive number identifies the MCube account; it is not the inbound DID list. Each dialed DID must be added separately before inbound calls can route to an agent.
+</Warning>
 
 Alternatively, the provider config shortcut below remains supported and creates or updates your default MCube connection:
 
@@ -120,7 +125,67 @@ A successful response confirms your credentials were saved:
   Your JWT token is encrypted at rest and never returned in API responses.
 </Tip>
 
-## Step 3: Make a test call
+## Step 3: Add and assign inbound DIDs
+
+MCube does not expose a DID inventory endpoint that Vocobase pulls. Add the DIDs manually to the selected connection with `POST /api/v2/phone-numbers/sync`. Use E.164 format even if MCube sends the webhook DID without `+91`; Vocobase handles national-format suffix matching during inbound routing.
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "MCUBE",
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+    "numbers": ["+918071844607", "+918071844608"]
+  }'
+```
+
+The request is idempotent. DIDs already present on this connection and duplicate values in the same request are skipped:
+
+```json
+{
+  "success": true,
+  "data": {
+    "added": 1,
+    "skipped": 1,
+    "updated": 0,
+    "removed": 0
+  }
+}
+```
+
+List the connection's numbers to obtain each DID row ID:
+
+```bash
+curl -X GET "https://api.vocobase.com/api/v2/phone-numbers?provider=MCUBE&connection_id=9b7f1c44-c87f-4f0c-9124-3c802a9c1a20" \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+Assign the DID to an agent and enable inbound routing:
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/phone-numbers/f1a2c3d4-1111-2222-3333-444455556666 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "inbound_enabled": true,
+    "friendly_name": "MCube Support DID"
+  }'
+```
+
+<Note>
+  A DID may exist on more than one connection for outbound use, but only one active row for that DID can have `inbound_enabled: true`. This keeps inbound routing deterministic.
+</Note>
+
+To remove a manually added DID, use its row ID. The default exeNumber cannot be deleted through this endpoint.
+
+```bash
+curl -X DELETE https://api.vocobase.com/api/v2/phone-numbers/f1a2c3d4-1111-2222-3333-444455556666 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+## Step 4: Make a test call
 
 Start an outbound call using the `mcube` provider:
 
@@ -182,6 +247,13 @@ You will receive a `400` error if you try to make a call with `"provider": "mcub
 - Ensure the destination number is reachable from your MCube account
 - Check that your MCube account has sufficient balance
 - Verify that API-initiated calls are enabled on your MCube plan
+
+### Inbound call returns `unknown_number`
+
+- Confirm the dialed DID was added to the same MCube `connection_id` selected by the webhook's exeNumber
+- Store the DID in E.164 format, for example `+918071844607`
+- Confirm the DID row has an owned `agent_id` and `inbound_enabled: true`
+- Use `GET /api/v2/phone-numbers?provider=MCUBE&connection_id=...` to inspect the current mapping
 
 ### JWT token expired
 

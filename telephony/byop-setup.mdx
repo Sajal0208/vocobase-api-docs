@@ -116,15 +116,16 @@ Existing integrations that pass only `provider` keep working while there is exac
 
 ## Inbound numbers
 
-For inbound calling with Plivo or Vobiz, use the V2 phone-numbers API to sync DIDs and assign agents:
+For inbound calling with Plivo, Vobiz, or MCube, use the V2 phone-numbers API to sync DIDs and assign agents. MCube uses an explicit E.164 `numbers` array because its DID inventory is added manually:
 
 ```bash
 curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
   -H "Content-Type: application/json" \
   -d '{
-    "provider": "PLIVO",
-    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
+    "provider": "MCUBE",
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+    "numbers": ["+918071844607"]
   }'
 ```
 

@@ -2284,7 +2284,7 @@
             "required": false,
             "schema": {
               "type": "string",
-              "enum": ["TWILIO", "EXOTEL", "PLIVO", "VOBIZ", "TATA_SMARTFLO", "SIP", "VOICELINK"]
+              "enum": ["TWILIO", "EXOTEL", "PLIVO", "VOBIZ", "TATA_SMARTFLO", "SIP", "VOICELINK", "MCUBE"]
             },
             "description": "Optional provider filter."
           },
@@ -2348,8 +2348,8 @@
     "/phone-numbers/sync": {
       "post": {
         "operationId": "syncPhoneNumbers",
-        "summary": "Sync Plivo or Vobiz DIDs",
-        "description": "Imports DIDs into Vocobase for inbound routing. For Plivo, Vocobase pulls the inventory from Plivo REST using the selected connection's credentials. For Vobiz, pass an explicit `numbers` array because Vobiz inventory pull is not available. Vobiz uses `numbers`, not `phone_numbers`. Pass `connection_id` when the partner has multiple active connections for the provider.",
+        "summary": "Sync or manually add DIDs",
+        "description": "Imports DIDs into Vocobase for inbound routing. For Plivo, Vocobase pulls the inventory from Plivo REST using the selected connection's credentials. For Vobiz and MCube, pass an explicit `numbers` array because Vocobase does not pull DID inventory from those providers. MCube numbers must all be valid E.164 DIDs, and `connection_id` is required so the account-routing boundary is explicit. The operation is idempotent: existing DIDs and repeated request values are skipped. For other providers, `connection_id` is required whenever more than one active connection exists.",
         "tags": ["Phone Numbers"],
         "requestBody": {
           "required": true,
@@ -2386,6 +2386,24 @@
                         "description": "Vobiz DIDs in E.164 format. This field is named `numbers`."
                       }
                     }
+                  },
+                  {
+                    "type": "object",
+                    "required": ["provider", "connection_id", "numbers"],
+                    "properties": {
+                      "provider": { "type": "string", "const": "MCUBE" },
+                      "connection_id": {
+                        "type": "string",
+                        "format": "uuid",
+                        "description": "Active MCube telephony connection that owns these DIDs."
+                      },
+                      "numbers": {
+                        "type": "array",
+                        "items": { "type": "string", "pattern": "^\\+[1-9]\\d{6,14}$" },
+                        "minItems": 1,
+                        "description": "MCube inbound DIDs in E.164 format. The connection's exeNumber is separate and must not be repeated here unless it is also a dialed DID."
+                      }
+                    }
                   }
                 ]
               },
@@ -2404,6 +2422,14 @@
                     "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
                     "numbers": ["+918065480085", "+919109518550"]
                   }
+                },
+                "mcube": {
+                  "summary": "MCube manual DID list",
+                  "value": {
+                    "provider": "MCUBE",
+                    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                    "numbers": ["+918071844607", "+918071844608"]
+                  }
                 }
               }
             }
@@ -2411,7 +2437,7 @@
         },
         "responses": {
           "200": {
-            "description": "Sync completed. Plivo and Vobiz return different counters.",
+            "description": "Sync completed. Manual Vobiz and MCube imports report added and skipped values; repeated or existing DIDs are skipped.",
             "content": {
               "application/json": {
                 "schema": {
@@ -2432,6 +2458,7 @@
                           "type": "object",
                           "properties": {
                             "added": { "type": "integer" },
+                            "skipped": { "type": "integer" },
                             "updated": { "type": "integer" },
                             "removed": { "type": "integer" }
                           }
@@ -2450,7 +2477,13 @@
                   "vobiz": {
                     "value": {
                       "success": true,
-                      "data": { "added": 2, "updated": 0, "removed": 0 }
+                      "data": { "added": 2, "skipped": 0, "updated": 0, "removed": 0 }
+                    }
+                  },
+                  "mcube": {
+                    "value": {
+                      "success": true,
+                      "data": { "added": 1, "skipped": 1, "updated": 0, "removed": 0 }
                     }
                   }
                 }
@@ -2459,6 +2492,7 @@
           },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
           "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
@@ -7318,12 +7352,12 @@
           },
           "phone_number": {
             "type": "string",
-            "description": "DID in E.164 format.",
+            "description": "DID in E.164 format. A connection-detail response may also include the MCube default exeNumber in national format; manually imported MCube DIDs are always E.164.",
             "example": "+918065480085"
           },
           "provider": {
             "type": "string",
-            "enum": ["TWILIO", "EXOTEL", "PLIVO", "VOBIZ", "TATA_SMARTFLO", "SIP", "VOICELINK"],
+            "enum": ["TWILIO", "EXOTEL", "PLIVO", "VOBIZ", "TATA_SMARTFLO", "SIP", "VOICELINK", "MCUBE"],
             "description": "Carrier connection that owns this DID."
           },
           "friendly_name": { "type": ["string", "null"] },
