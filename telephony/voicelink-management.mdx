@@ -266,6 +266,7 @@ Set `import_dids: false` for a read-only readiness check. When omitted, `import_
 | `ROUTING_CHANGED` | VoiceLink routing exists but outbound calls no longer point to an active WebSocket bot. |
 | `NO_VOCOBASE_AGENT` | The local Vocobase phone number has no assigned agent. |
 | `REMOTE_DID_EXPIRED` | VoiceLink marks the DID as expired. |
+| `REMOTE_DID_RELEASED` | VoiceLink marks the DID as released and no longer usable for calls. |
 | `REMOTE_DID_DELETED` | Vocobase has this DID locally, but VoiceLink no longer returns it. |
 
 Use `readiness` for a per-DID checklist and `drift` for a flat action list. Do not delete local rows automatically when `REMOTE_DID_DELETED` appears; confirm in VoiceLink first.
@@ -325,13 +326,13 @@ curl -X POST https://api.vocobase.com/api/v2/voicelink/inbound-ready \
 Provide either `did_id` or `did_number`. `agent_id` is required for a fully-ready DID. `client_id` is required only when VoiceLink has not mapped the DID yet. The endpoint never accepts a caller-supplied `websocket_url`; the backend always builds the signed endpoint from deployment configuration.
 
 <Warning>
-  Before using this endpoint in production, the Vocobase deployment must set `VOICELINK_INBOUND_ENABLED=true`, `VOICELINK_INBOUND_WSS_URL` to its public `wss://` VoiceLink bot endpoint, and `VOICELINK_INBOUND_SIGNING_SECRET` to a secret of at least 32 characters. Rotating the signing secret invalidates existing bot URLs, so rerun inbound setup for every DID after rotation.
+  Before using this endpoint in production, the Vocobase deployment must set `VOICELINK_INBOUND_ENABLED=true`, `VOICELINK_INBOUND_WSS_URL` to its public `wss://` VoiceLink bot endpoint, and `VOICELINK_INBOUND_SIGNING_SECRET` to a secret of at least 32 characters. Rotating the signing secret invalidates existing bot URLs, so rerun inbound setup once for each VoiceLink client bot after rotation.
 </Warning>
 
 The returned `steps` may include `verify_inbound_runtime` and `enable_inbound` in addition to the shared call-ready steps. A successful result has both `data.ready: true` and `data.readiness.inbound.ready: true`.
 
 <Note>
-  The signed token is a connection-scoped capability because VoiceLink does not attach a native request signature to the documented Generic WebSocket handshake. Vocobase verifies it before resolving a DID and scopes the lookup to that exact VoiceLink connection. Do not copy a generated bot URL into logs, tickets, or another connection.
+  The backend places the signed token in Pipecat Cloud's base64-encoded `body` parameter, and the deployed bot reads the decoded value from its runner body. The token is a connection-scoped second factor in addition to the shared webhook authorization used by the call-metadata endpoint. It narrows a leaked credential from every VoiceLink DID to one connected VoiceLink account; it is not the endpoint's sole authentication boundary. Sync responses redact signed bot URLs. Do not copy a generated bot URL into logs, tickets, or another connection.
 </Note>
 
 ## Make a DID call-ready
@@ -423,7 +424,7 @@ Provide either `did_id` or `did_number`. `client_id`, `agent_id`, `bot_name`, an
 
 `readiness_before` is the readiness snapshot captured before provisioning ran (so you can see exactly what changed); it is `null` when the DID could not be resolved. `readiness` is recomputed after all steps.
 
-`steps[].step` is one of `resolve_did`, `verify_inbound_runtime`, `import_did`, `enable_inbound`, `client_mapping`, `ensure_bot`, `ensure_routing`, or `assign_agent`. `steps[].status` can be `done`, `already`, `skipped`, or `failed`. A `failed` step means the workflow stopped at that point and returned the latest readiness state so you can show the next operator action.
+For outbound call-ready requests, `steps[].step` is one of `resolve_did`, `import_did`, `client_mapping`, `ensure_bot`, `ensure_routing`, or `assign_agent`. Inbound-ready requests may additionally return `verify_inbound_runtime` and `enable_inbound`. `steps[].status` can be `done`, `already`, `skipped`, or `failed`. A `failed` step means the workflow stopped at that point and returned the latest readiness state so you can show the next operator action.
 
 ## Call-ready checklist
 

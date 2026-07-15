@@ -7809,14 +7809,21 @@
             ]
           },
           "client_id": { "type": "integer" },
-          "websocket_url": { "type": "string", "format": "uri" },
+          "websocket_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Present for ordinary bot rows. Omitted when the URL contains the signed inbound token."
+          },
+          "websocket_configured": {
+            "type": "boolean",
+            "description": "True when a signed inbound bot URL is configured but redacted from the response."
+          },
           "raw": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Original VoiceLink row."
+            "description": "Original VoiceLink row. Omitted for bot rows containing a signed inbound URL."
           }
-        },
-        "required": ["raw"]
+        }
       },
       "VoiceLinkNormalizedDid": {
         "allOf": [
