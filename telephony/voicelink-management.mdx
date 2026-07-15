@@ -1,11 +1,11 @@
 ---
 title: "VoiceLink Management"
-description: "Manage VoiceLink clients, DIDs, mapping, and readiness with the V2 API"
+description: "Set up inbound VoiceLink DIDs and manage clients, mapping, routing, and readiness"
 ---
 
 # VoiceLink Management
 
-Use the VoiceLink management API when you need to set up clients, map DIDs, and check whether a DID is ready for Vocobase calls without opening the VoiceLink panel.
+Use the VoiceLink management API to connect purchased DIDs to Vocobase agents, safely configure inbound or outbound WebSocket routing, and inspect VoiceLink drift without opening the VoiceLink panel.
 
 <Note>
   VoiceLink remains the source of truth for remote clients, DID ownership, expiration, bots, and routing. Vocobase remains the source of truth for local `PhoneNumber.agentId` assignment. Sync imports or updates local DID rows, but it does not silently delete local data.
@@ -63,6 +63,7 @@ For `POST` endpoints, pass it in the JSON body:
 | `POST` | `/api/v2/voicelink/call-routing/:routingId` | Update call routing |
 | `POST` | `/api/v2/voicelink/sync` | Sync remote state and readiness |
 | `POST` | `/api/v2/voicelink/call-ready` | Make a purchased DID outbound call-ready |
+| `POST` | `/api/v2/voicelink/inbound-ready` | Make a purchased DID inbound call-ready |
 
 ## Create a client
 
@@ -269,6 +270,16 @@ Set `import_dids: false` for a read-only readiness check. When omitted, `import_
 
 Use `readiness` for a per-DID checklist and `drift` for a flat action list. Do not delete local rows automatically when `REMOTE_DID_DELETED` appears; confirm in VoiceLink first.
 
+Every readiness row also contains an `inbound` object with direction-specific readiness. `inbound.ready` is the canonical signal for inbound calling; the top-level `state` remains the outbound readiness signal for backward compatibility.
+
+| Inbound state | Meaning |
+|---------------|---------|
+| `INBOUND_RUNTIME_DISABLED` | The backend deployment has not enabled VoiceLink inbound calling. |
+| `INBOUND_ORIGIN_AUTH_NOT_CONFIGURED` | The signed inbound endpoint cannot be built because its WSS URL or signing secret is missing or invalid. |
+| `INBOUND_NOT_ENABLED_LOCALLY` | The local PhoneNumber row exists but inbound calling is disabled. |
+| `INBOUND_BOT_URL_CHANGED` | The active VoiceLink bot no longer points to the expected signed Vocobase endpoint. |
+| Any shared readiness state | The corresponding DID, client, bot, route, or agent prerequisite is missing. |
+
 Each readiness row carries a `key` — a stable digit-only join key (no `+`) that links the remote DID, routing, and local phone-number rows for that number — and `action_items`, the same remediation steps as `actions` but as `{ "code", "label" }` objects for programmatic use (`code` is the readiness issue the step resolves).
 
 Each drift row carries the same `key`, plus stable identifiers for repairing the drift without re-deriving them, when known: `did_id`, `client_id`, `routing_id`, `bot_id`, and `local_phone_number_id` (the local Vocobase PhoneNumber UUID).
@@ -284,6 +295,44 @@ Each drift row carries the same `key`, plus stable identifiers for repairing the
 | `message` | Human-readable explanation |
 
 When a section fetch fails or the purchased-DID list is truncated, the dependent readiness inferences are suppressed rather than guessed — sync never falsely reports states like `REMOTE_DID_DELETED` or `NO_BOT` off incomplete data.
+
+## Make a DID inbound-ready
+
+Use `POST /api/v2/voicelink/inbound-ready` for the recommended inbound setup path. The operation is idempotent and scoped to one purchased DID.
+
+It:
+
+1. Verifies that the deployment has enabled inbound calling and configured a secure WSS URL plus signing secret.
+2. Resolves and imports the purchased DID, then enables inbound locally.
+3. Maps a currently-unmapped DID only when you explicitly supply `client_id`.
+4. Creates or updates the client WebSocket bot with a signed, connection-scoped endpoint.
+5. Sets VoiceLink inbound mode to WebSocket bot (`3`) while preserving every existing outbound routing field.
+6. Assigns the local number to the supplied Vocobase `agent_id`.
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/voicelink/inbound-ready \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+    "did_id": 812,
+    "client_id": 415,
+    "agent_id": "f4df9f8c-df95-46d8-bb0e-6f9f83fd4f55",
+    "bot_name": "Vocobase inbound +918011223344"
+  }'
+```
+
+Provide either `did_id` or `did_number`. `agent_id` is required for a fully-ready DID. `client_id` is required only when VoiceLink has not mapped the DID yet. The endpoint never accepts a caller-supplied `websocket_url`; the backend always builds the signed endpoint from deployment configuration.
+
+<Warning>
+  Before using this endpoint in production, the Vocobase deployment must set `VOICELINK_INBOUND_ENABLED=true`, `VOICELINK_INBOUND_WSS_URL` to its public `wss://` VoiceLink bot endpoint, and `VOICELINK_INBOUND_SIGNING_SECRET` to a secret of at least 32 characters. Rotating the signing secret invalidates existing bot URLs, so rerun inbound setup for every DID after rotation.
+</Warning>
+
+The returned `steps` may include `verify_inbound_runtime` and `enable_inbound` in addition to the shared call-ready steps. A successful result has both `data.ready: true` and `data.readiness.inbound.ready: true`.
+
+<Note>
+  The signed token is a connection-scoped capability because VoiceLink does not attach a native request signature to the documented Generic WebSocket handshake. Vocobase verifies it before resolving a DID and scopes the lookup to that exact VoiceLink connection. Do not copy a generated bot URL into logs, tickets, or another connection.
+</Note>
 
 ## Make a DID call-ready
 
@@ -374,7 +423,7 @@ Provide either `did_id` or `did_number`. `client_id`, `agent_id`, `bot_name`, an
 
 `readiness_before` is the readiness snapshot captured before provisioning ran (so you can see exactly what changed); it is `null` when the DID could not be resolved. `readiness` is recomputed after all steps.
 
-`steps[].step` is one of `resolve_did`, `import_did`, `client_mapping`, `ensure_bot`, `ensure_routing`, or `assign_agent`. `steps[].status` can be `done`, `already`, `skipped`, or `failed`. A `failed` step means the workflow stopped at that point and returned the latest readiness state so you can show the next operator action.
+`steps[].step` is one of `resolve_did`, `verify_inbound_runtime`, `import_did`, `enable_inbound`, `client_mapping`, `ensure_bot`, `ensure_routing`, or `assign_agent`. `steps[].status` can be `done`, `already`, `skipped`, or `failed`. A `failed` step means the workflow stopped at that point and returned the latest readiness state so you can show the next operator action.
 
 ## Call-ready checklist
 
@@ -387,7 +436,7 @@ A VoiceLink DID is call-ready for Vocobase outbound calling when:
 5. The local Vocobase PhoneNumber row exists.
 6. The local PhoneNumber row is assigned to the intended Vocobase agent.
 
-The dashboard and `POST /api/v2/voicelink/call-ready` can sync/import DIDs and help create missing bot/routing setup. Agent assignment remains local to Vocobase.
+The dashboard and the two readiness composers can sync/import DIDs and safely create missing bot/routing setup. Agent assignment remains local to Vocobase.
 
 ## Next steps
 
