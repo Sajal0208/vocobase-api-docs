@@ -253,18 +253,20 @@ curl -X DELETE https://api.vocobase.com/api/v2/telephony/connections/9b7f1c44-c8
 
 A phone number can be active on multiple connections for outbound caller ID reuse. Vocobase only rejects a duplicate when more than one active row for the same DID is enabled for inbound routing.
 
-For Plivo and Vobiz inbound DIDs, pass `connection_id` when syncing numbers for a specific connection:
+For Plivo, Vobiz, and MCube inbound DIDs, pass `connection_id` when syncing numbers for a specific connection. Vobiz and MCube accept an explicit `numbers` array; MCube DIDs must use E.164 format:
 
 ```bash
 curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
   -H "Content-Type: application/json" \
   -d '{
-    "provider": "VOBIZ",
+    "provider": "MCUBE",
     "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
-    "numbers": ["+918011223344", "+918011223345"]
+    "numbers": ["+918071844607", "+918071844608"]
   }'
 ```
+
+Use `GET /api/v2/phone-numbers?provider=MCUBE&connection_id=...` to retrieve the new row IDs, then `PUT /api/v2/phone-numbers/{id}` with `agent_id` and `inbound_enabled: true` to make a DID inbound-ready.
 
 ## Dashboard visibility
 
