@@ -1960,6 +1960,43 @@
         }
       }
     },
+    "/voicelink/inbound-ready": {
+      "post": {
+        "operationId": "makeVoiceLinkDidInboundReady",
+        "summary": "Make a VoiceLink DID inbound-ready",
+        "description": "Runs the secure, idempotent inbound setup workflow for one purchased VoiceLink DID. The deployment must enable the inbound runtime and configure a public WSS URL plus signing secret. Vocobase imports and enables the local number, optionally maps a currently-unmapped DID to an explicit client, creates or updates the client bot with a signed connection-scoped endpoint, points inbound routing to that bot, preserves every existing outbound routing field, and assigns the local number to the requested agent. The request cannot override the WebSocket URL.",
+        "tags": ["VoiceLink Management"],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": { "$ref": "#/components/schemas/VoiceLinkInboundReadyRequest" },
+              "example": {
+                "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                "did_id": 812,
+                "client_id": 415,
+                "agent_id": "f4df9f8c-df95-46d8-bb0e-6f9f83fd4f55",
+                "bot_name": "Vocobase inbound +918011223344"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Inbound-ready workflow result. `data.ready` follows inbound readiness for this operation.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/VoiceLinkCallReadyResponse" }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
     "/voicelink/bots": {
       "get": {
         "operationId": "listVoiceLinkBots",
@@ -7692,11 +7729,51 @@
           }
         }
       },
+      "VoiceLinkInboundReadyRequest": {
+        "type": "object",
+        "description": "Request for secure inbound setup. Provide either `did_id` or `did_number`. Unlike outbound call-ready, this request cannot override the deployment-controlled signed WebSocket URL.",
+        "anyOf": [
+          { "required": ["did_id"] },
+          { "required": ["did_number"] }
+        ],
+        "properties": {
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Optional unless multiple active VoiceLink connections exist."
+          },
+          "did_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "VoiceLink DID ID from `/voicelink/dids/purchased`."
+          },
+          "did_number": {
+            "type": "string",
+            "description": "Purchased DID number. Used when `did_id` is not available."
+          },
+          "client_id": {
+            "type": "integer",
+            "minimum": 1,
+            "description": "Maps the DID only when it is currently unmapped. Existing mappings are never replaced."
+          },
+          "agent_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Vocobase agent ID assigned to inbound calls on this DID. Ownership is enforced."
+          },
+          "bot_name": {
+            "type": "string",
+            "description": "Optional bot name used when a bot must be created."
+          }
+        }
+      },
       "VoiceLinkCallReadyStepName": {
         "type": "string",
         "enum": [
           "resolve_did",
+          "verify_inbound_runtime",
           "import_did",
+          "enable_inbound",
           "assign_agent",
           "client_mapping",
           "ensure_bot",
@@ -7731,7 +7808,27 @@
           "ROUTING_CHANGED",
           "NO_VOCOBASE_AGENT",
           "REMOTE_DID_EXPIRED",
+          "REMOTE_DID_RELEASED",
           "REMOTE_DID_DELETED"
+        ]
+      },
+      "VoiceLinkInboundReadinessState": {
+        "type": "string",
+        "enum": [
+          "READY",
+          "NOT_IMPORTED",
+          "NO_CLIENT_MAPPING",
+          "NO_BOT",
+          "ROUTING_MISSING",
+          "ROUTING_CHANGED",
+          "NO_VOCOBASE_AGENT",
+          "REMOTE_DID_EXPIRED",
+          "REMOTE_DID_RELEASED",
+          "REMOTE_DID_DELETED",
+          "INBOUND_RUNTIME_DISABLED",
+          "INBOUND_ORIGIN_AUTH_NOT_CONFIGURED",
+          "INBOUND_NOT_ENABLED_LOCALLY",
+          "INBOUND_BOT_URL_CHANGED"
         ]
       },
       "VoiceLinkNormalizedRow": {
@@ -7746,13 +7843,21 @@
             ]
           },
           "client_id": { "type": "integer" },
+          "websocket_url": {
+            "type": "string",
+            "format": "uri",
+            "description": "Present for ordinary bot rows. Omitted when the URL contains the signed inbound token."
+          },
+          "websocket_configured": {
+            "type": "boolean",
+            "description": "True when a signed inbound bot URL is configured but redacted from the response."
+          },
           "raw": {
             "type": "object",
             "additionalProperties": true,
-            "description": "Original VoiceLink row."
+            "description": "Original VoiceLink row. Omitted for bot rows containing a signed inbound URL."
           }
-        },
-        "required": ["raw"]
+        }
       },
       "VoiceLinkNormalizedDid": {
         "allOf": [
@@ -7766,9 +7871,10 @@
                 "type": ["string", "null"],
                 "description": "Normalized E.164 DID when Vocobase can infer it."
               },
-              "is_expired": { "type": "boolean" }
+              "is_expired": { "type": "boolean" },
+              "is_released": { "type": "boolean" }
             },
-            "required": ["phone_number", "is_expired"]
+            "required": ["phone_number", "is_expired", "is_released"]
           }
         ]
       },
@@ -7790,7 +7896,9 @@
                 "description": "VoiceLink mode: 2 SIP, 3 WebSocket bot, 4 only-answer."
               },
               "inbound_websocket_bot_id": { "type": "integer" },
-              "outbound_websocket_bot_id": { "type": "integer" }
+              "inbound_sip_trunk_id": { "type": "integer" },
+              "outbound_websocket_bot_id": { "type": "integer" },
+              "outbound_sip_trunk_id": { "type": "integer" }
             },
             "required": ["phone_number"]
           }
@@ -7872,9 +7980,47 @@
             "type": "array",
             "items": { "$ref": "#/components/schemas/VoiceLinkActionItem" },
             "description": "Same remediation steps as `{ code, label }` objects for programmatic use."
+          },
+          "inbound": {
+            "type": "object",
+            "description": "Direction-specific readiness for DID-to-agent inbound calling.",
+            "properties": {
+              "state": { "$ref": "#/components/schemas/VoiceLinkInboundReadinessState" },
+              "ready": { "type": "boolean" },
+              "issues": {
+                "type": "array",
+                "items": { "$ref": "#/components/schemas/VoiceLinkInboundReadinessState" }
+              },
+              "actions": {
+                "type": "array",
+                "items": { "type": "string" }
+              },
+              "bot": {
+                "oneOf": [
+                  { "$ref": "#/components/schemas/VoiceLinkNormalizedRow" },
+                  { "type": "null" }
+                ]
+              },
+              "runtime": {
+                "type": "object",
+                "properties": {
+                  "enabled": { "type": "boolean" },
+                  "configured": { "type": "boolean" },
+                  "issues": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "enum": ["RUNTIME_DISABLED", "SIGNING_SECRET_MISSING", "INBOUND_WSS_URL_MISSING"]
+                    }
+                  }
+                },
+                "required": ["enabled", "configured", "issues"]
+              }
+            },
+            "required": ["state", "ready", "issues", "actions", "bot", "runtime"]
           }
         },
-        "required": ["key", "phone_number", "state", "issues", "remote_did", "local_phone_number", "routing", "bot", "actions", "action_items"]
+        "required": ["key", "phone_number", "state", "issues", "remote_did", "local_phone_number", "routing", "bot", "actions", "action_items", "inbound"]
       },
       "VoiceLinkDriftItem": {
         "type": "object",
