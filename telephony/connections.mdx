@@ -24,7 +24,7 @@ Use V2 telephony connections when a partner needs more than one carrier account,
 | VoiceLink | `"voicelink"` | Yes |
 | MCube | `"mcube"` | Yes |
 
-MCube connections take `jwt_token` and `exe_number` instead of account credentials — see [MCube Setup](/telephony/mcube-setup). The exenumber is stored as the connection's default phone number and may be in national format (no `+` required).
+MCube connections take `jwt_token` and `exe_number` instead of account credentials — see [MCube Setup](/telephony/mcube-setup). Real phone-number exeNumbers are stored as canonical E.164; 4-15 digit short/internal identifiers remain digits. The exeNumber selects the MCube connection and is separate from the inbound DID list.
 
 ## Create a connection
 
@@ -253,7 +253,7 @@ curl -X DELETE https://api.vocobase.com/api/v2/telephony/connections/9b7f1c44-c8
 
 A phone number can be active on multiple connections for outbound caller ID reuse. Vocobase only rejects a duplicate when more than one active row for the same DID is enabled for inbound routing.
 
-For Plivo, Vobiz, and MCube inbound DIDs, pass `connection_id` when syncing numbers for a specific connection. Vobiz and MCube accept an explicit `numbers` array; MCube DIDs must use E.164 format:
+For Plivo, Vobiz, and MCube inbound DIDs, pass `connection_id` when syncing numbers for a specific connection. Vobiz and MCube accept an explicit `numbers` array. MCube accepts canonical E.164 or valid Indian national input, then stores and returns canonical E.164:
 
 ```bash
 curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
@@ -262,11 +262,11 @@ curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
   -d '{
     "provider": "MCUBE",
     "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
-    "numbers": ["+918071844607", "+918071844608"]
+    "numbers": ["8035214026", "08035214026", "+918035214026"]
   }'
 ```
 
-Use `GET /api/v2/phone-numbers?provider=MCUBE&connection_id=...` to retrieve the new row IDs, then `PUT /api/v2/phone-numbers/{id}` with `agent_id` and `inbound_enabled: true` to make a DID inbound-ready.
+All three example values canonicalize to one row, `+918035214026`; the other values are reported as skipped. Explicit international values must include `+`, and invalid text, extensions, or vanity numbers are rejected. Use `GET /api/v2/phone-numbers?provider=MCUBE&connection_id=...` to retrieve the new row ID, then `PUT /api/v2/phone-numbers/{id}` with `agent_id` and `inbound_enabled: true` to make the DID inbound-ready. Normalization alone never creates, assigns, or enables a DID.
 
 ## Dashboard visibility
 

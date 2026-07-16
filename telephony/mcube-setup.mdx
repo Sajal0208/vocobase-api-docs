@@ -33,7 +33,10 @@ This guide walks you through connecting your MCube account to Vocobase for outbo
   <Step title="Get your executive number">
     The executive number is the agent/extension number assigned to your MCube account. It acts as the caller ID for outbound calls.
 
-    Format: 4-15 digits, with an optional `+` prefix (e.g., `+919876543210`).
+    Real phone-number exeNumbers may be supplied in Indian national format or
+    explicit international format and are stored as canonical E.164. MCube's
+    4-15 digit short/internal identifiers are also supported and remain digits;
+    Vocobase does not turn an extension such as `1234` into `+911234`.
   </Step>
 </Steps>
 
@@ -53,7 +56,7 @@ curl -X POST https://api.vocobase.com/api/v2/telephony/connections \
   }'
 ```
 
-The exenumber is stored as the connection's default phone number (national format is fine — no `+` required) and is used as the line your outbound calls are placed from.
+The exenumber is stored as the connection's default phone number and is used as the line your outbound calls are placed from. Real Indian numbers are returned in canonical E.164 even when submitted in national format. Short/internal MCube identifiers remain digit identifiers. Vocobase converts the stored value back to MCube's national-number payload format when placing an outbound call.
 
 <Warning>
   The executive number identifies the MCube account; it is not the inbound DID list. Each dialed DID must be added separately before inbound calls can route to an agent.
@@ -127,7 +130,7 @@ A successful response confirms your credentials were saved:
 
 ## Step 3: Add and assign inbound DIDs
 
-MCube does not expose a DID inventory endpoint that Vocobase pulls. Add the DIDs manually to the selected connection with `POST /api/v2/phone-numbers/sync`. Use E.164 format even if MCube sends the webhook DID without `+91`; Vocobase handles national-format suffix matching during inbound routing.
+MCube does not expose a DID inventory endpoint that Vocobase pulls. Add the DIDs manually to the selected connection with `POST /api/v2/phone-numbers/sync`. Each value may be canonical E.164 or a valid Indian national number. Vocobase validates the complete input, stores and returns canonical E.164, and deduplicates after canonicalization.
 
 ```bash
 curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
@@ -136,18 +139,20 @@ curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
   -d '{
     "provider": "MCUBE",
     "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
-    "numbers": ["+918071844607", "+918071844608"]
+    "numbers": ["8035214026", "08035214026", "+918035214026"]
   }'
 ```
 
-The request is idempotent. DIDs already present on this connection and duplicate values in the same request are skipped:
+`8035214026`, `08035214026`, and `+918035214026` all become `+918035214026`, so the example represents one DID. The request is idempotent: equivalent values, repeated values, and DIDs already present on this connection are skipped.
+
+Explicit international numbers must include `+`. Invalid text, extension markers, vanity numbers, and ambiguous values are rejected; for example, `8035214026 ext 12` is not accepted as a DID.
 
 ```json
 {
   "success": true,
   "data": {
     "added": 1,
-    "skipped": 1,
+    "skipped": 2,
     "updated": 0,
     "removed": 0
   }
@@ -177,6 +182,13 @@ curl -X PUT https://api.vocobase.com/api/v2/phone-numbers/f1a2c3d4-1111-2222-333
 <Note>
   A DID may exist on more than one connection for outbound use, but only one active row for that DID can have `inbound_enabled: true`. This keeps inbound routing deterministic.
 </Note>
+
+<Warning>
+  Normalization does not create or enable a missing DID. The canonical DID must
+  exist on the exeNumber-selected MCube connection, be active, have an active
+  assigned agent, and have `inbound_enabled: true`. A missing, inactive,
+  unassigned, disabled, or differently owned DID still returns `unknown_number`.
+</Warning>
 
 To remove a manually added DID, use its row ID. The default exeNumber cannot be deleted through this endpoint.
 
