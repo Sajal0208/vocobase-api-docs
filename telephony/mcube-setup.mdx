@@ -56,7 +56,7 @@ curl -X POST https://api.vocobase.com/api/v2/telephony/connections \
   }'
 ```
 
-The exenumber is stored as the connection's default phone number and is used as the line your outbound calls are placed from. Real Indian numbers are returned in canonical E.164 even when submitted in national format. Short/internal MCube identifiers remain digit identifiers. Vocobase converts the stored value back to MCube's national-number payload format when placing an outbound call.
+The exenumber is stored as the connection's default phone number and is used as the line your outbound calls are placed from. Real Indian numbers are returned in canonical E.164 even when submitted in national format. Short/internal MCube identifiers remain digit identifiers. Vocobase converts the stored value back to MCube's national-number payload format when placing an outbound call — that payload format is Indian-national, so an exeNumber carrying a non-Indian country code stores successfully but cannot place calls.
 
 <Warning>
   The executive number identifies the MCube account; it is not the inbound DID list. Each dialed DID must be added separately before inbound calls can route to an agent.
@@ -211,6 +211,15 @@ curl -X POST https://api.vocobase.com/api/v2/calls/start \
     "provider": "mcube"
   }'
 ```
+
+<Warning>
+  **MCube dials Indian destinations only.** MCube's outbound payload carries a
+  bare national number with no country code, which is only unambiguous for
+  India. Vocobase therefore rejects a non-Indian `to_number` on the `mcube`
+  provider rather than stripping it to digits MCube would read as a *different*
+  Indian subscriber. `+919876543210` is accepted; `+14155551234` is rejected.
+  Use a provider with international coverage for non-Indian destinations.
+</Warning>
 
 ```json
 {
