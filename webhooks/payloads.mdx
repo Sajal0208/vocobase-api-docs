@@ -258,6 +258,8 @@ Sent when a Vocobase session has reached final post-call processing. For telepho
       "status": "completed",
       "disposition": "completed",
       "answered_by": "human",
+      "hangup_cause": "NORMAL_CLEARING",
+      "hangup_source": "callee",
       "transferred": false,
       "transferred_at": null,
       "transfer_target": null
@@ -297,6 +299,8 @@ Sent when a Vocobase session has reached final post-call processing. For telepho
 | `call.status` | string | Final call lifecycle/carrier status at the time `session.completed` is emitted. Voicemail is exposed through `call.disposition`, not `call.status`. |
 | `call.disposition` | string or null | Final call outcome: `completed`, `voicemail`, `user_hangup_no_speech`, `no_answer`, `busy`, `canceled`, `blocked`, `failed`, or `transferred`. |
 | `call.answered_by` | string or null | Best-known answer classification: `human`, `machine`, `unknown`, or `not_answered`. `machine` indicates an answering machine or voicemail. |
+| `call.hangup_cause` | string or null | Raw normalized carrier hangup cause when available. Same value and same key as on `call.status.updated`. |
+| `call.hangup_source` | string or null | Best-known party or system that ended the call: `caller`, `callee`, `system`, `api`, `carrier`, `error`, or `unknown`. Same value and same key as on `call.status.updated`. **Not reported by every carrier** — see [Hangup attribution coverage](#hangup-attribution-coverage) below. |
 | `call.transferred` | boolean | `true` if the bot handed the call off to a human via the cold-transfer flow. See [Transferred calls](#transferred-calls) below. |
 | `call.transferred_at` | string (ISO 8601) or null | When the bot left the room and the carrier began bridging the caller to the human. `null` for non-transferred calls. |
 | `call.transfer_target` | string or null | E.164 destination the caller was bridged to. `null` for non-transferred calls. |
@@ -314,6 +318,16 @@ Each entry in the `transcript` array has:
 <Note>
   `recording_url` is a presigned URL valid for 7 days from the moment the webhook fires. Download and persist the recording on your side if you need long-term retention. If the URL expires before you can download it, call `GET /calls/{call_id}/recording-url` to mint a fresh one with another 7-day window.
 </Note>
+
+### Hangup attribution coverage
+
+`hangup_source` and `hangup_cause` come from the carrier's Call Detail Record, which we fetch after the hangup callback. **Not every carrier exposes one.** On carriers that do not, both fields are `null` on every call — including calls that ended perfectly normally.
+
+Treat `null` as *"this carrier does not report it,"* never as *"nobody hung up"* and never as an error. In particular, do not infer an abandoned or failed call from a null `hangup_source`; use `call.disposition` for outcome logic and `hangup_source` only as supporting detail when present.
+
+`"unknown"` is distinct from `null`: it means the carrier answered the question and did not know. Both are non-actionable, but only `null` means the signal was never available.
+
+If your account needs teardown attribution and you are seeing `null` across the board, contact support — the coverage gap is per-carrier, and switching the number's provider is usually what changes it.
 
 ### Final call status on `session.completed`
 
