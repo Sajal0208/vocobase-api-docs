@@ -116,7 +116,7 @@ Existing integrations that pass only `provider` keep working while there is exac
 
 ## Inbound numbers
 
-For inbound calling with Plivo, Vobiz, or MCube, use the V2 phone-numbers API to sync DIDs and assign agents. MCube uses an explicit E.164 `numbers` array because its DID inventory is added manually:
+For inbound calling with Plivo, Vobiz, or MCube, use the V2 phone-numbers API to sync DIDs and assign agents. MCube uses an explicit `numbers` array because its DID inventory is added manually. Values may be E.164 or valid Indian national format and are stored/returned as canonical E.164:
 
 ```bash
 curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
@@ -125,11 +125,11 @@ curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \
   -d '{
     "provider": "MCUBE",
     "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
-    "numbers": ["+918071844607"]
+    "numbers": ["8035214026", "+918035214026"]
   }'
 ```
 
-A DID can be active on multiple connections for outbound caller ID reuse. Inbound routing stays deterministic because only one active row per DID can have `inbound_enabled: true`.
+Those two values represent the same DID, `+918035214026`, and deduplicate to one row. The MCube exeNumber still selects the account/connection; the DID selects the assigned inbound agent inside that connection. A DID can be active on multiple connections for outbound caller ID reuse. Inbound routing stays deterministic because only one active row per DID can have `inbound_enabled: true`. Normalization does not create, assign, or enable a missing DID.
 
 See [Inbound Calls](/inbound-calls) for the full DID assignment flow.
 
