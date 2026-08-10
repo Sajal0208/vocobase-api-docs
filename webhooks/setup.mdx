@@ -107,13 +107,80 @@ curl -X DELETE https://api.vocobase.com/api/v2/config/webhooks/12345678-abcd-123
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
 ```
 
+### Send a test event
+
+Fires a real, signed `webhook.test` delivery through the production queue, so it
+exercises signing, SSRF validation, and retries, and appears in delivery history
+like any other event:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/config/webhooks/12345678-abcd-1234-abcd-123456789012/test \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "success": true,
+  "data": { "delivery_id": "d1e2f3a4-5678-90ab-cdef-1234567890ab" }
+}
+```
+
+A `202` means the delivery was **enqueued**, not that your server accepted it.
+Check delivery history for the outcome. A disabled endpoint is refused with
+`409 ENDPOINT_DISABLED`.
+
+<Note>
+  Test events ignore the endpoint's event allowlist by design — a test must
+  reach the endpoint being tested even when its `events` filter would exclude
+  everything. Handle or ignore `webhook.test` explicitly in your handler.
+</Note>
+
+### Delivery history
+
+```bash
+curl "https://api.vocobase.com/api/v2/config/webhooks/12345678-abcd-1234-abcd-123456789012/deliveries?limit=25" \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "deliveries": [
+      {
+        "id": "d1e2f3a4-5678-90ab-cdef-1234567890ab",
+        "event_type": "session.completed",
+        "status": "DELIVERED",
+        "attempts": 2,
+        "max_attempts": 4,
+        "session_id": "5f6e7d8c-1234-5678-9abc-def012345678",
+        "url": "https://your-server.com/webhooks/vocobase",
+        "last_response_status": 200,
+        "last_error": null,
+        "next_attempt_at": null,
+        "last_attempt_at": "2026-05-25T10:31:04.000Z",
+        "delivered_at": "2026-05-25T10:31:04.000Z",
+        "created_at": "2026-05-25T10:30:59.000Z"
+      }
+    ],
+    "next_cursor": null
+  }
+}
+```
+
+Query parameters: `limit` (default 25, max 100), `cursor` for pagination, and
+`status` to filter by `PENDING`, `DELIVERING`, `DELIVERED`, `FAILED`, or
+`EXHAUSTED`. Page by passing the previous response's `next_cursor`; a `null`
+cursor means there are no more pages.
+
 ### Labels and limits
 
 - Labels must be lowercase letters, numbers, and hyphens; start with a letter or number; and be 1-31 characters.
 - The `default` label is reserved for the legacy single-webhook compatibility route.
-- Each partner can configure up to 5 webhook endpoints.
+- Up to 5 endpoints **per scope** — the account gets its own 5, and so does each agent.
 - Only enabled endpoints receive new events.
-- Endpoints receive all webhook event types. Branch on the top-level `event` field in your handler.
+- Endpoints receive every event type unless you set an `events` allowlist. See [Scoping & Event Filtering](/webhooks/scoping). Branch on the top-level `event` field in your handler either way.
+- Endpoints are account-wide unless created with an `agent_id`, which is **set once** and cannot be changed afterwards.
 - Each endpoint signs requests with its own secret.
 
 <Note>
@@ -257,9 +324,28 @@ def handle_webhook():
   Always verify signatures in production. Skipping verification exposes your endpoint to forged requests.
 </Tip>
 
+## Webhooks vs lifecycle hooks
+
+Webhooks are a **one-way, signed, retried event feed**: Vocobase tells you
+something happened, in a fixed payload shape, and keeps retrying until your
+server accepts it.
+
+Lifecycle hooks (`PRE_CALL` / `POST_CALL`, configured under an agent's Actions)
+are **action runners**: they call your API with a body you template, and the
+response is used — pre-call output is merged into the prompt's variables,
+post-call output can consume extraction results.
+
+Use a webhook to *know* something happened. Use a lifecycle hook to *fetch or
+push data as part of the call*. See
+[Scoping & Event Filtering](/webhooks/scoping#webhooks-vs-lifecycle-hooks) for a
+full comparison.
+
 ## Next steps
 
 <CardGroup cols={2}>
+  <Card title="Scoping & Event Filtering" icon="filter" href="/webhooks/scoping">
+    Bind endpoints to one agent and subscribe to specific event types.
+  </Card>
   <Card title="Webhook Payloads" icon="file-code" href="/webhooks/payloads">
     See the full payload structure for each event type.
   </Card>

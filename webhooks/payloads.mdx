@@ -17,6 +17,52 @@ Every webhook request includes these headers:
 | `X-Webhook-Signature` | HMAC-SHA256 signature: `sha256=<hex>` |
 | `X-Webhook-Timestamp` | ISO 8601 timestamp when the event was sent |
 
+## Event types
+
+Branch on the top-level `event` field. These are the values accepted in an
+endpoint's `events` allowlist — see
+[Scoping & Event Filtering](/webhooks/scoping#event-allowlist).
+
+| Event | Fired when |
+|---|---|
+| `session.completed` | A session finished and the post-call pipeline is done |
+| `session.failed` | A session ended in an error state |
+| `call.status.updated` | Telephony call status changed |
+| `call.transferred` | The call was handed to a human or another number |
+| `whatsapp.message.sent` | An outbound WhatsApp message was accepted by the provider |
+| `whatsapp.message.failed` | An outbound WhatsApp message could not be sent |
+| `whatsapp.message.status_updated` | Delivery or read receipt for a WhatsApp message |
+
+`webhook.test` is fired only by the test endpoint and is **not** a valid
+allowlist value — it always reaches the endpoint being tested. Handle or ignore
+it explicitly.
+
+`inbound.route` (below) is a pre-answer routing callback with its own headers
+and a required response body. It is not part of this event stream and cannot be
+subscribed to.
+
+## Event: `webhook.test`
+
+Sent by `POST /api/v2/config/webhooks/{id}/test`. Signed and retried exactly
+like a real event, so receiving it confirms your URL, TLS, and signature
+verification all work end to end.
+
+```json
+{
+  "event": "webhook.test",
+  "timestamp": "2026-05-25T10:30:00.000Z",
+  "data": {
+    "endpoint_id": "12345678-abcd-1234-abcd-123456789012",
+    "label": "prod",
+    "agent_id": null,
+    "message": "This is a test event from Vocobase. If you received it, your endpoint and signature verification are wired correctly."
+  }
+}
+```
+
+`agent_id` is the endpoint's scope: `null` for an account-wide endpoint, the
+agent's id for an agent-scoped one.
+
 ## Event: `inbound.route`
 
 This event is sent when a partner-configured pre-answer policy is available for a Vobiz or Plivo inbound call.

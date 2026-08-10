@@ -1,0 +1,229 @@
+---
+title: "Scoping & Event Filtering"
+description: "Route events per agent, subscribe to specific event types, and control account-wide fan-out"
+---
+
+# Scoping & Event Filtering
+
+By default every webhook endpoint you configure is **account-wide**: it receives
+events from every agent on your account. Two controls narrow that down.
+
+- **Scope** — bind an endpoint to a single agent, so it receives only that
+  agent's events.
+- **Event allowlist** — subscribe an endpoint to specific event types, so
+  everything else is filtered out.
+
+They are independent, and they compose.
+
+## Account vs agent scope
+
+An endpoint created without `agent_id` is account-wide. Pass `agent_id` at
+creation to bind it to one agent:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/config/webhooks \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "acme-tenant",
+    "url": "https://acme.example.com/vocobase",
+    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
+  }'
+```
+
+<Warning>
+  **`agent_id` is set once and cannot be changed.** `PATCH` rejects it with a
+  `VALIDATION_ERROR`. Re-pointing a live endpoint at a different agent would
+  silently change what an already-running integration receives, with nothing on
+  the receiving end to signal it. Delete the endpoint and create a new one
+  instead.
+</Warning>
+
+The per-scope limit of 5 endpoints is counted **separately** for each scope. The
+account bucket gets its own 5, and so does every agent — a busy account is never
+starved by one agent's endpoints.
+
+### Agent-scoped endpoints are additive
+
+An agent-scoped endpoint does not *replace* your account-wide ones. It adds to
+them. Given:
+
+| Endpoint | Scope |
+|---|---|
+| `prod` | Account |
+| `acme-tenant` | Agent `a1b2c3d4…` |
+
+…a `session.completed` on agent `a1b2c3d4…` produces **two independent
+deliveries** — one to `prod`, one to `acme-tenant`. Each has its own signature,
+its own retry schedule, and its own row in delivery history. One failing does
+not affect the other.
+
+An event on any *other* agent reaches only `prod`.
+
+## Turning off account-wide fan-out
+
+Additive is the right default, but not always what you want. An agent that feeds
+a different downstream system — a white-label tenant, a client migrating from
+another platform, a one-off integration — should be able to stop duplicating its
+traffic into your main integration.
+
+`webhooks_include_account_endpoints` is a per-agent flag, `true` by default:
+
+```bash
+curl -X PATCH https://api.vocobase.com/api/v2/agent/a1b2c3d4-e5f6-7890-abcd-ef1234567890/webhooks/settings \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{ "include_account_endpoints": false }'
+```
+
+| `include_account_endpoints` | Where this agent's events go |
+|---|---|
+| `true` (default) | The agent's own endpoints **and** every account-wide endpoint |
+| `false` | The agent's own endpoints **only** |
+
+Read the current value along with the agent's endpoints:
+
+```bash
+curl https://api.vocobase.com/api/v2/agent/a1b2c3d4-e5f6-7890-abcd-ef1234567890/webhooks \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "endpoints": [ /* this agent's endpoints only */ ],
+    "include_account_endpoints": false,
+    "available_events": ["session.completed", "session.failed", "..."]
+  }
+}
+```
+
+<Note>
+  The flag only applies to events that carry an agent. An event with no agent
+  attached always goes to your account-wide endpoints — honouring a stray
+  `false` there would disable webhooks account-wide.
+</Note>
+
+### The guard: `409 NO_AGENT_ENDPOINT`
+
+Setting the flag to `false` is refused while the agent has no **enabled**
+endpoint of its own:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "NO_AGENT_ENDPOINT",
+    "message": "Add an enabled webhook endpoint for this agent before routing its events away from the account endpoints — otherwise they would go nowhere."
+  }
+}
+```
+
+Create the agent's endpoint first, then turn the flag off.
+
+The same protection runs in reverse: if you later delete or disable the agent's
+last enabled endpoint, the flag **automatically flips back to `true`** rather
+than leaving the agent with nowhere to deliver. The bias is deliberate — an
+unexpected duplicate is an annoyance you can dedupe, a dropped event is
+unrecoverable.
+
+## Event allowlist
+
+`events` is a per-endpoint allowlist. Omit it, or send `[]`, and the endpoint
+receives **every** event type — including ones added to the platform later.
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/config/webhooks \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "label": "billing",
+    "url": "https://your-server.com/vocobase/billing",
+    "events": ["session.completed", "session.failed"]
+  }'
+```
+
+An unknown event name is rejected with a `VALIDATION_ERROR` listing the valid
+set, so a typo fails loudly at configuration time rather than silently
+delivering nothing.
+
+### Event catalog
+
+| Event | Fired when |
+|---|---|
+| `session.completed` | A session finished and the post-call pipeline is done — transcript, recording, credits, variables, extraction |
+| `session.failed` | A session ended in an error state |
+| `call.status.updated` | Telephony call status changed (ringing, answered, terminal disposition) |
+| `call.transferred` | The agent handed the call to a human or another number |
+| `whatsapp.message.sent` | An outbound WhatsApp message was accepted by the provider |
+| `whatsapp.message.failed` | An outbound WhatsApp message could not be sent |
+| `whatsapp.message.status_updated` | Delivery or read receipt for a WhatsApp message |
+
+`webhook.test` is deliberately **not** in this list. It is fired only by the
+test endpoint and always reaches the endpoint being tested, regardless of its
+allowlist — otherwise "send test" would silently do nothing on exactly the
+endpoints most likely to be misconfigured. You still receive it, so handle or
+ignore it explicitly.
+
+## How the two controls combine
+
+Both filters must pass for a delivery to happen:
+
+1. **Scope** decides which endpoints are candidates for this event.
+2. **Allowlist** decides whether each candidate accepts this event type.
+
+<Warning>
+  **Filtering is strict when account fan-out is off.** With
+  `include_account_endpoints: false`, an event whose type is not in *any* of the
+  agent's endpoint allowlists is **dropped** — it is not forwarded to your
+  account-wide endpoint as a fallback.
+
+  This is intentional. Falling back would re-deliver exactly the traffic you
+  turned the flag off to stop, and leakage into an integration you were trying
+  to quiet is the failure mode the feature exists to prevent. It also keeps
+  "where does this event go?" answerable from the agent's flag and its own
+  endpoints alone.
+</Warning>
+
+This only bites when you use both features at once. An endpoint with an empty
+`events` array — the default — receives every type, so the interaction never
+arises.
+
+Worked example. Agent `a1b2c3d4…` has `include_account_endpoints: false` and one
+endpoint subscribed to `["session.completed"]`:
+
+| Event on that agent | Result |
+|---|---|
+| `session.completed` | Delivered to the agent's endpoint |
+| `call.transferred` | **Dropped.** Not sent to the account endpoint |
+
+To receive `call.transferred` too, either add it to the endpoint's `events`, add
+a second agent endpoint that subscribes to it, or turn
+`include_account_endpoints` back on.
+
+## Webhooks vs lifecycle hooks
+
+These are different mechanisms and people reach for the wrong one.
+
+| | **Webhooks** | **Lifecycle hooks (PRE_CALL / POST_CALL)** |
+|---|---|---|
+| Direction | Vocobase → you, one-way notification | Vocobase → your API, and the response is used |
+| Shape | Fixed, versioned event payload | A request body **you** template |
+| Failure | Retried with backoff for hours | Can block or annotate the call; `required` hooks fail the step |
+| Configured on | Account or agent, in Webhooks | The agent, in Actions |
+| Use for | Recording outcomes, syncing your CRM, dashboards, billing | Fetching a customer record before the call, pushing structured results into your system after it |
+
+If you want to *know* something happened, use a webhook. If you want to *fetch
+or push data as part of the call*, use a lifecycle hook.
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Webhook Setup" icon="gear" href="/webhooks/setup">
+    Create endpoints, verify signatures, and send test events.
+  </Card>
+  <Card title="Webhook Payloads" icon="file-code" href="/webhooks/payloads">
+    Full payload structure for each event type.
+  </Card>
+</CardGroup>
