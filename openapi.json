@@ -3516,7 +3516,7 @@
                     "maxItems": 2,
                     "uniqueItems": true,
                     "items": { "type": "string", "enum": ["en", "hinglish", "hi", "mr", "te", "ta", "kn", "ml", "gu", "pa", "bn"] },
-                    "description": "Up to 2 languages the agent speaks. At most one regional/Hindi language; hinglish only pairs with en or hi. Empty/omitted = default (voice language). Valid: [\"en\",\"hi\"], [\"en\",\"hinglish\"], [\"hi\",\"hinglish\"], [\"en\",\"te\"]. Invalid: [\"mr\",\"te\"], [\"te\",\"hi\"], [\"mr\",\"hi\"]."
+                    "description": "Up to 2 languages the agent speaks. At most one regional/Hindi language; hinglish only pairs with en or hi. Omitted = unchanged; [] = reset to default (voice language). Valid: [\"en\",\"hi\"], [\"en\",\"hinglish\"], [\"hi\",\"hinglish\"], [\"en\",\"te\"]. Invalid: [\"mr\",\"te\"], [\"te\",\"hi\"], [\"mr\",\"hi\"]."
                   },
                   "agent_type": {
                     "type": "string",
