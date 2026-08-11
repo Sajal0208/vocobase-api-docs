@@ -150,6 +150,40 @@ Get up and running with the Vocobase Partner API. By the end of this guide, you 
     <Tip>
       Save the `id` from the response - you will need it to start calls. On supported Plivo and Vobiz accounts, agents also accept optional `voicemail_detection_enabled` and `voicemail_message` fields for carrier-side voicemail handling.
     </Tip>
+
+    ### Agent languages
+
+    By default an agent speaks the language of the voice you picked. To let it
+    understand and reply in more than one language, pass `spoken_languages` on
+    create or update:
+
+    ```json
+    { "spoken_languages": ["en", "hi"] }
+    ```
+
+    Allowed codes: `en`, `hinglish`, `hi`, `mr`, `te`, `ta`, `kn`, `ml`, `gu`,
+    `pa`, `bn`. Two rules apply:
+
+    1. **At most two languages**, and **at most one** Indian language
+       (`hi`, `mr`, `te`, `ta`, `kn`, `ml`, `gu`, `pa`, `bn`).
+    2. **`hinglish` only pairs with `en` or `hi`** — it already contains Hindi,
+       so pairing it with another Indian language would break rule 1 indirectly.
+
+    | Value | Valid | Why |
+    |---|---|---|
+    | `["en", "hi"]` | ✅ | English plus one Indian language |
+    | `["en", "hinglish"]` | ✅ | Hinglish pairs with English |
+    | `["hi", "hinglish"]` | ✅ | Hinglish pairs with Hindi |
+    | `["en", "te"]` | ✅ | English plus one Indian language |
+    | `["te"]` | ✅ | A single language is always fine |
+    | `["mr", "te"]` | ❌ | Two Indian languages |
+    | `["te", "hi"]` | ❌ | Two Indian languages |
+    | `["mr", "hi"]` | ❌ | Two Indian languages |
+    | `["hinglish", "mr"]` | ❌ | Hinglish only pairs with `en` or `hi` |
+
+    An invalid combination returns `400` with a `VALIDATION_ERROR`. Omit the
+    field to leave it unchanged on update, or send `[]` to clear it back to the
+    voice's own language.
   </Step>
 
   <Step title="Make your first call">

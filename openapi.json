@@ -3253,6 +3253,12 @@
                     "description": "Voice ID from the catalog returned by `GET /agent/voices`. The language and gender are taken from the selected voice.",
                     "example": "b49e0d0f-2219-4425-a765-1efd32beb509"
                   },
+                  "spoken_languages": {
+                    "type": "array",
+                    "maxItems": 2,
+                    "items": { "type": "string", "enum": ["en", "hinglish", "hi", "mr", "te", "ta", "kn", "ml", "gu", "pa", "bn"] },
+                    "description": "Up to 2 languages the agent speaks. At most one regional/Hindi language; hinglish only pairs with en or hi. Empty/omitted = default (voice language). Valid: [\"en\",\"hi\"], [\"en\",\"hinglish\"], [\"hi\",\"hinglish\"], [\"en\",\"te\"]. Invalid: [\"mr\",\"te\"], [\"te\",\"hi\"], [\"mr\",\"hi\"]."
+                  },
                   "agent_type": {
                     "type": "string",
                     "enum": ["inbound", "outbound"],
@@ -3503,6 +3509,12 @@
                     "type": "string",
                     "format": "uuid",
                     "description": "New voice ID from the catalog returned by `GET /agent/voices`. Updates language and gender to match the selected voice."
+                  },
+                  "spoken_languages": {
+                    "type": "array",
+                    "maxItems": 2,
+                    "items": { "type": "string", "enum": ["en", "hinglish", "hi", "mr", "te", "ta", "kn", "ml", "gu", "pa", "bn"] },
+                    "description": "Up to 2 languages the agent speaks. At most one regional/Hindi language; hinglish only pairs with en or hi. Empty/omitted = default (voice language). Valid: [\"en\",\"hi\"], [\"en\",\"hinglish\"], [\"hi\",\"hinglish\"], [\"en\",\"te\"]. Invalid: [\"mr\",\"te\"], [\"te\",\"hi\"], [\"mr\",\"hi\"]."
                   },
                   "agent_type": {
                     "type": "string",
@@ -6835,6 +6847,12 @@
           "prompt": { "type": "string" },
           "voice_id": { "type": ["string", "null"] },
           "language": { "type": "string" },
+          "spoken_languages": {
+            "type": "array",
+            "maxItems": 2,
+            "items": { "type": "string", "enum": ["en", "hinglish", "hi", "mr", "te", "ta", "kn", "ml", "gu", "pa", "bn"] },
+            "description": "Up to 2 languages the agent speaks. At most one regional/Hindi language; hinglish only pairs with en or hi. Empty/omitted = default (voice language). Valid: [\"en\",\"hi\"], [\"en\",\"hinglish\"], [\"hi\",\"hinglish\"], [\"en\",\"te\"]. Invalid: [\"mr\",\"te\"], [\"te\",\"hi\"], [\"mr\",\"hi\"]."
+          },
           "agent_type": { "type": ["string", "null"], "enum": ["inbound", "outbound", null] },
           "intro_message": { "type": ["string", "null"] },
           "voicemail_detection_enabled": {
