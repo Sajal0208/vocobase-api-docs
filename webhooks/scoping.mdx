@@ -31,17 +31,52 @@ curl -X POST https://api.vocobase.com/api/v2/config/webhooks \
   }'
 ```
 
+`POST /api/v2/agent/{agent_id}/webhooks` does the same thing with the scope taken
+from the path; any `agent_id` in the body is ignored there. Edit, delete, rotate,
+test, and delivery history stay on `/config/webhooks/{id}` for both — an endpoint
+id is already unambiguous.
+
 <Warning>
-  **`agent_id` is set once and cannot be changed.** `PATCH` rejects it with a
-  `VALIDATION_ERROR`. Re-pointing a live endpoint at a different agent would
-  silently change what an already-running integration receives, with nothing on
-  the receiving end to signal it. Delete the endpoint and create a new one
-  instead.
+  **`agent_id` is set once and cannot be changed.** `PATCH` rejects it with
+  `400 VALIDATION_ERROR`, even when the value matches the endpoint's current
+  scope. Re-pointing a live endpoint at a different agent would silently change
+  what an already-running integration receives, with nothing on the receiving
+  end to signal it. Delete the endpoint and create a new one instead.
 </Warning>
 
-The per-scope limit of 5 endpoints is counted **separately** for each scope. The
-account bucket gets its own 5, and so does every agent — a busy account is never
-starved by one agent's endpoints.
+An `agent_id` that is not one of your own agents — or belongs to a deleted agent
+— is rejected with `404 NOT_FOUND`, not `403`, so this route cannot be used to
+probe whether an agent id exists on someone else's account.
+
+### Limits are per scope; labels are per account
+
+These two are counted differently, and it is easy to assume otherwise.
+
+| | Counted per |
+|---|---|
+| The 5-endpoint limit | **Scope.** The account bucket gets its own 5, and so does every agent — a busy account is never starved by one agent's endpoints. Exceeding it returns `409 LIMIT_EXCEEDED`. |
+| Label uniqueness | **Account.** One label names exactly one endpoint across your whole account, so a delivery row is never ambiguous. |
+
+<Warning>
+  **You cannot label each agent's endpoint `prod`.** The uniqueness constraint
+  is on `(account, label)`, not `(scope, label)`, so the second agent to claim
+  `prod` gets `409 LABEL_TAKEN`.
+
+  Qualify agent-scoped labels instead — `prod-acme`, `prod-globex` — or name
+  them after the tenant rather than the environment.
+</Warning>
+
+<Note>
+  **Deleting an agent does not delete its endpoints.** `DELETE /api/v2/agent/{id}`
+  is a soft delete, so the agent's endpoint rows survive it. They keep holding
+  their labels and keep counting against that agent's 5, while
+  `GET`/`PATCH /agent/{id}/webhooks*` start returning `404 NOT_FOUND` because the
+  agent is gone.
+
+  Delete the endpoints yourself with `DELETE /config/webhooks/{id}` — that route
+  works on an endpoint whose agent has been deleted — before you retire an agent,
+  or you will strand labels you cannot reuse.
+</Note>
 
 ### Agent-scoped endpoints are additive
 
@@ -81,6 +116,15 @@ curl -X PATCH https://api.vocobase.com/api/v2/agent/a1b2c3d4-e5f6-7890-abcd-ef12
 | `true` (default) | The agent's own endpoints **and** every account-wide endpoint |
 | `false` | The agent's own endpoints **only** |
 
+The response echoes the stored value:
+
+```json
+{
+  "success": true,
+  "data": { "include_account_endpoints": false }
+}
+```
+
 Read the current value along with the agent's endpoints:
 
 ```bash
@@ -92,12 +136,38 @@ curl https://api.vocobase.com/api/v2/agent/a1b2c3d4-e5f6-7890-abcd-ef1234567890/
 {
   "success": true,
   "data": {
-    "endpoints": [ /* this agent's endpoints only */ ],
+    "endpoints": [
+      {
+        "id": "e1f2a3b4-5678-90ab-cdef-1234567890ab",
+        "label": "acme-tenant",
+        "url": "https://acme.example.com/vocobase",
+        "enabled": true,
+        "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+        "agent_name": "Acme Sales Bot",
+        "events": ["session.completed"],
+        "last_delivery_at": "2026-05-25T10:30:00.000Z",
+        "last_delivery_status": 200,
+        "created_at": "2026-05-25T10:00:00.000Z",
+        "updated_at": "2026-05-25T10:30:00.000Z"
+      }
+    ],
     "include_account_endpoints": false,
-    "available_events": ["session.completed", "session.failed", "..."]
+    "available_events": [
+      "session.completed",
+      "call.status.updated",
+      "call.transferred",
+      "whatsapp.message.sent",
+      "whatsapp.message.failed",
+      "whatsapp.message.status_updated"
+    ]
   }
 }
 ```
+
+`endpoints` lists **only** this agent's own endpoints — deliberately, so you can
+see which rows actually live on the agent. It does not fold in the account-wide
+ones even when `include_account_endpoints` is `true`. `available_events` is the
+live event catalog; read it from here rather than hard-coding the list.
 
 <Note>
   The flag only applies to events that carry an agent. An event with no agent
@@ -140,25 +210,39 @@ curl -X POST https://api.vocobase.com/api/v2/config/webhooks \
   -d '{
     "label": "billing",
     "url": "https://your-server.com/vocobase/billing",
-    "events": ["session.completed", "session.failed"]
+    "events": ["session.completed", "call.transferred"]
   }'
 ```
 
-An unknown event name is rejected with a `VALIDATION_ERROR` listing the valid
+An unknown event name is rejected with `400 VALIDATION_ERROR` listing the valid
 set, so a typo fails loudly at configuration time rather than silently
-delivering nothing.
+delivering nothing. Duplicates are de-duplicated rather than rejected.
 
 ### Event catalog
+
+Six event types, and this is the complete list.
 
 | Event | Fired when |
 |---|---|
 | `session.completed` | A session finished and the post-call pipeline is done — transcript, recording, credits, variables, extraction |
-| `session.failed` | A session ended in an error state |
 | `call.status.updated` | Telephony call status changed (ringing, answered, terminal disposition) |
 | `call.transferred` | The agent handed the call to a human or another number |
 | `whatsapp.message.sent` | An outbound WhatsApp message was accepted by the provider |
 | `whatsapp.message.failed` | An outbound WhatsApp message could not be sent |
 | `whatsapp.message.status_updated` | Delivery or read receipt for a WhatsApp message |
+
+<Warning>
+  There is **no** `session.failed` event. A session that ends in a terminal
+  failure arrives as `session.completed` with `duration_seconds: 0`,
+  `transcript: null`, and a terminal `call.status` — see
+  [How a failed session surfaces](/webhooks/payloads#how-a-failed-session-surfaces).
+
+  It was previously published here with no producer behind it, so an endpoint
+  that allowlisted it silently received nothing for that type. It is now
+  rejected with `400 VALIDATION_ERROR`, and existing allowlists were stripped of
+  it automatically. An endpoint left with an empty allowlist receives every
+  event type.
+</Warning>
 
 `webhook.test` is deliberately **not** in this list. It is fired only by the
 test endpoint and always reaches the endpoint being tested, regardless of its
