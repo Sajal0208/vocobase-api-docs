@@ -39,7 +39,7 @@
       },
       {
         "group": "Webhooks",
-        "pages": ["webhooks/setup", "webhooks/payloads", "webhooks/error-handling"]
+        "pages": ["webhooks/setup", "webhooks/scoping", "webhooks/payloads", "webhooks/error-handling"]
       },
       {
         "group": "Telephony",

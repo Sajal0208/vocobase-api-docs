@@ -110,6 +110,9 @@
                         "label": "prod",
                         "url": "https://example.com/webhooks/vocobase",
                         "enabled": true,
+                        "agent_id": null,
+                        "agent_name": null,
+                        "events": [],
                         "last_delivery_at": "2026-05-25T10:30:00.000Z",
                         "last_delivery_status": 200,
                         "created_at": "2026-05-25T10:00:00.000Z",
@@ -221,8 +224,16 @@
       "get": {
         "operationId": "listWebhookEndpoints",
         "summary": "List webhook endpoints",
-        "description": "Lists all configured webhook endpoints for the authenticated partner. Secrets are never returned.",
+        "description": "Lists all configured webhook endpoints for the authenticated partner. Secrets are never returned. Use `agent_id` to narrow the list by scope.",
         "tags": ["Config"],
+        "parameters": [
+          {
+            "name": "agent_id",
+            "in": "query",
+            "schema": { "type": "string" },
+            "description": "Filter by scope. An agent ID returns only that agent's endpoints; the literal `none` returns account-wide endpoints only. Omit to return every endpoint on the account."
+          }
+        ],
         "responses": {
           "200": {
             "description": "Webhook endpoints retrieved successfully.",
@@ -238,6 +249,11 @@
                         "endpoints": {
                           "type": "array",
                           "items": { "$ref": "#/components/schemas/PartnerWebhookEndpoint" }
+                        },
+                        "available_events": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/WebhookEventType" },
+                          "description": "The complete webhook event catalog. These are the only values accepted in an endpoint's `events` allowlist."
                         }
                       }
                     }
@@ -252,11 +268,22 @@
                         "label": "prod",
                         "url": "https://example.com/webhooks/vocobase",
                         "enabled": true,
+                        "agent_id": null,
+                        "agent_name": null,
+                        "events": [],
                         "last_delivery_at": "2026-05-25T10:30:00.000Z",
                         "last_delivery_status": 200,
                         "created_at": "2026-05-25T10:00:00.000Z",
                         "updated_at": "2026-05-25T10:30:00.000Z"
                       }
+                    ],
+                    "available_events": [
+                      "session.completed",
+                      "call.status.updated",
+                      "call.transferred",
+                      "whatsapp.message.sent",
+                      "whatsapp.message.failed",
+                      "whatsapp.message.status_updated"
                     ]
                   }
                 }
@@ -270,7 +297,7 @@
       "post": {
         "operationId": "createWebhookEndpoint",
         "summary": "Create a webhook endpoint",
-        "description": "Creates a labeled webhook endpoint. Each enabled endpoint receives the same webhook events and signs requests with its own secret. The secret is returned once in this response and cannot be read again.",
+        "description": "Creates a labeled webhook endpoint and signs its requests with its own secret. Which events an endpoint receives is controlled per endpoint by `agent_id` (scope) and `events` (allowlist); with both omitted the endpoint is account-wide and receives every event type. The secret is returned once in this response and cannot be read again.",
         "tags": ["Config"],
         "requestBody": {
           "required": true,
@@ -283,7 +310,7 @@
                   "label": {
                     "type": "string",
                     "pattern": "^[a-z0-9][a-z0-9-]{0,30}$",
-                    "description": "Partner-chosen endpoint label. Lowercase letters, numbers, and hyphens only; 1-31 characters.",
+                    "description": "Partner-chosen endpoint label. Lowercase letters, numbers, and hyphens only; 1-31 characters. Unique per **account**, not per scope — reusing a label on a second agent returns `409 LABEL_TAKEN`. The reserved `default` label cannot be created here.",
                     "example": "prod"
                   },
                   "url": {
@@ -296,8 +323,23 @@
                     "type": "boolean",
                     "default": true,
                     "description": "Whether the endpoint should receive new webhook events."
+                  },
+                  "agent_id": {
+                    "type": ["string", "null"],
+                    "format": "uuid",
+                    "description": "Bind the endpoint to a single agent, so it receives only that agent's events. Omit or send `null` for an account-wide endpoint that receives every agent's events. Agent-scoped endpoints are additive — they do not suppress account-wide ones. **Set once**: this field is immutable and `PATCH` rejects it. An agent that is not yours returns `404 NOT_FOUND`."
+                  },
+                  "events": {
+                    "type": "array",
+                    "items": { "$ref": "#/components/schemas/WebhookEventType" },
+                    "default": [],
+                    "description": "Event allowlist. Omit or send `[]` to receive every event type, including ones added later. Unknown values are rejected with `400 VALIDATION_ERROR`; duplicates are de-duplicated. `webhook.test` is not a valid value — test events always reach the endpoint being tested."
                   }
                 }
+              },
+              "example": {
+                "label": "prod",
+                "url": "https://example.com/webhooks/vocobase"
               }
             }
           }
@@ -335,6 +377,9 @@
                     "label": "prod",
                     "url": "https://example.com/webhooks/vocobase",
                     "enabled": true,
+                    "agent_id": null,
+                    "agent_name": null,
+                    "events": [],
                     "last_delivery_at": null,
                     "last_delivery_status": null,
                     "created_at": "2026-05-25T10:00:00.000Z",
@@ -348,8 +393,16 @@
           },
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": {
+            "description": "The supplied `agent_id` does not belong to the authenticated account.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
           "409": {
-            "description": "Label already exists or endpoint limit reached.",
+            "description": "`LABEL_TAKEN` — the label is already used by another endpoint on this account (labels are unique per account, not per scope) — or `LIMIT_EXCEEDED` — this scope already has 5 endpoints. The limit is counted per scope: the account bucket gets its own 5, and so does each agent.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" }
@@ -364,7 +417,7 @@
       "patch": {
         "operationId": "updateWebhookEndpoint",
         "summary": "Update a webhook endpoint",
-        "description": "Updates an endpoint's label, URL, or enabled state. Disabled endpoints stop receiving new webhook events.",
+        "description": "Updates an endpoint's label, URL, enabled state, or event allowlist. Disabled endpoints stop receiving new webhook events. `agent_id` is **not** updatable — see the request schema.",
         "tags": ["Config"],
         "parameters": [
           {
@@ -385,7 +438,7 @@
                   "label": {
                     "type": "string",
                     "pattern": "^[a-z0-9][a-z0-9-]{0,30}$",
-                    "description": "New endpoint label. The reserved `default` label cannot be assigned manually."
+                    "description": "New endpoint label. Unique per account. The reserved `default` label cannot be assigned manually, and the `default` endpoint cannot be renamed away from it."
                   },
                   "url": {
                     "type": "string",
@@ -395,6 +448,15 @@
                   "enabled": {
                     "type": "boolean",
                     "description": "Whether this endpoint should receive new webhook events."
+                  },
+                  "events": {
+                    "type": "array",
+                    "items": { "$ref": "#/components/schemas/WebhookEventType" },
+                    "description": "Replacement event allowlist. Send `[]` to receive every event type. The whole array is validated, so it must contain only currently valid event names."
+                  },
+                  "agent_id": {
+                    "description": "**Not accepted.** An endpoint's scope is set once at creation and is immutable; sending this field at all — even with the endpoint's current value — returns `400 VALIDATION_ERROR`. Delete the endpoint and create a new one to change its scope.",
+                    "readOnly": true
                   }
                 }
               },
@@ -531,6 +593,427 @@
           },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/config/webhooks/{id}/test": {
+      "post": {
+        "operationId": "sendWebhookEndpointTestEvent",
+        "summary": "Send a test event to a webhook endpoint",
+        "description": "Enqueues a real, signed `webhook.test` delivery to this one endpoint through the production queue, so it exercises signing, SSRF validation, and retries, and appears in delivery history like any other event. The endpoint's `events` allowlist is deliberately bypassed — a test must reach the endpoint being tested even when its filter would exclude everything — so `webhook.test` is not a valid allowlist value and must be handled or ignored explicitly in your handler. Disabled endpoints are refused.",
+        "tags": ["Config"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Webhook endpoint ID."
+          }
+        ],
+        "responses": {
+          "202": {
+            "description": "Delivery enqueued. This does **not** mean your server accepted it — check delivery history for the outcome.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "delivery_id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "description": "ID of the enqueued delivery. Look it up via `GET /config/webhooks/{id}/deliveries`."
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": { "delivery_id": "d1e2f3a4-5678-90ab-cdef-1234567890ab" }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": {
+            "description": "`ENDPOINT_DISABLED` — enable the endpoint before sending a test event.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/config/webhooks/{id}/deliveries": {
+      "get": {
+        "operationId": "listWebhookEndpointDeliveries",
+        "summary": "List recent deliveries for a webhook endpoint",
+        "description": "Returns this endpoint's recent delivery attempts, newest first, cursor-paginated. Page by passing the previous response's `next_cursor`; a `null` cursor means there are no more pages.",
+        "tags": ["Config"],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Webhook endpoint ID."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "schema": { "type": "integer", "minimum": 1, "maximum": 100, "default": 25 },
+            "description": "Number of deliveries to return."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Delivery ID to page from. Pass the previous response's `next_cursor`."
+          },
+          {
+            "name": "status",
+            "in": "query",
+            "schema": {
+              "type": "string",
+              "enum": ["PENDING", "DELIVERING", "DELIVERED", "FAILED", "EXHAUSTED"]
+            },
+            "description": "Filter by delivery status (case-insensitive)."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Deliveries retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "deliveries": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/WebhookDelivery" }
+                        },
+                        "next_cursor": {
+                          "type": ["string", "null"],
+                          "format": "uuid",
+                          "description": "Cursor for the next page, or `null` when there are no more pages."
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "deliveries": [
+                      {
+                        "id": "d1e2f3a4-5678-90ab-cdef-1234567890ab",
+                        "event_type": "session.completed",
+                        "status": "DELIVERED",
+                        "attempts": 2,
+                        "max_attempts": 5,
+                        "session_id": "5f6e7d8c-1234-5678-9abc-def012345678",
+                        "url": "https://example.com/webhooks/vocobase",
+                        "last_response_status": 200,
+                        "last_error": null,
+                        "next_attempt_at": null,
+                        "last_attempt_at": "2026-05-25T10:31:04.000Z",
+                        "delivered_at": "2026-05-25T10:31:04.000Z",
+                        "created_at": "2026-05-25T10:30:59.000Z"
+                      }
+                    ],
+                    "next_cursor": null
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/agent/{agentId}/webhooks": {
+      "get": {
+        "operationId": "listAgentWebhookEndpoints",
+        "summary": "List an agent's webhook endpoints",
+        "description": "Returns the endpoints bound to this agent, the agent's account fan-out setting, and the webhook event catalog. `endpoints` lists **only** this agent's own endpoints — it deliberately does not fold in account-wide endpoints, even when `include_account_endpoints` is `true`, so you can see which rows actually live on the agent.",
+        "tags": ["Config"],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Agent ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Agent webhook configuration retrieved successfully.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "endpoints": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/PartnerWebhookEndpoint" }
+                        },
+                        "include_account_endpoints": {
+                          "type": "boolean",
+                          "description": "Whether this agent's events also reach account-wide endpoints. `true` by default."
+                        },
+                        "available_events": {
+                          "type": "array",
+                          "items": { "$ref": "#/components/schemas/WebhookEventType" }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "endpoints": [
+                      {
+                        "id": "e1f2a3b4-5678-90ab-cdef-1234567890ab",
+                        "label": "acme-tenant",
+                        "url": "https://acme.example.com/vocobase",
+                        "enabled": true,
+                        "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                        "agent_name": "Acme Sales Bot",
+                        "events": ["session.completed"],
+                        "last_delivery_at": "2026-05-25T10:30:00.000Z",
+                        "last_delivery_status": 200,
+                        "created_at": "2026-05-25T10:00:00.000Z",
+                        "updated_at": "2026-05-25T10:30:00.000Z"
+                      }
+                    ],
+                    "include_account_endpoints": false,
+                    "available_events": [
+                      "session.completed",
+                      "call.status.updated",
+                      "call.transferred",
+                      "whatsapp.message.sent",
+                      "whatsapp.message.failed",
+                      "whatsapp.message.status_updated"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      },
+      "post": {
+        "operationId": "createAgentWebhookEndpoint",
+        "summary": "Create a webhook endpoint bound to an agent",
+        "description": "Same as `POST /config/webhooks`, except the scope is taken from the path. Any `agent_id` in the body is ignored — this route can only bind to the agent in the URL. The secret is returned once and cannot be read again. Labels are unique per **account**, so the same label cannot be reused across agents.",
+        "tags": ["Config"],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Agent ID to bind the endpoint to."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["label", "url"],
+                "properties": {
+                  "label": {
+                    "type": "string",
+                    "pattern": "^[a-z0-9][a-z0-9-]{0,30}$",
+                    "description": "Partner-chosen endpoint label. Lowercase letters, numbers, and hyphens only; 1-31 characters. Unique per account.",
+                    "example": "acme-tenant"
+                  },
+                  "url": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "HTTPS URL that receives webhook events.",
+                    "example": "https://acme.example.com/vocobase"
+                  },
+                  "enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether the endpoint should receive new webhook events."
+                  },
+                  "events": {
+                    "type": "array",
+                    "items": { "$ref": "#/components/schemas/WebhookEventType" },
+                    "default": [],
+                    "description": "Event allowlist. Omit or send `[]` to receive every event type."
+                  }
+                }
+              },
+              "example": {
+                "label": "acme-tenant",
+                "url": "https://acme.example.com/vocobase",
+                "events": ["session.completed"]
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Webhook endpoint created. Save the secret immediately.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "allOf": [
+                        { "$ref": "#/components/schemas/PartnerWebhookEndpoint" },
+                        {
+                          "type": "object",
+                          "properties": {
+                            "secret": {
+                              "type": "string",
+                              "description": "HMAC signing secret. Starts with `whsec_`. Returned only once."
+                            },
+                            "message": { "type": "string" }
+                          }
+                        }
+                      ]
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "e1f2a3b4-5678-90ab-cdef-1234567890ab",
+                    "label": "acme-tenant",
+                    "url": "https://acme.example.com/vocobase",
+                    "enabled": true,
+                    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "agent_name": "Acme Sales Bot",
+                    "events": ["session.completed"],
+                    "last_delivery_at": null,
+                    "last_delivery_status": null,
+                    "created_at": "2026-05-25T10:00:00.000Z",
+                    "updated_at": "2026-05-25T10:00:00.000Z",
+                    "secret": "whsec_abc123...",
+                    "message": "Save this secret — it will not be shown again."
+                  }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": {
+            "description": "`LABEL_TAKEN` — the label is already used elsewhere on this account — or `LIMIT_EXCEEDED` — this agent already has 5 endpoints.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
+          "500": { "$ref": "#/components/responses/InternalError" }
+        }
+      }
+    },
+    "/agent/{agentId}/webhooks/settings": {
+      "patch": {
+        "operationId": "updateAgentWebhookSettings",
+        "summary": "Toggle account-wide fan-out for an agent",
+        "description": "Controls whether this agent's events also reach your account-wide endpoints. `true` (the default) is additive: the agent's events go to its own endpoints **and** every account-wide endpoint. `false` routes them to the agent's own endpoints only.\n\nFiltering is strict when fan-out is off: an event whose type is not in any of the agent's endpoint allowlists is dropped, not forwarded to an account-wide endpoint as a fallback.\n\nTurning it off is refused while the agent has no enabled endpoint of its own, and it flips back to `true` automatically if you later delete or disable the agent's last enabled endpoint — an agent is never left with nowhere to deliver.",
+        "tags": ["Config"],
+        "parameters": [
+          {
+            "name": "agentId",
+            "in": "path",
+            "required": true,
+            "schema": { "type": "string", "format": "uuid" },
+            "description": "Agent ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": ["include_account_endpoints"],
+                "properties": {
+                  "include_account_endpoints": {
+                    "type": "boolean",
+                    "description": "Whether this agent's events also reach account-wide endpoints."
+                  }
+                }
+              },
+              "example": { "include_account_endpoints": false }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Setting updated. The response echoes the stored value.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": { "type": "boolean", "const": true },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "include_account_endpoints": { "type": "boolean" }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": { "include_account_endpoints": false }
+                }
+              }
+            }
+          },
+          "400": { "$ref": "#/components/responses/ValidationError" },
+          "401": { "$ref": "#/components/responses/Unauthorized" },
+          "404": { "$ref": "#/components/responses/NotFound" },
+          "409": {
+            "description": "`NO_AGENT_ENDPOINT` — add an enabled webhook endpoint for this agent before routing its events away from the account endpoints, otherwise they would go nowhere.",
+            "content": {
+              "application/json": {
+                "schema": { "$ref": "#/components/schemas/ErrorResponse" }
+              }
+            }
+          },
           "500": { "$ref": "#/components/responses/InternalError" }
         }
       }
@@ -6271,17 +6754,66 @@
           "updated_at": { "type": "string", "format": "date-time" }
         }
       },
+      "WebhookEventType": {
+        "type": "string",
+        "description": "A webhook event type. This is the complete catalog and the only set accepted in an endpoint's `events` allowlist. `webhook.test` is deliberately absent: it is fired only by `POST /config/webhooks/{id}/test` and always reaches the endpoint being tested regardless of its allowlist. There is no `session.failed` event — a session that ends in a terminal failure is delivered as `session.completed` with `duration_seconds: 0`, `transcript: null`, and a terminal `call.status`.",
+        "enum": [
+          "session.completed",
+          "call.status.updated",
+          "call.transferred",
+          "whatsapp.message.sent",
+          "whatsapp.message.failed",
+          "whatsapp.message.status_updated"
+        ]
+      },
       "PartnerWebhookEndpoint": {
         "type": "object",
         "properties": {
           "id": { "type": "string", "format": "uuid", "description": "Webhook endpoint ID." },
-          "label": { "type": "string", "description": "Partner-chosen endpoint label." },
+          "label": { "type": "string", "description": "Partner-chosen endpoint label. Unique per account, not per scope." },
           "url": { "type": "string", "format": "uri", "description": "HTTPS endpoint URL." },
           "enabled": { "type": "boolean", "description": "Whether this endpoint receives new webhook events." },
+          "agent_id": {
+            "type": ["string", "null"],
+            "format": "uuid",
+            "description": "Scope. `null` means account-wide — the endpoint receives events for every agent on the account. A non-null value binds the endpoint to that one agent. Set once at creation and immutable afterwards."
+          },
+          "agent_name": {
+            "type": ["string", "null"],
+            "description": "Display name of the scoped agent. `null` for an account-wide endpoint."
+          },
+          "events": {
+            "type": "array",
+            "items": { "$ref": "#/components/schemas/WebhookEventType" },
+            "description": "Event allowlist. An empty array means every event type, including ones added to the platform later."
+          },
           "last_delivery_at": { "type": ["string", "null"], "format": "date-time" },
           "last_delivery_status": { "type": ["integer", "null"] },
           "created_at": { "type": "string", "format": "date-time" },
           "updated_at": { "type": "string", "format": "date-time" }
+        }
+      },
+      "WebhookDelivery": {
+        "type": "object",
+        "description": "One attempt record for one (event, endpoint) pair. Every event fans out to a separate delivery row per matching endpoint, each with independent retry state.",
+        "properties": {
+          "id": { "type": "string", "format": "uuid", "description": "Delivery ID." },
+          "event_type": { "type": "string", "description": "The event that was delivered. One of `WebhookEventType`, or `webhook.test`." },
+          "status": {
+            "type": "string",
+            "enum": ["PENDING", "DELIVERING", "DELIVERED", "FAILED", "EXHAUSTED"],
+            "description": "`EXHAUSTED` means every attempt was used without a 2xx response."
+          },
+          "attempts": { "type": "integer", "description": "Attempts made so far." },
+          "max_attempts": { "type": "integer", "description": "Total attempts before the delivery is exhausted. Currently 5 — the initial delivery plus four retries." },
+          "session_id": { "type": ["string", "null"], "format": "uuid", "description": "Session the event belongs to, when the payload carried one." },
+          "url": { "type": "string", "format": "uri", "description": "URL snapshotted at enqueue time. In-flight retries keep using it even if the endpoint is later edited or deleted." },
+          "last_response_status": { "type": ["integer", "null"], "description": "HTTP status of the most recent attempt." },
+          "last_error": { "type": ["string", "null"], "description": "Error from the most recent failed attempt." },
+          "next_attempt_at": { "type": ["string", "null"], "format": "date-time" },
+          "last_attempt_at": { "type": ["string", "null"], "format": "date-time" },
+          "delivered_at": { "type": ["string", "null"], "format": "date-time" },
+          "created_at": { "type": "string", "format": "date-time" }
         }
       },
       "CallStatusUpdatedWebhook": {
