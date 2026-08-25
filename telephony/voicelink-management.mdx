@@ -326,6 +326,16 @@ curl -X POST https://api.vocobase.com/api/v2/voicelink/inbound-ready \
 Provide either `did_id` or `did_number`. `agent_id` is required for a fully-ready DID. `client_id` is required only when VoiceLink has not mapped the DID yet. The endpoint never accepts a caller-supplied `websocket_url`; the backend always builds the signed endpoint from deployment configuration.
 
 <Warning>
+  **Always pass `connection_id` when your account has more than one active VoiceLink connection, and always pass `agent_id`.**
+
+  The signed bot endpoint is scoped to a single connection, and inbound calls are resolved against that same connection only. If the same DID is imported on several connections, an inbound call arriving via connection A will not find an agent assigned on connection B — every call is rejected, and the rejection looks identical to a DID that was never set up.
+
+  Omitting `agent_id` has the same effect for a different reason: the DID is imported and inbound routing is pointed at the bot, but the local number has no agent, so every inbound call is rejected. The response reports this as an `assign_agent` step with status `skipped` and `data.ready: false` — treat either as a failed setup, not a partial success.
+
+  Before running inbound setup, list your connections with `GET /api/v2/telephony/connections?provider=voicelink` and standardise on one. Duplicate connections holding the same DID are the most common cause of inbound calls failing after a setup that reported success.
+</Warning>
+
+<Warning>
   Before using this endpoint in production, the Vocobase deployment must set `VOICELINK_INBOUND_ENABLED=true`, `VOICELINK_INBOUND_WSS_URL` to its public `wss://` VoiceLink bot endpoint, and `VOICELINK_INBOUND_SIGNING_SECRET` to a secret of at least 32 characters. Rotating the signing secret invalidates existing bot URLs, so rerun inbound setup once for each VoiceLink client bot after rotation.
 </Warning>
 

@@ -261,6 +261,16 @@ For inbound setup, client and DID mapping, sync, and readiness checks, use the [
 
 - Re-check the credentials against the VoiceLink panel sign-in. Re-send `PUT /config/telephony/voicelink` with the correct values.
 
+### Inbound calls are never answered, but setup reported success
+
+Inbound resolution is scoped to the connection the call arrives on. A DID imported onto several VoiceLink connections only answers on the one whose bot VoiceLink is actually dialling, and only if the agent is assigned on that same connection.
+
+- List your connections: `GET /api/v2/telephony/connections?provider=voicelink`. If more than one is active, standardise on a single connection and remove the rest.
+- Re-run `POST /api/v2/voicelink/inbound-ready` against that connection, passing both `connection_id` and `agent_id`.
+- Confirm the result has `data.ready: true` and `data.readiness.inbound.ready: true`. A response whose `steps` contain `assign_agent` with status `skipped` is not a working setup.
+
+If the DID was routed to a WebSocket bot directly in the VoiceLink panel rather than through `inbound-ready`, the bot URL is missing the signed connection token and every call is rejected. Re-run `inbound-ready` to regenerate it.
+
 ### Calls ring but drop immediately
 
 - Confirm the destination number is reachable from your VoiceLink account.
