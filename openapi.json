@@ -1401,7 +1401,7 @@
       "put": {
         "operationId": "updateVoiceLinkConfig",
         "summary": "Set or update VoiceLink credentials",
-        "description": "Stores VoiceLink credentials for outbound calling. VoiceLink authenticates with a panel `username` and `password`; Vocobase logs in with these to obtain a short-lived access token (the password is stored encrypted and never returned). `username`, `password`, and `from_number` are required; `base_url` is optional and defaults to the VoiceLink API host. The `from_number` must be an E.164 number provisioned on your VoiceLink account and is stored as the connection's default outbound DID. Requires `\"voicelink\"` in `allowed_telephony_providers`.",
+        "description": "Stores VoiceLink credentials for outbound calling. VoiceLink authenticates with a panel `username` and `password`; Vocobase logs in with these to obtain a short-lived access token (the password is stored encrypted and never returned). `username`, `password`, and `from_number` are required. `base_url` is accepted for backwards compatibility but ignored: VoiceLink only accepts connections from Indian IP addresses, so Vocobase routes all outbound VoiceLink traffic through its own India-based egress and sets the host itself. It is returned as an origin only. The `from_number` must be an E.164 number provisioned on your VoiceLink account and is stored as the connection's default outbound DID. Requires `\"voicelink\"` in `allowed_telephony_providers`.",
         "tags": ["Config"],
         "requestBody": {
           "required": true,

@@ -41,7 +41,7 @@ This guide walks you through connecting your VoiceLink account to Vocobase for i
 
 ## Step 2: Configure VoiceLink in Vocobase
 
-Send the credentials through the Partner API. `username`, `password`, and `from_number` are required; `base_url` is optional and defaults to the VoiceLink API host.
+Send the credentials through the Partner API. `username`, `password`, and `from_number` are required. `base_url` is accepted for backwards compatibility but ignored — the VoiceLink host is configured by Vocobase.
 
 <Note>
   This endpoint updates your default VoiceLink connection. To create multiple named VoiceLink connections, use `POST /api/v2/telephony/connections` and store the returned `connection_id`.
@@ -116,21 +116,22 @@ A successful response confirms credentials were stored:
   Your password is encrypted at rest and never returned in API responses.
 </Tip>
 
-### Optional: custom base URL
+### About `base_url`
 
-If VoiceLink gave you a dedicated API host, pass it as `base_url`. Omit the field to use the default host.
+`base_url` is still accepted so existing integrations keep working, but the
+value is **ignored**. Vocobase sets the VoiceLink host itself.
 
-```bash
-curl -X PUT https://api.vocobase.com/api/v2/config/telephony/voicelink \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "username": "acme-voice",
-    "password": "your-voicelink-password",
-    "from_number": "+918011223344",
-    "base_url": "https://app.voicelink.co.in"
-  }'
-```
+<Warning>
+  Sending `base_url` has no effect. Omit it.
+</Warning>
+
+VoiceLink only accepts API connections originating from Indian IP addresses, so
+Vocobase routes all outbound VoiceLink calls through its own India-based egress.
+A partner-supplied host would bypass that and the connection would be unable to
+place calls at all.
+
+`base_url` is returned in responses as an origin only (scheme and host, no
+path), which is why it may not match anything you sent.
 
 ## Step 3: Confirm the partner sees VoiceLink as configured
 
@@ -282,7 +283,7 @@ If the DID was routed to a WebSocket bot directly in the VoiceLink panel rather 
 
 ## Updating credentials
 
-Changed your VoiceLink password? Re-send `PUT /api/v2/config/telephony/voicelink` with the new `password`. This endpoint always requires `username`, `password`, and `from_number` together, so include all three (plus `base_url` if you use a custom host) whenever you update.
+Changed your VoiceLink password? Re-send `PUT /api/v2/config/telephony/voicelink` with the new `password`. This endpoint always requires `username`, `password`, and `from_number` together, so include all three whenever you update. `base_url` is ignored.
 
 ## Next steps
 
