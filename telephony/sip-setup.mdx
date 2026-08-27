@@ -13,7 +13,7 @@ This guide walks you through connecting your own SIP carrier to Vocobase for inb
 
 ## Prerequisites
 
-- A Vocobase partner account with `"SIP"` present in `allowed_telephony_providers` (check `GET /api/v2/config`). If it is not listed, contact your Vocobase account manager to enable it.
+- A Vocobase account with `"SIP"` present in `allowed_telephony_providers` (check `GET /api/v2/config`). If it is not listed, contact your Vocobase account manager to enable it.
 - An account with any SIP carrier, with the following details ready:
   - **SIP host** — the carrier's SIP server hostname (e.g., `sip.your-carrier.com`)
   - **Outbound auth username** + **password** — the SIP credentials your carrier issues for INVITE authentication
@@ -100,7 +100,7 @@ Paste the `livekit_sip_uri` into your carrier's DID-origination or outbound rout
 
 ## Step 3: Make an outbound test call
 
-Start an outbound call with `"provider": "sip"`. If your partner account has multiple active SIP connections, include `connection_id`.
+Start an outbound call with `"provider": "sip"`. If your account has multiple active SIP connections, include `connection_id`.
 
 <CodeGroup>
 ```bash cURL

@@ -8,12 +8,12 @@ description: "Configure Exotel for outbound voice calls"
 Connect your Exotel account to make outbound calls through the Vocobase platform. Exotel is popular in India and supports local and toll-free numbers.
 
 <Note>
-  Exotel telephony must be enabled for your partner account by the Vocobase team before you can configure it. Check your `allowed_telephony_providers` in the [config endpoint](/authentication) to verify.
+  Exotel telephony must be enabled for your account by the Vocobase team before you can configure it. Check your `allowed_telephony_providers` in the [config endpoint](/authentication) to verify.
 </Note>
 
 ## Prerequisites
 
-- A Vocobase account with **approved partner status**
+- A Vocobase account with **active account status**
 - Exotel enabled in your `allowed_telephony_providers`
 - An [Exotel](https://exotel.com) account with:
   - Account SID
@@ -105,7 +105,7 @@ response = requests.put(
 
 ## Verify configuration
 
-After saving, confirm Exotel is configured by checking your partner config:
+After saving, confirm Exotel is configured by checking your account config:
 
 ```bash
 curl -X GET https://api.vocobase.com/api/v2/config \
@@ -135,7 +135,7 @@ The response will include:
 
 ## Make a test call
 
-Once configured, initiate an outbound call with `provider: "exotel"`. If your partner account has multiple active Exotel connections, include `connection_id`.
+Once configured, initiate an outbound call with `provider: "exotel"`. If your account has multiple active Exotel connections, include `connection_id`.
 
 <CodeGroup>
 ```bash cURL
@@ -200,7 +200,7 @@ Passing only `"provider": "exotel"` remains valid while there is exactly one act
 |-------|----------|
 | "Exotel not configured" error | Ensure all 6 fields are set: account_sid, api_key, api_token, subdomain, caller_id, applet_id |
 | `CONNECTION_AMBIGUOUS` error | Call `GET /api/v2/telephony/connections?provider=exotel` and pass the desired `connection_id` in `POST /api/v2/calls/start`. |
-| "Provider not allowed" (403) | Contact Vocobase to enable Exotel for your partner account |
+| "Provider not allowed" (403) | Contact Vocobase to enable Exotel for your account |
 | Calls fail to connect | Verify credentials in the Exotel dashboard. Check that the applet is active. |
 | Wrong caller ID displayed | Update the `caller_id` field with the correct E.164 number |
 | API token expired | Exotel API tokens may expire. Generate a new one and update via the API. |

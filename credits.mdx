@@ -5,7 +5,7 @@ description: "How Vocobase bills voice and chat usage in Indian Rupees"
 
 # Billing (₹)
 
-Vocobase bills usage in **Indian Rupees (₹)**. Your partner account holds a ₹ balance that is drawn down as your agents handle voice calls or chat sessions.
+Vocobase bills usage in **Indian Rupees (₹)**. Your account holds a ₹ balance that is drawn down as your agents handle voice calls or chat sessions.
 
 <Note>
   **Unit change (May 2026):** Vocobase previously used an abstract "credits" unit. The wallet now stores rupees directly. The JSON field name `credits` on billing endpoints is **unchanged for backward compatibility**, but the numeric value now represents ₹ instead of credits.
@@ -103,7 +103,7 @@ The `credits_used` value of `8.10` above means **₹8.10** — the call was 127s
 
 ## Initial balance
 
-When your partner account is approved by the Vocobase team, an initial ₹ balance is assigned. The amount depends on your plan and agreement.
+When your account is approved by the Vocobase team, an initial ₹ balance is assigned. The amount depends on your plan and agreement.
 
 There is no self-service top-up via the API. To add more balance, contact the Vocobase team at **support@vocobase.com**.
 
@@ -249,7 +249,7 @@ Calls that fail to connect (no answer, busy, provider error) do not consume ₹.
 
 ### Why does the API return the field as `credits` if it's now in ₹?
 
-To keep partner integrations working without changes. The JSON field name `credits` (and `credits_used`, `credits_added`) is kept verbatim; only its numeric meaning shifted from abstract credits to Indian Rupees in May 2026.
+To keep existing integrations working without changes. The JSON field name `credits` (and `credits_used`, `credits_added`) is kept verbatim; only its numeric meaning shifted from abstract credits to Indian Rupees in May 2026.
 
 ## Next steps
 

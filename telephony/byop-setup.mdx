@@ -45,7 +45,7 @@ The response includes `allowed_telephony_providers` and a `telephony` object tha
 }
 ```
 
-If the provider you need is missing from `allowed_telephony_providers`, contact Vocobase support to enable it for your partner account.
+If the provider you need is missing from `allowed_telephony_providers`, contact Vocobase support to enable it for your account.
 
 ## Configure credentials
 
@@ -82,7 +82,7 @@ Use the provider-specific setup page for the required fields and examples, or se
 
 ## Start a call
 
-After the provider is enabled and configured, start a call with `POST /api/v2/calls/start` and pass the provider value. If the partner has multiple active connections for that provider, also pass `connection_id`.
+After the provider is enabled and configured, start a call with `POST /api/v2/calls/start` and pass the provider value. If the account has multiple active connections for that provider, also pass `connection_id`.
 
 ```bash
 curl -X POST https://api.vocobase.com/api/v2/calls/start \
@@ -137,7 +137,7 @@ See [Inbound Calls](/inbound-calls) for the full DID assignment flow.
 
 | Symptom | Action |
 |---------|--------|
-| Provider is not allowed | Ask Vocobase support to enable the provider for your partner account. |
+| Provider is not allowed | Ask Vocobase support to enable the provider for your account. |
 | Provider is allowed but not configured | Send the provider's V2 credential setup request again. |
 | `CONNECTION_AMBIGUOUS` from `/calls/start` | Pass the `connection_id` returned by `GET /api/v2/telephony/connections`. |
 | Calls fail immediately | Confirm the provider credentials, from-number, and destination number format. |

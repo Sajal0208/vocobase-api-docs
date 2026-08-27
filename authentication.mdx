@@ -55,7 +55,7 @@ When you exceed a rate limit, the API returns a `429 Too Many Requests` response
 
 ## Concurrency limits
 
-Outbound calls have a concurrency limit of **5 simultaneous active calls** per partner. If you attempt to start a call while at the limit, you will receive a `429` response.
+Outbound calls have a concurrency limit of **5 simultaneous active calls** per account. If you attempt to start a call while at the limit, you will receive a `429` response.
 
 ## Error responses
 
@@ -76,7 +76,7 @@ All error responses follow this format:
 | HTTP Status | Code | Description |
 |---|---|---|
 | `401` | `UNAUTHORIZED` | Missing or invalid API key. Verify your `Authorization` header contains a valid `rg_live_` key. |
-| `403` | `FORBIDDEN` | Your API key is valid but you do not have permission for this action. Common causes: insufficient balance (₹), suspended account, or partner not yet approved. |
+| `403` | `FORBIDDEN` | Your API key is valid but you do not have permission for this action. Common causes: insufficient balance (₹) or a suspended account. |
 
 ### Other common error codes
 

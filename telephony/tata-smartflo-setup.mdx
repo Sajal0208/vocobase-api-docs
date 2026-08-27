@@ -8,7 +8,7 @@ description: "Configure Tata Smartflo for inbound and outbound calling with the 
 This guide walks you through connecting your Tata Smartflo account to Vocobase for BYOP WebSocket calling.
 
 <Note>
-  Configure Tata Smartflo with the Partner API (`PUT /api/v2/config/telephony/tata-smartflo`) for the default connection. To create multiple named Tata Smartflo connections, use `POST /api/v2/telephony/connections`. Once Tata Smartflo is configured, start calls programmatically using `POST /calls/start` with `"provider": "tata_smartflo"`.
+  Configure Tata Smartflo with the V2 API (`PUT /api/v2/config/telephony/tata-smartflo`) for the default connection. To create multiple named Tata Smartflo connections, use `POST /api/v2/telephony/connections`. Once Tata Smartflo is configured, start calls programmatically using `POST /calls/start` with `"provider": "tata_smartflo"`.
 </Note>
 
 ## Prerequisites
@@ -16,11 +16,11 @@ This guide walks you through connecting your Tata Smartflo account to Vocobase f
 - A Tata Smartflo account with panel **email and password** credentials
 - API access enabled by Tata Smartflo for your account
 - At least one Smartflo DID returned by `GET /v1/my_number`
-- An approved Vocobase partner account with `"tata_smartflo"` present in `allowed_telephony_providers` (check `GET /config`)
+- An approved Vocobase account with `"tata_smartflo"` present in `allowed_telephony_providers` (check `GET /config`)
 - A public HTTPS backend URL where Smartflo can reach the Vocobase resolver and lifecycle webhook
 
 <Tip>
-  If `"tata_smartflo"` is not yet listed in your partner config's `allowed_telephony_providers`, contact your Vocobase account manager to enable it.
+  If `"tata_smartflo"` is not yet listed in your account config's `allowed_telephony_providers`, contact your Vocobase account manager to enable it.
 </Tip>
 
 ## Step 1: Get your Tata Smartflo credentials
@@ -47,7 +47,7 @@ This guide walks you through connecting your Tata Smartflo account to Vocobase f
 
 ## Step 2: Configure Tata Smartflo in Vocobase
 
-Send the credentials through the Partner API. `email`, `password`, and `from_number` are required; `base_url` is optional and defaults to the Tata Smartflo API host.
+Send the credentials through the V2 API. `email`, `password`, and `from_number` are required; `base_url` is optional and defaults to the Tata Smartflo API host.
 
 <Note>
   This endpoint updates your default Tata Smartflo connection. To create multiple named Tata Smartflo connections, use `POST /api/v2/telephony/connections` and store the returned `connection_id`.
@@ -147,9 +147,9 @@ curl -X POST https://api.vocobase.com/api/v2/telephony/connections \
   `agent_number` wiring for outbound `click_to_call` is pending Tata confirmation. Do not pass `agent_number` unless Vocobase has confirmed the value to use for your Smartflo account.
 </Note>
 
-## Step 3: Confirm the partner sees Tata Smartflo as configured
+## Step 3: Confirm the account sees Tata Smartflo as configured
 
-Fetch your partner configuration. The response should now include Tata Smartflo in `allowed_telephony_providers`:
+Fetch your account configuration. The response should now include Tata Smartflo in `allowed_telephony_providers`:
 
 <CodeGroup>
 ```bash cURL
@@ -182,7 +182,7 @@ curl -X GET https://api.vocobase.com/api/v2/config \
 
 ## Step 4: Make a test call
 
-Start an outbound call with `"provider": "tata_smartflo"`. If your partner account has multiple active Tata Smartflo connections, include `connection_id`.
+Start an outbound call with `"provider": "tata_smartflo"`. If your account has multiple active Tata Smartflo connections, include `connection_id`.
 
 <CodeGroup>
 ```bash cURL
@@ -254,15 +254,15 @@ print(response.json())
 }
 ```
 
-Vocobase manages the Smartflo API token, WebSocket resolver, media path, and lifecycle ingestion. Partners only need to configure credentials, complete the Smartflo panel provisioning checklist, and pass `"provider": "tata_smartflo"` when starting calls.
+Vocobase manages the Smartflo API token, WebSocket resolver, media path, and lifecycle ingestion. Accounts only need to configure credentials, complete the Smartflo panel provisioning checklist, and pass `"provider": "tata_smartflo"` when starting calls.
 
-## Partner provisioning checklist
+## Provisioning checklist
 
 Complete these items with Tata Smartflo before live traffic:
 
 | Area | Required setup |
 |------|----------------|
-| API authentication | Use the Smartflo panel email and password. Vocobase mints Tata Smartflo bearer tokens server-side; partners do not send tokens in call-start requests. |
+| API authentication | Use the Smartflo panel email and password. Vocobase mints Tata Smartflo bearer tokens server-side; accounts do not send tokens in call-start requests. |
 | Dynamic Voice-Bot endpoint | Configure `https://<backend>/api/tata/resolve-wss?secret=<TATA_RESOLVE_SECRET>` as the Dynamic Voice-Bot endpoint URL. Map Smartflo variables `$callId`, `$fromNumber`, `$toNumber`, and `$status`. Vocobase must answer within `<= 2000 ms` with exactly `{"success":true,"wss_url":"wss://..."}`. |
 | Lifecycle webhook | Configure `https://<backend>/api/tata/lifecycle` as the lifecycle webhook URL. Enable `Call answered by Customer (Click to call)` and `Call hangup (Missed or Answered)`, plus the equivalent inbound answered and hangup triggers. Set `Content-Type` to `application/json`. |
 | DIDs | Smartflo DIDs come from `GET /v1/my_number`. Inbound DIDs must be routed in the Smartflo panel to the Voice-Bot streaming app so incoming calls invoke the Dynamic Voice-Bot endpoint. |

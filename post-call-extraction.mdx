@@ -8,7 +8,7 @@ description: "Pull structured fields from completed call transcripts with an LLM
 Post-call extraction lets you define a Custom Analysis schema (a free-form prompt + typed keys) once on the agent. After every completed call, the platform runs a structured-output LLM over the transcript and ships the extracted values inline in the same `session.completed` webhook — no second webhook to handle.
 
 <Info>
-  **Partner API (v2) only** for the endpoints below.
+  **V2 API (v2) only** for the endpoints below.
 </Info>
 
 ## 1. Define the Custom Analysis schema
@@ -77,7 +77,7 @@ The current `extraction_enabled` value is returned on the agent object from
 | `date` | ISO 8601 date | `YYYY-MM-DD` |
 | `datetime` | ISO 8601 timestamp | `YYYY-MM-DDTHH:MM:SSZ` |
 
-Each configured key is returned in the extraction result. When a value cannot be found, Vocobase returns `null` for that key so partners receive a consistent object shape.
+Each configured key is returned in the extraction result. When a value cannot be found, Vocobase returns `null` for that key so accounts receive a consistent object shape.
 
 ## 2. Receive results in the webhook
 
@@ -115,7 +115,7 @@ See [Webhook Payloads](/webhooks/payloads) for the full payload shape.
 GET /api/v2/calls/{call_id}
 ```
 
-Returns the same `extraction` object on `data.session.extraction`. Useful for partners that prefer polling over webhooks, or for backfilling values into a CRM after the fact.
+Returns the same `extraction` object on `data.session.extraction`. Useful for accounts that prefer polling over webhooks, or for backfilling values into a CRM after the fact.
 
 ## 4. Replay extraction against past calls
 
@@ -129,7 +129,7 @@ Content-Type: application/json
 { "dry_run": false }
 ```
 
-`dry_run: true` returns the values without persisting and without re-firing the partner webhook (useful for prompt iteration). The replay always uses the agent's **current** `extraction_config`, not the config at original-call time. Returns 400 when the agent has no `extraction_config` defined.
+`dry_run: true` returns the values without persisting and without re-firing the account webhook (useful for prompt iteration). The replay always uses the agent's **current** `extraction_config`, not the config at original-call time. Returns 400 when the agent has no `extraction_config` defined.
 
 ## 5. Auto-export every extraction to Google Sheets
 
@@ -238,7 +238,7 @@ Extraction failures **never block webhook delivery**. The `session.completed` pa
 | `failed` | Extraction could not be completed; `error` field describes what broke. |
 | `skipped` | No transcript available (e.g., no-answer call, instant disconnect). |
 
-Partners that need extracted values can branch on `status === 'success'`; partners that just need transcript + recording can ignore the field entirely.
+Accounts that need extracted values can branch on `status === 'success'`; accounts that just need transcript + recording can ignore the field entirely.
 
 ## Next steps
 

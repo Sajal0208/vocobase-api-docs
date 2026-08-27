@@ -1,15 +1,15 @@
 ---
 title: "Configuring Your Account"
-description: "Set up webhooks, telephony, and other partner configuration after approval"
+description: "Set up webhooks, telephony, and other account configuration"
 ---
 
 # Configuring Your Account
 
-After your partner application is approved, configure your account to start making calls. This guide covers webhook setup, telephony configuration, and verifying your account is ready.
+After your account application is approved, configure your account to start making calls. This guide covers webhook setup, telephony configuration, and verifying your account is ready.
 
 ## View your configuration
 
-Start by checking your current partner configuration:
+Start by checking your current account configuration:
 
 <CodeGroup>
 ```bash cURL
@@ -67,7 +67,7 @@ The response shows your agent limit, allowed voices and languages, webhook statu
 
 ## Set up webhooks
 
-Configure one or more webhook endpoints to receive live call status updates and final session results. Use `call.status.updated` for partner queue orchestration and concurrency release; use `session.completed` for transcripts, extraction results, and recording URLs.
+Configure one or more webhook endpoints to receive live call status updates and final session results. Use `call.status.updated` for queue orchestration and concurrency release; use `session.completed` for transcripts, extraction results, and recording URLs.
 
 <CodeGroup>
 ```bash cURL
@@ -194,7 +194,7 @@ You need at least one telephony provider to make outbound calls. Vocobase suppor
 
 ## Update your display name
 
-Optionally set a display name for your partner account:
+Optionally set a display name for your account:
 
 ```bash
 curl -X PUT https://api.vocobase.com/api/v2/config/display-name \

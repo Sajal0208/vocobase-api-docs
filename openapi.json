@@ -1,7 +1,7 @@
 {
   "openapi": "3.1.0",
   "info": {
-    "title": "Vocobase Partner API",
+    "title": "Vocobase API",
     "version": "2.0",
     "description": "API for managing voice AI agents, documents, and calls on the Vocobase platform."
   },
@@ -19,7 +19,7 @@
   "tags": [
     {
       "name": "Config",
-      "description": "Read and update partner configuration, webhook settings, and telephony credentials."
+      "description": "Read and update account configuration, webhook settings, and telephony credentials."
     },
     {
       "name": "Agents",
@@ -74,19 +74,19 @@
     "/config": {
       "get": {
         "operationId": "getConfig",
-        "summary": "Get partner configuration",
-        "description": "Returns the current partner configuration including webhook endpoints, telephony setup, agent limits, and allowed voices/languages. Sensitive values are masked.",
+        "summary": "Get account configuration",
+        "description": "Returns the current account configuration including webhook endpoints, telephony setup, agent limits, and allowed voices/languages. Sensitive values are masked.",
         "tags": ["Config"],
         "responses": {
           "200": {
-            "description": "Partner configuration retrieved successfully.",
+            "description": "Account configuration retrieved successfully.",
             "content": {
               "application/json": {
                 "schema": {
                   "type": "object",
                   "properties": {
                     "success": { "type": "boolean", "const": true },
-                    "data": { "$ref": "#/components/schemas/PartnerConfig" }
+                    "data": { "$ref": "#/components/schemas/AccountConfig" }
                   }
                 },
                 "example": {
@@ -224,7 +224,7 @@
       "get": {
         "operationId": "listWebhookEndpoints",
         "summary": "List webhook endpoints",
-        "description": "Lists all configured webhook endpoints for the authenticated partner. Secrets are never returned. Use `agent_id` to narrow the list by scope.",
+        "description": "Lists all configured webhook endpoints for the authenticated account. Secrets are never returned. Use `agent_id` to narrow the list by scope.",
         "tags": ["Config"],
         "parameters": [
           {
@@ -248,7 +248,7 @@
                       "properties": {
                         "endpoints": {
                           "type": "array",
-                          "items": { "$ref": "#/components/schemas/PartnerWebhookEndpoint" }
+                          "items": { "$ref": "#/components/schemas/WebhookEndpoint" }
                         },
                         "available_events": {
                           "type": "array",
@@ -310,7 +310,7 @@
                   "label": {
                     "type": "string",
                     "pattern": "^[a-z0-9][a-z0-9-]{0,30}$",
-                    "description": "Partner-chosen endpoint label. Lowercase letters, numbers, and hyphens only; 1-31 characters. Unique per **account**, not per scope — reusing a label on a second agent returns `409 LABEL_TAKEN`. The reserved `default` label cannot be created here.",
+                    "description": "Your chosen endpoint label. Lowercase letters, numbers, and hyphens only; 1-31 characters. Unique per **account**, not per scope — reusing a label on a second agent returns `409 LABEL_TAKEN`. The reserved `default` label cannot be created here.",
                     "example": "prod"
                   },
                   "url": {
@@ -355,7 +355,7 @@
                     "success": { "type": "boolean", "const": true },
                     "data": {
                       "allOf": [
-                        { "$ref": "#/components/schemas/PartnerWebhookEndpoint" },
+                        { "$ref": "#/components/schemas/WebhookEndpoint" },
                         {
                           "type": "object",
                           "properties": {
@@ -473,7 +473,7 @@
                   "type": "object",
                   "properties": {
                     "success": { "type": "boolean", "const": true },
-                    "data": { "$ref": "#/components/schemas/PartnerWebhookEndpoint" }
+                    "data": { "$ref": "#/components/schemas/WebhookEndpoint" }
                   }
                 }
               }
@@ -778,7 +778,7 @@
                       "properties": {
                         "endpoints": {
                           "type": "array",
-                          "items": { "$ref": "#/components/schemas/PartnerWebhookEndpoint" }
+                          "items": { "$ref": "#/components/schemas/WebhookEndpoint" }
                         },
                         "include_account_endpoints": {
                           "type": "boolean",
@@ -854,7 +854,7 @@
                   "label": {
                     "type": "string",
                     "pattern": "^[a-z0-9][a-z0-9-]{0,30}$",
-                    "description": "Partner-chosen endpoint label. Lowercase letters, numbers, and hyphens only; 1-31 characters. Unique per account.",
+                    "description": "Your chosen endpoint label. Lowercase letters, numbers, and hyphens only; 1-31 characters. Unique per account.",
                     "example": "acme-tenant"
                   },
                   "url": {
@@ -895,7 +895,7 @@
                     "success": { "type": "boolean", "const": true },
                     "data": {
                       "allOf": [
-                        { "$ref": "#/components/schemas/PartnerWebhookEndpoint" },
+                        { "$ref": "#/components/schemas/WebhookEndpoint" },
                         {
                           "type": "object",
                           "properties": {
@@ -1092,7 +1092,7 @@
       "put": {
         "operationId": "updateMcubeConfig",
         "summary": "Set or update MCube credentials",
-        "description": "Stores encrypted MCube JWT token and executive number for outbound calling. Creates or updates the partner\u0027s default MCube telephony connection; for multiple named connections use POST /telephony/connections with provider \"mcube\".",
+        "description": "Stores encrypted MCube JWT token and executive number for outbound calling. Creates or updates the account\u0027s default MCube telephony connection; for multiple named connections use POST /telephony/connections with provider \"mcube\".",
         "tags": ["Config"],
         "requestBody": {
           "required": true,
@@ -1572,8 +1572,8 @@
     "/config/display-name": {
       "put": {
         "operationId": "updateDisplayName",
-        "summary": "Update partner display name",
-        "description": "Changes the partner display name shown in the dashboard and API responses.",
+        "summary": "Update connection display name",
+        "description": "Changes the connection display name shown in the dashboard and API responses.",
         "tags": ["Config"],
         "requestBody": {
           "required": true,
@@ -1632,7 +1632,7 @@
       "get": {
         "operationId": "listTelephonyConnections",
         "summary": "List telephony connections",
-        "description": "Lists active named telephony connections owned by the authenticated partner. Use the optional provider filter to narrow results.",
+        "description": "Lists active named telephony connections owned by the authenticated account. Use the optional provider filter to narrow results.",
         "tags": ["Telephony Connections"],
         "parameters": [
           {
@@ -1677,7 +1677,7 @@
       "post": {
         "operationId": "createTelephonyConnection",
         "summary": "Create a telephony connection",
-        "description": "Creates a named BYOP telephony connection. Store the returned `connection_id` and pass it to call-start or phone-number sync endpoints when a partner has multiple active connections for the same provider.",
+        "description": "Creates a named BYOP telephony connection. Store the returned `connection_id` and pass it to call-start or phone-number sync endpoints when an account has multiple active connections for the same provider.",
         "tags": ["Telephony Connections"],
         "requestBody": {
           "required": true,
@@ -1733,7 +1733,7 @@
       "get": {
         "operationId": "getTelephonyConnection",
         "summary": "Retrieve a telephony connection",
-        "description": "Returns a single active partner-owned telephony connection by ID, including all of its active DIDs and the agent linked to each. Use this to keep an external system synced with the connection's numbers and agent assignments as shown in the Vocobase dashboard.",
+        "description": "Returns a single active telephony connection by ID, including all of its active DIDs and the agent linked to each. Use this to keep an external system synced with the connection's numbers and agent assignments as shown in the Vocobase dashboard.",
         "tags": ["Telephony Connections"],
         "parameters": [
           {
@@ -1772,7 +1772,7 @@
       "patch": {
         "operationId": "renameTelephonyConnection",
         "summary": "Rename a telephony connection",
-        "description": "Updates the display name of an active partner-owned telephony connection. Credentials are not rotated by this endpoint.",
+        "description": "Updates the display name of an active telephony connection. Credentials are not rotated by this endpoint.",
         "tags": ["Telephony Connections"],
         "parameters": [
           {
@@ -1831,7 +1831,7 @@
       "delete": {
         "operationId": "disconnectTelephonyConnection",
         "summary": "Disconnect a telephony connection",
-        "description": "Disconnects an active partner-owned telephony connection and inactivates its phone numbers.",
+        "description": "Disconnects an active telephony connection and inactivates its phone numbers.",
         "tags": ["Telephony Connections"],
         "parameters": [
           {
@@ -1854,7 +1854,7 @@
       "get": {
         "operationId": "listVoiceLinkClients",
         "summary": "List VoiceLink clients",
-        "description": "Lists clients from the selected active VoiceLink connection. Pass `connection_id` when the partner has more than one active VoiceLink connection. The VoiceLink upstream response is returned in `data` without Vocobase-side deletion or ownership changes.",
+        "description": "Lists clients from the selected active VoiceLink connection. Pass `connection_id` when the account has more than one active VoiceLink connection. The VoiceLink upstream response is returned in `data` without Vocobase-side deletion or ownership changes.",
         "tags": ["VoiceLink Management"],
         "parameters": [
           {
@@ -2304,7 +2304,7 @@
       "post": {
         "operationId": "makeVoiceLinkDidCallReady",
         "summary": "Make a VoiceLink DID call-ready",
-        "description": "Runs the safe outbound call-ready workflow for a purchased VoiceLink DID: import the DID into Vocobase if missing, optionally map an unmapped DID to an explicitly supplied `client_id`, ensure an active VoiceLink WebSocket bot for the mapped client, and ensure outbound routing points to that bot. Existing inbound routing is preserved on routing updates. DID mapping happens only with an explicit `client_id` and only when the DID is currently unmapped — a DID mapped to a different client is never re-mapped, and clients are never auto-created. This endpoint does not purchase, renew, run KYC, or allocate wallet credit. Pass `connection_id` when the partner has more than one active VoiceLink connection.",
+        "description": "Runs the safe outbound call-ready workflow for a purchased VoiceLink DID: import the DID into Vocobase if missing, optionally map an unmapped DID to an explicitly supplied `client_id`, ensure an active VoiceLink WebSocket bot for the mapped client, and ensure outbound routing points to that bot. Existing inbound routing is preserved on routing updates. DID mapping happens only with an explicit `client_id` and only when the DID is currently unmapped — a DID mapped to a different client is never re-mapped, and clients are never auto-created. This endpoint does not purchase, renew, run KYC, or allocate wallet credit. Pass `connection_id` when the account has more than one active VoiceLink connection.",
         "tags": ["VoiceLink Management"],
         "requestBody": {
           "required": true,
@@ -2484,7 +2484,7 @@
       "get": {
         "operationId": "listVoiceLinkBots",
         "summary": "List VoiceLink WebSocket bots",
-        "description": "Lists WebSocket bots from the selected active VoiceLink connection. Pass `connection_id` when the partner has more than one active VoiceLink connection. Numeric filters are validated strictly: zero, negative, non-integer, or non-finite values are rejected with a 400 `VALIDATION_ERROR` naming the field.",
+        "description": "Lists WebSocket bots from the selected active VoiceLink connection. Pass `connection_id` when the account has more than one active VoiceLink connection. Numeric filters are validated strictly: zero, negative, non-integer, or non-finite values are rejected with a 400 `VALIDATION_ERROR` naming the field.",
         "tags": ["VoiceLink Management"],
         "parameters": [
           {
@@ -2658,7 +2658,7 @@
       "get": {
         "operationId": "listVoiceLinkCallRouting",
         "summary": "List VoiceLink call routing",
-        "description": "Lists DID call-routing records from the selected active VoiceLink connection. Pass `connection_id` when the partner has more than one active VoiceLink connection.",
+        "description": "Lists DID call-routing records from the selected active VoiceLink connection. Pass `connection_id` when the account has more than one active VoiceLink connection.",
         "tags": ["VoiceLink Management"],
         "parameters": [
           {
@@ -2795,7 +2795,7 @@
       "get": {
         "operationId": "listPhoneNumbers",
         "summary": "List imported phone numbers",
-        "description": "Lists the partner's imported DIDs. Use `provider` or `connection_id` to filter the response. The returned phone number `id` is used by `PUT /phone-numbers/{id}` for agent assignment.",
+        "description": "Lists the account's imported DIDs. Use `provider` or `connection_id` to filter the response. The returned phone number `id` is used by `PUT /phone-numbers/{id}` for agent assignment.",
         "tags": ["Phone Numbers"],
         "parameters": [
           {
@@ -3246,7 +3246,7 @@
       "get": {
         "operationId": "listInboundRoutePolicies",
         "summary": "List inbound routing policies",
-        "description": "Returns every inbound routing policy configured for the authenticated partner. Enabled policies resolve in priority order: PHONE_NUMBER, then AGENT, then PARTNER.",
+        "description": "Returns every inbound routing policy configured for the authenticated account. Enabled policies resolve in priority order: PHONE_NUMBER, then AGENT, then PARTNER.",
         "tags": ["Inbound Routing Policies"],
         "responses": {
           "200": {
@@ -3274,7 +3274,6 @@
                     "policies": [
                       {
                         "id": "clxj3rx7z000008l51s9vh3hf",
-                        "partner_config_id": "8f7c95c6-6f2e-4f8f-bd1a-a6c9d9f4e2e3",
                         "scope": "PHONE_NUMBER",
                         "phone_number_id": "f1a2c3d4-1111-2222-3333-444455556666",
                         "phone_number": {
@@ -3285,7 +3284,7 @@
                         "agent": null,
                         "name": "Inbound owner routing",
                         "enabled": true,
-                        "webhook_url": "https://partner.example.com/inbound-policy",
+                        "webhook_url": "https://app.example.com/inbound-policy",
                         "has_webhook_secret": true,
                         "timeout_ms": 2000,
                         "failure_action": "ANSWER_WITH_AI",
@@ -3306,7 +3305,7 @@
       "post": {
         "operationId": "createInboundRoutePolicy",
         "summary": "Create inbound routing policy",
-        "description": "Creates a webhook-backed policy for pre-answer inbound call routing. PHONE_NUMBER policies target one active inbound-enabled Vobiz or Plivo DID, AGENT policies target an active agent, and PARTNER policies apply as the partner default.",
+        "description": "Creates a webhook-backed policy for pre-answer inbound call routing. PHONE_NUMBER policies target one active inbound-enabled Vobiz or Plivo DID, AGENT policies target an active agent, and PARTNER policies apply as the account-wide default.",
         "tags": ["Inbound Routing Policies"],
         "requestBody": {
           "required": true,
@@ -3318,7 +3317,7 @@
                 "phone_number_id": "f1a2c3d4-1111-2222-3333-444455556666",
                 "name": "Inbound owner routing",
                 "enabled": true,
-                "webhook_url": "https://partner.example.com/webhooks/vocobase/inbound-route",
+                "webhook_url": "https://app.example.com/webhooks/vocobase/inbound-route",
                 "timeout_ms": 2000,
                 "failure_action": "ANSWER_WITH_AI",
                 "allowed_actions": ["ANSWER_WITH_AI", "SELECT_AGENT", "TRANSFER", "REJECT"]
@@ -3348,7 +3347,6 @@
                   "data": {
                     "policy": {
                       "id": "clxj3rx7z000008l51s9vh3hf",
-                      "partner_config_id": "8f7c95c6-6f2e-4f8f-bd1a-a6c9d9f4e2e3",
                       "scope": "PHONE_NUMBER",
                       "phone_number_id": "f1a2c3d4-1111-2222-3333-444455556666",
                       "phone_number": {
@@ -3359,7 +3357,7 @@
                       "agent": null,
                       "name": "Inbound owner routing",
                       "enabled": true,
-                      "webhook_url": "https://partner.example.com/webhooks/vocobase/inbound-route",
+                      "webhook_url": "https://app.example.com/webhooks/vocobase/inbound-route",
                       "has_webhook_secret": false,
                       "timeout_ms": 2000,
                       "failure_action": "ANSWER_WITH_AI",
@@ -3430,7 +3428,6 @@
                   "data": {
                     "policy": {
                       "id": "clxj3rx7z000008l51s9vh3hf",
-                      "partner_config_id": "8f7c95c6-6f2e-4f8f-bd1a-a6c9d9f4e2e3",
                       "scope": "PHONE_NUMBER",
                       "phone_number_id": "f1a2c3d4-1111-2222-3333-444455556666",
                       "phone_number": {
@@ -3441,7 +3438,7 @@
                       "agent": null,
                       "name": "Inbound owner routing",
                       "enabled": true,
-                      "webhook_url": "https://partner.example.com/webhooks/vocobase/inbound-route",
+                      "webhook_url": "https://app.example.com/webhooks/vocobase/inbound-route",
                       "has_webhook_secret": true,
                       "timeout_ms": 2000,
                       "failure_action": "ANSWER_WITH_AI",
@@ -3548,7 +3545,7 @@
       "get": {
         "operationId": "listInboundRouteDecisions",
         "summary": "List inbound routing decisions",
-        "description": "Returns newest-first decision logs for inbound routing policies, scoped to the authenticated partner. Use these rows to audit webhook status, latency, fallback reasons, transfers, rejections, and AI session creation.",
+        "description": "Returns newest-first decision logs for inbound routing policies, scoped to the authenticated account. Use these rows to audit webhook status, latency, fallback reasons, transfers, rejections, and AI session creation.",
         "tags": ["Inbound Routing Policies"],
         "parameters": [
           {
@@ -3658,7 +3655,7 @@
       "get": {
         "operationId": "listAgents",
         "summary": "List agents",
-        "description": "Returns a paginated list of the partner's agents, ordered by creation date (newest first). Deleted agents are excluded.",
+        "description": "Returns a paginated list of the account's agents, ordered by creation date (newest first). Deleted agents are excluded.",
         "tags": ["Agents"],
         "parameters": [
           {
@@ -3709,7 +3706,7 @@
       "post": {
         "operationId": "createAgent",
         "summary": "Create an agent",
-        "description": "Creates a new voice AI agent. The `voice_id` must be a voice ID from the voice catalog (see `GET /agent/voices`). Agent names must be unique per partner.",
+        "description": "Creates a new voice AI agent. The `voice_id` must be a voice ID from the voice catalog (see `GET /agent/voices`). Agent names must be unique per account.",
         "tags": ["Agents"],
         "requestBody": {
           "required": true,
@@ -4214,7 +4211,7 @@
       "get": {
         "operationId": "listBackgroundAudio",
         "summary": "List background audio assets",
-        "description": "Returns every background-audio asset visible to this partner — both platform-curated (`is_platform: true`) and the partner's own uploads. Each row includes a 15-minute presigned `preview_url` for in-browser playback.",
+        "description": "Returns every background-audio asset visible to this account — both platform-curated (`is_platform: true`) and the account's own uploads. Each row includes a 15-minute presigned `preview_url` for in-browser playback.",
         "tags": ["Background Audio"],
         "responses": {
           "200": {
@@ -4999,7 +4996,7 @@
       "get": {
         "operationId": "listDictionaries",
         "summary": "List dictionaries",
-        "description": "Returns every speech-recognition dictionary owned by the partner, ordered by creation date (newest first). The summary shape does not include the `terms` array -- fetch a single dictionary to see them.",
+        "description": "Returns every speech-recognition dictionary owned by the account, ordered by creation date (newest first). The summary shape does not include the `terms` array -- fetch a single dictionary to see them.",
         "tags": ["Dictionaries"],
         "responses": {
           "200": {
@@ -5031,7 +5028,7 @@
       "post": {
         "operationId": "createDictionary",
         "summary": "Create a dictionary",
-        "description": "Creates a new speech-recognition dictionary for the partner. Terms are normalized server-side: whitespace is trimmed, empty/whitespace-only entries are dropped, non-string entries are silently skipped, and the dedupe is case-insensitive but preserves first-occurrence casing. A blank `description` is stored as `null`. Dictionary names must be unique per partner.",
+        "description": "Creates a new speech-recognition dictionary for the account. Terms are normalized server-side: whitespace is trimmed, empty/whitespace-only entries are dropped, non-string entries are silently skipped, and the dedupe is case-insensitive but preserves first-occurrence casing. A blank `description` is stored as `null`. Dictionary names must be unique per account.",
         "tags": ["Dictionaries"],
         "requestBody": {
           "required": true,
@@ -5045,7 +5042,7 @@
                     "type": "string",
                     "minLength": 1,
                     "maxLength": 100,
-                    "description": "Unique dictionary name (per partner)."
+                    "description": "Unique dictionary name (per account)."
                   },
                   "description": {
                     "type": ["string", "null"],
@@ -5099,7 +5096,7 @@
           "400": { "$ref": "#/components/responses/ValidationError" },
           "401": { "$ref": "#/components/responses/Unauthorized" },
           "409": {
-            "description": "Dictionary name already taken by this partner.",
+            "description": "Dictionary name already taken by this account.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
@@ -5275,7 +5272,7 @@
             }
           },
           "409": {
-            "description": "Dictionary name already taken by this partner.",
+            "description": "Dictionary name already taken by this account.",
             "content": {
               "application/json": {
                 "schema": { "$ref": "#/components/schemas/ErrorResponse" },
@@ -5578,7 +5575,7 @@
       "put": {
         "operationId": "setAgentDictionaries",
         "summary": "Replace the agent's attached dictionaries",
-        "description": "Idempotent set-replace: overwrites the agent's entire dictionary set with `dictionary_ids`. Duplicate ids are deduped silently. Every id must exist and belong to the calling partner, else the whole request fails with `VALIDATION_ERROR`. The combined `char_count` across the resulting set must be at most 10,000 characters; otherwise the request fails with `DICTIONARY_CHAR_LIMIT_EXCEEDED`. Pass `[]` to detach all dictionaries. The swap is wrapped in a transaction -- the attached set is never briefly partial.",
+        "description": "Idempotent set-replace: overwrites the agent's entire dictionary set with `dictionary_ids`. Duplicate ids are deduped silently. Every id must exist and belong to the calling account, else the whole request fails with `VALIDATION_ERROR`. The combined `char_count` across the resulting set must be at most 10,000 characters; otherwise the request fails with `DICTIONARY_CHAR_LIMIT_EXCEEDED`. Pass `[]` to detach all dictionaries. The swap is wrapped in a transaction -- the attached set is never briefly partial.",
         "tags": ["Agents", "Dictionaries"],
         "parameters": [
           {
@@ -5693,7 +5690,7 @@
       "post": {
         "operationId": "startCall",
         "summary": "Start an outbound call",
-        "description": "Initiates an outbound phone call via MCube, Twilio, Exotel, Plivo, Vobiz, Tata Smartflo, SIP, or VoiceLink. Requires sufficient credits and available call concurrency; use `GET /calls/concurrency` to inspect current capacity before starting a call. The provider you pass must appear in the partner's `allowed_telephony_providers` list and its credentials must already be configured. For non-MCube providers, pass `connection_id` when the partner has multiple active connections for the same provider. Provider-only calls remain backward compatible when exactly one active connection exists for that provider. Pass `from_number` to choose the caller ID for this call: it must be an active phone number owned on the selected connection (it overrides the agent-bound or default number for Twilio, Plivo, Vobiz, Tata Smartflo, VoiceLink, and SIP; MCube and Exotel caller IDs are fixed, so a differing `from_number` returns 400). When omitted, the caller ID is the agent-bound number where supported, otherwise the connection default. The resolved caller ID is returned as `from_number` in the response. The call is placed asynchronously. Use `call.status.updated` webhooks or `GET /calls/{id}` to track live status, and use `session.completed` for final transcript, recording, billing, variables, and extraction data.",
+        "description": "Initiates an outbound phone call via MCube, Twilio, Exotel, Plivo, Vobiz, Tata Smartflo, SIP, or VoiceLink. Requires sufficient credits and available call concurrency; use `GET /calls/concurrency` to inspect current capacity before starting a call. The provider you pass must appear in the account's `allowed_telephony_providers` list and its credentials must already be configured. For non-MCube providers, pass `connection_id` when the account has multiple active connections for the same provider. Provider-only calls remain backward compatible when exactly one active connection exists for that provider. Pass `from_number` to choose the caller ID for this call: it must be an active phone number owned on the selected connection (it overrides the agent-bound or default number for Twilio, Plivo, Vobiz, Tata Smartflo, VoiceLink, and SIP; MCube and Exotel caller IDs are fixed, so a differing `from_number` returns 400). When omitted, the caller ID is the agent-bound number where supported, otherwise the connection default. The resolved caller ID is returned as `from_number` in the response. The call is placed asynchronously. Use `call.status.updated` webhooks or `GET /calls/{id}` to track live status, and use `session.completed` for final transcript, recording, billing, variables, and extraction data.",
         "tags": ["Calls"],
         "requestBody": {
           "required": true,
@@ -5717,7 +5714,7 @@
                     "type": "string",
                     "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "tata_smartflo", "sip", "voicelink"],
                     "default": "mcube",
-                    "description": "Telephony provider. Defaults to `mcube` if not specified. The provider must be in your partner's `allowed_telephony_providers` list and its credentials must be configured."
+                    "description": "Telephony provider. Defaults to `mcube` if not specified. The provider must be in your account's `allowed_telephony_providers` list and its credentials must be configured."
                   },
                   "connection_id": {
                     "type": "string",
@@ -5732,7 +5729,7 @@
                   "variables": {
                     "type": "object",
                     "additionalProperties": { "type": "string" },
-                    "description": "Pre-call variable values. Keys must match variable names declared on the agent (`Agent.variables`). Substituted into the agent's prompt and greeting via `{{name}}` placeholders. Echoed in the `session.completed` webhook for partner-side audit. Missing variables render as empty strings.",
+                    "description": "Pre-call variable values. Keys must match variable names declared on the agent (`Agent.variables`). Substituted into the agent's prompt and greeting via `{{name}}` placeholders. Echoed in the `session.completed` webhook for your own audit. Missing variables render as empty strings.",
                     "example": { "callee_name": "Sajal", "mobile_number": "+919876543210" }
                   }
                 }
@@ -5873,7 +5870,7 @@
       "get": {
         "operationId": "getCallConcurrency",
         "summary": "Get current call concurrency",
-        "description": "Returns the authenticated partner account's current phone-call capacity. The limit is resolved as: partner override (`maxConcurrentCalls > 0`) caps the account at that value; partner `maxConcurrentCalls = 0` means unlimited (no cap), in which case `limit` and `remaining` are `null` and `limit_source` is `partner_unlimited`. Active calls are counted from `pending`, `ringing`, and `in_progress` phone-call rows.",
+        "description": "Returns the authenticated account account's current phone-call capacity. The limit is resolved as: the account override (`maxConcurrentCalls > 0`) caps the account at that value; an account `maxConcurrentCalls = 0` means unlimited (no cap), in which case `limit` and `remaining` are `null` and `limit_source` is `partner_unlimited`. Active calls are counted from `pending`, `ringing`, and `in_progress` phone-call rows.",
         "tags": ["Calls"],
         "responses": {
           "200": {
@@ -5890,7 +5887,7 @@
                         "limit": {
                           "type": ["integer", "null"],
                           "minimum": 1,
-                          "description": "Resolved maximum concurrent phone calls. `null` when the partner has `maxConcurrentCalls = 0` (unlimited)."
+                          "description": "Resolved maximum concurrent phone calls. `null` when the account has `maxConcurrentCalls = 0` (unlimited)."
                         },
                         "limit_source": {
                           "type": "string",
@@ -5905,7 +5902,7 @@
                         "remaining": {
                           "type": ["integer", "null"],
                           "minimum": 0,
-                          "description": "Available slots before the account reaches capacity. `null` when the partner is unlimited."
+                          "description": "Available slots before the account reaches capacity. `null` when the account is unlimited."
                         },
                         "statuses_counted": {
                           "type": "array",
@@ -6143,7 +6140,7 @@
       "post": {
         "operationId": "runCallExtraction",
         "summary": "Run post-call extraction (Test Analysis / replay)",
-        "description": "Re-runs post-call extraction against an existing session's stored transcript using the agent's CURRENT `extraction_config`. Useful after editing the config to backfill old sessions, or to test a config against real conversation data.\n\n- `dry_run: true` — runs extraction, returns values, does NOT persist or re-fire the partner webhook\n- `dry_run: false` (default) — persists to the session's `extraction` field; partner webhook is **not** re-fired.\n\nReturns 400 when the agent has no `extraction_config` defined. Subject to the same partner rate-limit as `POST /calls/start`.",
+        "description": "Re-runs post-call extraction against an existing session's stored transcript using the agent's CURRENT `extraction_config`. Useful after editing the config to backfill old sessions, or to test a config against real conversation data.\n\n- `dry_run: true` — runs extraction, returns values, does NOT persist or re-fire the account webhook\n- `dry_run: false` (default) — persists to the session's `extraction` field; the webhook is **not** re-fired.\n\nReturns 400 when the agent has no `extraction_config` defined. Subject to the same account rate-limit as `POST /calls/start`.",
         "tags": ["Calls"],
         "parameters": [
           {
@@ -6217,7 +6214,7 @@
       "post": {
         "operationId": "dismissStaleCalls",
         "summary": "Dismiss stale calls",
-        "description": "Cancels all calls in `pending` or `ringing` status for the authenticated partner. Useful for cleaning up calls that did not connect.",
+        "description": "Cancels all calls in `pending` or `ringing` status for the authenticated account. Useful for cleaning up calls that did not connect.",
         "tags": ["Calls"],
         "responses": {
           "200": {
@@ -6324,7 +6321,7 @@
       "post": {
         "operationId": "startWebrtcSession",
         "summary": "Start a browser WebRTC session",
-        "description": "Creates a browser voice session and returns a room URL plus a one-time access token your browser uses to connect to the agent in real time.\n\nThe session is fully tracked on the platform — when the session ends, the same `session.completed` partner webhook fires (transcript, recording_url, extraction). The webhook payload's `call` field is omitted for these sessions because there is no associated phone call. See [Web Voice Testing](/web-voice-testing) for end-to-end browser integration code.\n\n**Auth + limits:** Bearer API key (`rg_live_*`). Bound by the API key's concurrency limit. Rate-limited to 10 starts/minute per key.",
+        "description": "Creates a browser voice session and returns a room URL plus a one-time access token your browser uses to connect to the agent in real time.\n\nThe session is fully tracked on the platform — when the session ends, the same `session.completed` webhook fires (transcript, recording_url, extraction). The webhook payload's `call` field is omitted for these sessions because there is no associated phone call. See [Web Voice Testing](/web-voice-testing) for end-to-end browser integration code.\n\n**Auth + limits:** Bearer API key (`rg_live_*`). Bound by the API key's concurrency limit. Rate-limited to 10 starts/minute per key.",
         "tags": ["Sessions"],
         "requestBody": {
           "required": true,
@@ -6342,7 +6339,7 @@
                   "variables": {
                     "type": "object",
                     "additionalProperties": { "type": "string" },
-                    "description": "Pre-call variable values. Keys must match variable names declared on the agent (`Agent.variables`). Substituted into the agent's prompt and greeting via `{{name}}` placeholders. Echoed in the `session.completed` webhook for partner-side audit. Missing variables render as empty strings.",
+                    "description": "Pre-call variable values. Keys must match variable names declared on the agent (`Agent.variables`). Substituted into the agent's prompt and greeting via `{{name}}` placeholders. Echoed in the `session.completed` webhook for your own audit. Missing variables render as empty strings.",
                     "example": { "callee_name": "Sajal" }
                   }
                 }
@@ -6430,7 +6427,7 @@
       "get": {
         "operationId": "getSession",
         "summary": "Get a session",
-        "description": "Returns the same fields delivered by the `session.completed` partner webhook (transcript, recording, extraction, variables, agent name, status, duration, credits). Polling fallback for partners that can't accept inbound webhooks. Mints a fresh presigned `recording_url` on every call (valid 7 days). Authorization is by `partner_config_id` — partners can only read sessions started via their own v2 endpoints (`/sessions/webrtc` or `/calls/start`).",
+        "description": "Returns the same fields delivered by the `session.completed` webhook (transcript, recording, extraction, variables, agent name, status, duration, credits). Polling fallback for accounts that can't accept inbound webhooks. Mints a fresh presigned `recording_url` on every call (valid 7 days). Authorization is by account — accounts can only read sessions started via their own v2 endpoints (`/sessions/webrtc` or `/calls/start`).",
         "tags": ["Sessions"],
         "parameters": [
           {
@@ -6546,7 +6543,7 @@
       "get": {
         "operationId": "listProjects",
         "summary": "List projects",
-        "description": "Returns all projects for the authenticated partner, including agent counts.",
+        "description": "Returns all projects for the authenticated account, including agent counts.",
         "tags": ["Projects"],
         "responses": {
           "200": {
@@ -6580,7 +6577,7 @@
       "post": {
         "operationId": "createProject",
         "summary": "Create project",
-        "description": "Creates a new project. Project names must be unique per partner.",
+        "description": "Creates a new project. Project names must be unique per account.",
         "tags": ["Projects"],
         "requestBody": {
           "required": true,
@@ -6590,7 +6587,7 @@
                 "type": "object",
                 "required": ["name"],
                 "properties": {
-                  "name": { "type": "string", "maxLength": 100, "description": "Project name (unique per partner)." },
+                  "name": { "type": "string", "maxLength": 100, "description": "Project name (unique per account)." },
                   "description": { "type": "string", "maxLength": 500, "description": "Optional project description." }
                 }
               },
@@ -6760,7 +6757,7 @@
         "type": "object",
         "properties": {
           "id": { "type": "string", "description": "Unique project ID." },
-          "name": { "type": "string", "description": "Project name (unique per partner)." },
+          "name": { "type": "string", "description": "Project name (unique per account)." },
           "description": { "type": "string", "nullable": true, "description": "Optional project description." },
           "is_default": { "type": "boolean", "description": "Whether this is the default project. Cannot be deleted." },
           "agent_count": { "type": "integer", "description": "Number of agents in this project." },
@@ -6780,11 +6777,11 @@
           "whatsapp.message.status_updated"
         ]
       },
-      "PartnerWebhookEndpoint": {
+      "WebhookEndpoint": {
         "type": "object",
         "properties": {
           "id": { "type": "string", "format": "uuid", "description": "Webhook endpoint ID." },
-          "label": { "type": "string", "description": "Partner-chosen endpoint label. Unique per account, not per scope." },
+          "label": { "type": "string", "description": "Your chosen endpoint label. Unique per account, not per scope." },
           "url": { "type": "string", "format": "uri", "description": "HTTPS endpoint URL." },
           "enabled": { "type": "boolean", "description": "Whether this endpoint receives new webhook events." },
           "agent_id": {
@@ -6832,7 +6829,7 @@
       },
       "CallStatusUpdatedWebhook": {
         "type": "object",
-        "description": "Outbound webhook sent when a telephony call moves to a new normalized call status. Use this event for live partner queue orchestration and concurrency release.",
+        "description": "Outbound webhook sent when a telephony call moves to a new normalized call status. Use this event for live queue orchestration and concurrency release.",
         "required": ["event", "timestamp", "data"],
         "properties": {
           "event": { "type": "string", "const": "call.status.updated" },
@@ -6847,7 +6844,7 @@
               "agent_name": { "type": ["string", "null"] },
               "client_reference_id": {
                 "type": ["string", "null"],
-                "description": "Partner-supplied correlation key from `POST /calls/start`, when provided."
+                "description": "Client-supplied correlation key from `POST /calls/start`, when provided."
               },
               "direction": { "type": ["string", "null"], "enum": ["outbound", "inbound", null] },
               "from_number": { "type": ["string", "null"] },
@@ -6886,7 +6883,7 @@
               },
               "concurrency_released": {
                 "type": "boolean",
-                "description": "`true` when partners can start the next call in their own dialer queue."
+                "description": "`true` when accounts can start the next call in their own dialer queue."
               },
               "account_concurrency": {
                 "oneOf": [
@@ -6946,7 +6943,6 @@
             "format": "uuid",
             "description": "Policy target when scope is PHONE_NUMBER. Null for AGENT and PARTNER policies."
           },
-          "partner_config_id": { "type": "string", "format": "uuid" },
           "agent_id": {
             "type": ["string", "null"],
             "format": "uuid",
@@ -7004,18 +7000,18 @@
           "phone_number_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Required when scope is PHONE_NUMBER. Must reference an active inbound-enabled Vobiz or Plivo DID owned by the partner."
+            "description": "Required when scope is PHONE_NUMBER. Must reference an active inbound-enabled Vobiz or Plivo DID owned by the account."
           },
           "agent_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Required when scope is AGENT. Must reference an active agent owned by the partner."
+            "description": "Required when scope is AGENT. Must reference an active agent owned by the account."
           },
           "name": {
             "type": "string",
             "minLength": 1,
             "maxLength": 200,
-            "description": "Policy label used in partner admin tooling."
+            "description": "Policy label used in admin tooling."
           },
           "enabled": {
             "type": "boolean",
@@ -7072,7 +7068,7 @@
             "type": "string",
             "minLength": 1,
             "maxLength": 200,
-            "description": "Policy label used in partner admin tooling."
+            "description": "Policy label used in admin tooling."
           },
           "enabled": {
             "type": "boolean",
@@ -7157,7 +7153,7 @@
       },
       "InboundRouteWebhookPayload": {
         "type": "object",
-        "required": ["event", "version", "provider", "call", "phone_number", "agent", "partner"],
+        "required": ["event", "version", "provider", "call", "phone_number", "agent"],
         "properties": {
           "event": { "type": "string", "const": "inbound.route" },
           "version": { "type": "string", "const": "2026-07-04" },
@@ -7182,18 +7178,12 @@
             "properties": {
               "id": { "type": ["string", "null"], "format": "uuid" }
             }
-          },
-          "partner": {
-            "type": "object",
-            "properties": {
-              "id": { "type": "string", "format": "uuid" }
-            }
           }
         }
       },
       "InboundRouteWebhookDecision": {
         "type": "object",
-        "description": "Expected webhook decision payload from partners.",
+        "description": "Expected webhook decision payload from your webhook.",
         "required": ["action"],
         "properties": {
           "action": { "$ref": "#/components/schemas/InboundRouteAction" },
@@ -7273,28 +7263,28 @@
           }
         }
       },
-      "PartnerConfig": {
+      "AccountConfig": {
         "type": "object",
         "properties": {
-          "name": { "type": "string", "description": "Internal partner name (slug)." },
+          "name": { "type": "string", "description": "Internal account name (slug)." },
           "display_name": { "type": "string", "description": "Human-readable display name." },
           "agent_limit": { "type": "integer", "description": "Maximum number of agents allowed." },
           "current_agent_count": { "type": "integer", "description": "Current number of active agents." },
           "allowed_voices": {
             "type": "array",
             "items": { "type": "string" },
-            "description": "Voice IDs available to this partner."
+            "description": "Voice IDs available to this account."
           },
           "allowed_languages": {
             "type": "array",
             "items": { "type": "string" },
-            "description": "Language codes available to this partner."
+            "description": "Language codes available to this account."
           },
           "status": { "type": "string", "enum": ["active", "suspended"] },
           "allowed_telephony_providers": {
             "type": "array",
             "items": { "type": "string", "enum": ["mcube", "twilio", "exotel", "plivo", "vobiz", "tata_smartflo", "sip", "voicelink"] },
-            "description": "Providers this partner is allowed to use when starting calls. Managed by Vocobase platform admins."
+            "description": "Providers this account is allowed to use when starting calls. Managed by Vocobase platform admins."
           },
           "webhook": {
             "type": "object",
@@ -7306,7 +7296,7 @@
           },
           "webhooks": {
             "type": "array",
-            "items": { "$ref": "#/components/schemas/PartnerWebhookEndpoint" },
+            "items": { "$ref": "#/components/schemas/WebhookEndpoint" },
             "description": "Configured webhook endpoints. Endpoint secrets are never returned by config reads."
           },
           "telephony": {
@@ -7327,7 +7317,7 @@
                   "exe_number": { "type": ["string", "null"] },
                   "source": {
                     "type": ["string", "null"],
-                    "enum": ["connection", "legacy_partner_config", null],
+                    "enum": ["connection", null],
                     "description": "Where the active MCube credentials come from. New integrations should use telephony connections."
                   }
                 }
@@ -7462,7 +7452,7 @@
           "background_audio_id": {
             "type": ["string", "null"],
             "format": "uuid",
-            "description": "Reference to a `BackgroundAudio` asset (from `GET /agent/background-audio`) that the bot mixes under its TTS for the duration of the call. `null` (default) means no background audio. The asset must be visible to the partner — either a platform-curated asset (`is_platform: true`) or one the partner uploaded."
+            "description": "Reference to a `BackgroundAudio` asset (from `GET /agent/background-audio`) that the bot mixes under its TTS for the duration of the call. `null` (default) means no background audio. The asset must be visible to the account — either a platform-curated asset (`is_platform: true`) or one the account uploaded."
           },
           "background_audio_volume": {
             "type": ["number", "null"],
@@ -7478,13 +7468,13 @@
       },
       "BackgroundAudioOption": {
         "type": "object",
-        "description": "A background-audio asset visible to the partner — either platform-curated (`is_platform: true`) or one the partner uploaded (`owner_user_id` matches their account).",
+        "description": "A background-audio asset visible to the account — either platform-curated (`is_platform: true`) or one the account uploaded (`owner_user_id` matches their account).",
         "properties": {
           "id": { "type": "string", "format": "uuid" },
           "slug": { "type": "string", "description": "Stable identifier; unique across all assets." },
           "label": { "type": "string", "description": "Display name." },
           "is_platform": { "type": "boolean" },
-          "owner_user_id": { "type": ["string", "null"], "format": "uuid", "description": "Null for platform assets; partner user id otherwise." },
+          "owner_user_id": { "type": ["string", "null"], "format": "uuid", "description": "Null for platform assets; the owning user id otherwise." },
           "size_bytes": { "type": "integer" },
           "duration_secs": { "type": "number", "description": "Detected from WAV header at upload time." },
           "sample_rate": { "type": "integer" },
@@ -8765,7 +8755,7 @@
         }
       },
       "Forbidden": {
-        "description": "The API key is valid, but the partner is not allowed to perform this action.",
+        "description": "The API key is valid, but the account is not allowed to perform this action.",
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/ErrorResponse" },
@@ -8801,7 +8791,7 @@
         }
       },
       "RateLimitExceeded": {
-        "description": "Per-partner rate limit exceeded. Retry after a short backoff.",
+        "description": "Per-account rate limit exceeded. Retry after a short backoff.",
         "content": {
           "application/json": {
             "schema": { "$ref": "#/components/schemas/ErrorResponse" },

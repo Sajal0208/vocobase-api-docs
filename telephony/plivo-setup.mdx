@@ -8,17 +8,17 @@ description: "Configure Plivo for outbound calling with the Vocobase API"
 This guide walks you through connecting your Plivo account to Vocobase for outbound calling.
 
 <Note>
-  Configure Plivo with the Partner API (`PUT /api/v2/config/telephony/plivo`) for the default connection. To create multiple named Plivo connections, use `POST /api/v2/telephony/connections`. Once Plivo is configured, start calls programmatically using `POST /calls/start` with `"provider": "plivo"`.
+  Configure Plivo with the V2 API (`PUT /api/v2/config/telephony/plivo`) for the default connection. To create multiple named Plivo connections, use `POST /api/v2/telephony/connections`. Once Plivo is configured, start calls programmatically using `POST /calls/start` with `"provider": "plivo"`.
 </Note>
 
 ## Prerequisites
 
 - A [Plivo account](https://www.plivo.com/) with a verified Auth ID and Auth Token
 - At least one Plivo phone number with **Voice** enabled
-- An approved Vocobase partner account with `"plivo"` present in `allowed_telephony_providers` (check `GET /config`)
+- An approved Vocobase account with `"plivo"` present in `allowed_telephony_providers` (check `GET /config`)
 
 <Tip>
-  If `"plivo"` is not yet listed in your partner config's `allowed_telephony_providers`, contact your Vocobase account manager to enable it.
+  If `"plivo"` is not yet listed in your account config's `allowed_telephony_providers`, contact your Vocobase account manager to enable it.
 </Tip>
 
 ## Step 1: Get your Plivo credentials
@@ -48,7 +48,7 @@ This guide walks you through connecting your Plivo account to Vocobase for outbo
 
 ## Step 2: Configure Plivo in Vocobase
 
-Send the credentials through the Partner API.
+Send the credentials through the V2 API.
 
 <Note>
   This endpoint updates your default Plivo connection. To create multiple named Plivo connections, use `POST /api/v2/telephony/connections` and store the returned `connection_id`.
@@ -122,9 +122,9 @@ A successful response confirms credentials were stored:
   Your Auth Token is encrypted at rest and never returned in API responses. The Auth ID is masked.
 </Tip>
 
-## Step 3: Confirm the partner sees Plivo as configured
+## Step 3: Confirm the account sees Plivo as configured
 
-Fetch your partner configuration — the response should now include Plivo in `allowed_telephony_providers`:
+Fetch your account configuration — the response should now include Plivo in `allowed_telephony_providers`:
 
 <CodeGroup>
 ```bash cURL
@@ -154,7 +154,7 @@ curl -X GET https://api.vocobase.com/api/v2/config \
 
 ## Step 4: Make a test call
 
-Start an outbound call with `"provider": "plivo"`. If your partner account has multiple active Plivo connections, include `connection_id`.
+Start an outbound call with `"provider": "plivo"`. If your account has multiple active Plivo connections, include `connection_id`.
 
 <CodeGroup>
 ```bash cURL
@@ -226,7 +226,7 @@ print(response.json())
 }
 ```
 
-Vocobase manages the carrier connection and media path for Plivo. Partners only need to configure credentials and pass `"provider": "plivo"` when starting calls. Passing only `"provider": "plivo"` remains valid while there is exactly one active Plivo connection.
+Vocobase manages the carrier connection and media path for Plivo. Accounts only need to configure credentials and pass `"provider": "plivo"` when starting calls. Passing only `"provider": "plivo"` remains valid while there is exactly one active Plivo connection.
 
 ## Optional: voicemail detection
 

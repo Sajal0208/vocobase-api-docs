@@ -2,7 +2,7 @@
   "$schema": "https://mintlify.com/docs.json",
   "theme": "maple",
   "name": "Vocobase API",
-  "description": "Voice AI Agent Platform — Partner API Documentation",
+  "description": "Voice AI Agent Platform — API Documentation",
   "colors": {
     "primary": "#6366f1",
     "light": "#818cf8",
@@ -20,16 +20,35 @@
     "groups": [
       {
         "group": "Getting Started",
-        "pages": ["index", "quickstart", "authentication", "projects"]
+        "pages": [
+          "index",
+          "quickstart",
+          "authentication",
+          "projects"
+        ]
       },
       {
         "group": "Guides",
-        "pages": ["web-voice-testing", "custom-functions", "dictionaries", "pre-call-variables", "post-call-extraction", "knowledge-base", "credits", "inbound-calls", "inbound-routing-policies", "call-transfer", "voicemail-and-screener-detection", "call-duration-and-background-audio", "b2b2b-customers"]
+        "pages": [
+          "web-voice-testing",
+          "custom-functions",
+          "dictionaries",
+          "pre-call-variables",
+          "post-call-extraction",
+          "knowledge-base",
+          "credits",
+          "inbound-calls",
+          "inbound-routing-policies",
+          "call-transfer",
+          "voicemail-and-screener-detection",
+          "call-duration-and-background-audio",
+          "b2b2b-customers"
+        ]
       },
       {
-        "group": "Partner Onboarding",
+        "group": "Onboarding",
         "pages": [
-          "onboarding/becoming-a-partner",
+          "onboarding/getting-api-access",
           "onboarding/configuring-your-account"
         ]
       },
@@ -39,11 +58,28 @@
       },
       {
         "group": "Webhooks",
-        "pages": ["webhooks/setup", "webhooks/scoping", "webhooks/payloads", "webhooks/error-handling"]
+        "pages": [
+          "webhooks/setup",
+          "webhooks/scoping",
+          "webhooks/payloads",
+          "webhooks/error-handling"
+        ]
       },
       {
         "group": "Telephony",
-        "pages": ["telephony/byop-setup", "telephony/connections", "telephony/twilio-setup", "telephony/mcube-setup", "telephony/exotel-setup", "telephony/plivo-setup", "telephony/vobiz-setup", "telephony/tata-smartflo-setup", "telephony/sip-setup", "telephony/voicelink-setup", "telephony/voicelink-management"]
+        "pages": [
+          "telephony/byop-setup",
+          "telephony/connections",
+          "telephony/twilio-setup",
+          "telephony/mcube-setup",
+          "telephony/exotel-setup",
+          "telephony/plivo-setup",
+          "telephony/vobiz-setup",
+          "telephony/tata-smartflo-setup",
+          "telephony/sip-setup",
+          "telephony/voicelink-setup",
+          "telephony/voicelink-management"
+        ]
       }
     ]
   },
@@ -51,5 +87,11 @@
     "socials": {
       "github": "https://github.com/vocobase"
     }
-  }
+  },
+  "redirects": [
+    {
+      "source": "/onboarding/becoming-a-partner",
+      "destination": "/onboarding/getting-api-access"
+    }
+  ]
 }

@@ -150,7 +150,7 @@ When a transfer happens:
 2. Vocobase transfers the caller to `transfer_number`.
 3. The `session.completed` webhook includes `data.call.transferred: true`.
 
-The `session.completed` partner webhook fires when the agent-handled portion ends. Distinguish a transferred call from a normal hangup via `data.call.transferred` on the webhook payload — see [`session.completed` payload](/webhooks/payloads#transferred-calls).
+The `session.completed` webhook fires when the agent-handled portion ends. Distinguish a transferred call from a normal hangup via `data.call.transferred` on the webhook payload — see [`session.completed` payload](/webhooks/payloads#transferred-calls).
 
 `duration_seconds` reflects only the bot leg. `recording_url`, when present, is the bot-leg recording — the human side is not recorded.
 

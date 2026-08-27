@@ -26,7 +26,7 @@ These APIs cover operational setup only:
 
 ## Connection selection
 
-All endpoints use the authenticated partner's active VoiceLink connection. If the partner has more than one active VoiceLink connection, pass `connection_id` so the backend can choose deterministically.
+All endpoints use the authenticated account's active VoiceLink connection. If the account has more than one active VoiceLink connection, pass `connection_id` so the backend can choose deterministically.
 
 For `GET` endpoints, pass it in the query string:
 
