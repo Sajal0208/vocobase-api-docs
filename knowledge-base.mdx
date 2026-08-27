@@ -244,152 +244,27 @@ After linking a document to an agent, it goes through a sync process. You can ch
 
 ---
 
-## List and manage documents
+## Manage documents
 
-### List all documents
+Documents are ordinary CRUD resources. Full request and response schemas live in the
+[API Reference](/api-reference).
 
-```bash
-curl -X GET "https://api.vocobase.com/api/v2/documents?limit=10&offset=0" \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
-```
-
-```json
-{
-  "success": true,
-  "data": {
-    "documents": [
-      {
-        "id": "d1234567-abcd-1234-abcd-123456789012",
-        "name": "Product FAQ.pdf",
-        "type": "file",
-        "status": "ready",
-        "agent_count": 2,
-        "created_at": "2026-03-15T10:30:00.000Z"
-      },
-      {
-        "id": "d2345678-abcd-1234-abcd-123456789012",
-        "name": "Company Blog",
-        "type": "web_link",
-        "status": "ready",
-        "agent_count": 1,
-        "created_at": "2026-03-15T10:35:00.000Z"
-      }
-    ],
-    "total": 2,
-    "limit": 10,
-    "offset": 0
-  }
-}
-```
-
-### Get a single document
-
-Fetching a single document also returns a download URL (for files) and the list of linked agents with their sync statuses:
-
-```bash
-curl -X GET https://api.vocobase.com/api/v2/documents/d1234567-abcd-1234-abcd-123456789012 \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
-```
-
-```json
-{
-  "success": true,
-  "data": {
-    "id": "d1234567-abcd-1234-abcd-123456789012",
-    "name": "Product FAQ.pdf",
-    "type": "file",
-    "status": "ready",
-    "download_url": "https://downloads.example.com/path?signature=...",
-    "agents": [
-      { "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890", "name": "Sales Assistant", "sync_status": "synced" },
-      { "id": "b2c3d4e5-f6a7-8901-bcde-f12345678901", "name": "Support Bot", "sync_status": "pending" }
-    ]
-  }
-}
-```
-
-### List an agent's linked documents
-
-```bash
-curl -X GET https://api.vocobase.com/api/v2/agent/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
-```
-
-### Update a document
-
-You can rename a document or update its description:
-
-```bash
-curl -X PUT https://api.vocobase.com/api/v2/documents/d1234567-abcd-1234-abcd-123456789012 \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "name": "Product FAQ v2.pdf",
-    "description": "Updated product FAQ for Q1 2026"
-  }'
-```
-
----
-
-## Unlink and delete documents
-
-### Unlink a document from an agent
-
-Unlinking removes the document from the agent's knowledge base but does not delete the document itself. You can re-link it later.
-
-```bash
-curl -X DELETE https://api.vocobase.com/api/v2/agent/a1b2c3d4-e5f6-7890-abcd-ef1234567890/documents/d1234567-abcd-1234-abcd-123456789012 \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
-```
-
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Document unlinked from agent"
-  }
-}
-```
-
-### Delete a document permanently
-
-Deleting a document removes the stored file if applicable, unlinks it from all agents, and deletes the record. This action is irreversible.
-
-```bash
-curl -X DELETE https://api.vocobase.com/api/v2/documents/d1234567-abcd-1234-abcd-123456789012 \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
-```
-
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Document deleted successfully"
-  }
-}
-```
+| Do this | Endpoint |
+|---|---|
+| List your documents | `GET /documents` |
+| Get one, with a download URL and its linked agents | `GET /documents/{id}` |
+| Rename or re-describe | `PUT /documents/{id}` |
+| List an agent's linked documents | `GET /agent/{id}/documents` |
+| Check indexing progress per document | `GET /agent/{id}/documents/sync-status` |
+| Unlink from one agent (document is kept) | `DELETE /agent/{agentId}/documents/{documentId}` |
+| Delete permanently, everywhere | `DELETE /documents/{id}` |
 
 <Warning>
-  Deleting a document permanently removes it from all agents' knowledge bases. This action cannot be undone.
+  `DELETE /documents/{id}` unlinks the document from every agent and removes the stored
+  file. It cannot be undone. To take a document off a single agent, unlink it instead.
 </Warning>
 
 ---
-
-## API reference
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/documents/upload` | Get a presigned upload URL |
-| `POST` | `/documents/{id}/confirm` | Confirm file upload |
-| `POST` | `/documents/web-link` | Add a web link document |
-| `POST` | `/documents/paragraph` | Add a paragraph (text) document |
-| `GET` | `/documents` | List all documents |
-| `GET` | `/documents/{id}` | Get document with download URL |
-| `PUT` | `/documents/{id}` | Update name/description |
-| `DELETE` | `/documents/{id}` | Delete permanently |
-| `GET` | `/agent/{id}/documents` | List agent's linked documents |
-| `POST` | `/agent/{id}/documents` | Link documents to agent |
-| `DELETE` | `/agent/{agentId}/documents/{documentId}` | Unlink from agent |
 
 ## Next steps
 
