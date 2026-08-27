@@ -8,7 +8,7 @@ description: "Template per-call data into your agent's prompt and greeting with 
 Pre-call variables let you template the agent's prompt and greeting with per-call data. You declare a list of variable *names* on the agent (`callee_name`, `mobile_number`), supply per-call *values* via the API or sandbox, and the platform substitutes `{{name}}` references in `Agent.prompt` + `Agent.greeting` before the bot starts.
 
 <Info>
-  **Partner API (v2) only** for the endpoints below.
+  **V2 API (v2) only** for the endpoints below.
 </Info>
 
 ## 1. Declare the variable names on the agent
@@ -62,7 +62,7 @@ Content-Type: application/json
 
 ## 4. Echoed in the webhook
 
-The `session.completed` webhook echoes the same `variables` map for partner-side audit. See [Webhook Payloads](/webhooks/payloads) for the full payload shape.
+The `session.completed` webhook echoes the same `variables` map for your own audit. See [Webhook Payloads](/webhooks/payloads) for the full payload shape.
 
 ## Behavior
 

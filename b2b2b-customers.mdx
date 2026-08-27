@@ -5,10 +5,10 @@ description: "Give each of your downstream customers their own isolated OAuth an
 
 # B2B2B — Customer-Scoped Tool Connections
 
-If you are a partner with downstream customers of your own, every customer needs to authorize tools (Google Sheets, Slack, Shopify, Cal.com, Zendesk, LeadSquared, etc.) **with their own credentials, isolated from each other**. The Vocobase B2B2B API gives each of your customers their own identity (`PartnerCustomer`) and their own connections, while you remain the single billing and integration boundary with us.
+If you resell Vocobase to downstream customers of your own, every customer needs to authorize tools (Google Sheets, Slack, Shopify, Cal.com, Zendesk, LeadSquared, etc.) **with their own credentials, isolated from each other**. The Vocobase B2B2B API gives each of your customers their own identity (`Customer`) and their own connections, while you remain the single billing and integration boundary with us.
 
 <Info>
-  **Mental model.** Vocobase ↔ you (the partner) ↔ your customers. You authenticate to Vocobase with your `rg_live_…` API key. Your customers never log in to Vocobase. They authorize tools through one-time hosted URLs that you mint and hand off to them.
+  **Mental model.** Vocobase ↔ you ↔ your customers. You authenticate to Vocobase with your `rg_live_…` API key. Your customers never log in to Vocobase. They authorize tools through one-time hosted URLs that you mint and hand off to them.
 </Info>
 
 ## When you need this
@@ -17,7 +17,7 @@ If you are a partner with downstream customers of your own, every customer needs
 - Each customer has their own Google Sheets / Slack / LSQ / Calendly / Shopify account and they should not share tokens with you or with each other.
 - You want to bind agents to a specific customer's connection at runtime.
 
-If you are a single-team partner using your own tool credentials, **you do not need this surface** — connect tools directly under your account from the dashboard at `/dashboard/settings/integrations`.
+If you are a single team using your own tool credentials, **you do not need this surface** — connect tools directly under your account from the dashboard at `/dashboard/settings/integrations`.
 
 ---
 
@@ -25,17 +25,17 @@ If you are a single-team partner using your own tool credentials, **you do not n
 
 | Term | What it is |
 |------|-----------|
-| **Partner** | You. Holds the `rg_live_…` API key, billing relationship, agent quota. |
-| **Partner Customer** | One of your downstream customers. Has a stable `external_id` you choose. |
+| **Account** | You. Holds the `rg_live_…` API key, billing relationship, agent quota. |
+| **Customer** | One of your downstream customers. Has a stable `external_id` you choose. |
 | **Connector** | A tool definition on the Vocobase platform (Google Sheets, Slack, Cal.com, etc.). Admin curates which connectors your account can use. |
-| **Connection** | A specific authorization of a connector for a specific owner. Owners are mutually exclusive — either you (the partner user) OR a single PartnerCustomer. |
-| **Connect link** | A one-time URL you mint and hand to a customer. They open it, complete OAuth (or paste an API key), and tokens land against the PartnerCustomer. |
+| **Connection** | A specific authorization of a connector for a specific owner. Owners are mutually exclusive — either you (the account) OR a single Customer. |
+| **Connect link** | A one-time URL you mint and hand to a customer. They open it, complete OAuth (or paste an API key), and tokens land against the Customer. |
 
 ---
 
 ## Discover available connectors
 
-Before you can offer connectors to your customers, list the catalog your account has access to. Admin controls visibility per partner — if a connector you expect is missing, ask the Vocobase team to grant it.
+Before you can offer connectors to your customers, list the catalog your account has access to. Admin controls visibility per account — if a connector you expect is missing, ask the Vocobase team to grant it.
 
 <CodeGroup>
 ```bash cURL
@@ -93,14 +93,14 @@ connectors = response.json()["data"]["connectors"]
 `GET /api/v2/connectors/:slug` returns a single connector by slug — useful when you already know which one you want.
 
 <Note>
-  Only `ACTIVE` connectors are returned. The dashboard may show `COMING_SOON` previews for partners; the API filters those out because they have no working programmatic OAuth path.
+  Only `ACTIVE` connectors are returned. The dashboard may show `COMING_SOON` previews; the API filters those out because they have no working programmatic OAuth path.
 </Note>
 
 ---
 
 ## Create a customer
 
-Customers are identified by a stable `external_id` of your choice — your own primary key for that downstream account. Re-creating with the same `(partner, external_id)` pair is **idempotent**, so a sync that runs on every deploy is safe.
+Customers are identified by a stable `external_id` of your choice — your own primary key for that downstream account. Re-creating with the same `(account, external_id)` pair is **idempotent**, so a sync that runs on every deploy is safe.
 
 <CodeGroup>
 ```bash cURL
@@ -212,7 +212,7 @@ This is the core handoff for OAuth-style connectors (Google Sheets, Slack, Shopi
      │                                        │   Cal.com/Calendly/Zendesk)      │
      │                                        │                                  │
      │                                        │ Customer authorizes              │
-     │                                        │ Tokens land against PartnerCustomer
+     │                                        │ Tokens land against the Customer
      │                                        │                                  │
      │                                        │ Redirects to your `redirect_uri` │
      │                                        │   ?status=ok&tool=…              │
@@ -229,7 +229,7 @@ curl -X POST "https://api.vocobase.com/api/v2/customers/pc_01h.../connect-link" 
   -H "Content-Type: application/json" \
   -d '{
     "tool_slug": "google_sheets",
-    "redirect_uri": "https://app.partner.example/integrations/return",
+    "redirect_uri": "https://app.example.com/integrations/return",
     "expires_in_seconds": 1800
   }'
 ```
@@ -245,7 +245,7 @@ const response = await fetch(
     },
     body: JSON.stringify({
       tool_slug: "google_sheets",
-      redirect_uri: "https://app.partner.example/integrations/return",
+      redirect_uri: "https://app.example.com/integrations/return",
     }),
   }
 );
@@ -262,7 +262,7 @@ response = requests.post(
     },
     json={
         "tool_slug": "google_sheets",
-        "redirect_uri": "https://app.partner.example/integrations/return",
+        "redirect_uri": "https://app.example.com/integrations/return",
     },
 )
 url = response.json()["data"]["url"]
@@ -286,7 +286,7 @@ The `redirect_uri` is where the customer's browser lands after authorization. St
 - Must be `https://`
 - Must NOT contain `@`, fragment (`#…`), or userinfo
 - Must use the default port (443)
-- Host must EXACT-match an entry in your `allowed_redirect_hosts`. If unset, falls back to the host of your `webhook_url`. Ask Vocobase to register additional hosts on your `PartnerConfig`.
+- Host must EXACT-match an entry in your `allowed_redirect_hosts`. If unset, falls back to the host of your `webhook_url`. Ask Vocobase to register additional hosts on your account.
 
 A `redirect_uri` that fails validation returns `400 INVALID_REDIRECT_URI` with a `message` explaining which rule was violated.
 
@@ -463,7 +463,7 @@ Returns every connection (yours + your customers') that this agent can be bound 
         "id": "uc_02g…",
         "toolSlug": "google_sheets",
         "toolName": "Google Sheets",
-        "owner": { "kind": "user", "userId": "u_partner" }
+        "owner": { "kind": "user", "userId": "u_acct" }
       }
     ]
   }
@@ -522,7 +522,7 @@ All endpoints return the standard envelope:
 | 400 | `INVALID_REDIRECT_URI` / sub-codes | `redirect_uri` failed allowlist / scheme / port / fragment / userinfo check. |
 | 400 | `TOOL_NOT_API_KEY` | Direct API-key submit called for an OAuth-only tool. |
 | 400 | `INVALID_API_KEY` / `INVALID_API_TOKEN` / `INVALID_SUBDOMAIN` | Credential field validation. |
-| 404 | `NOT_FOUND` | Customer or connector doesn't exist or doesn't belong to your partner. |
+| 404 | `NOT_FOUND` | Customer or connector doesn't exist or doesn't belong to your account. |
 | 404 | `CONNECTION_NOT_FOUND` | Connection id doesn't match the customer in path. |
 | 409 | `CUSTOMER_NOT_ACTIVE` | Customer is archived; cannot accept new connections. |
 | 500 | `INTERNAL_ERROR` | Unexpected. Retry idempotent operations. |
@@ -537,13 +537,20 @@ All endpoints return the standard envelope:
 | `name` length | 1–200 chars |
 | `email` length | up to 254 chars |
 | Connect-link TTL | default 1800s (30 min), max 86400s (24h), min 60s |
-| Redirect host allowlist | configured per partner — ask Vocobase to add hosts |
+| Redirect host allowlist | configured per account — ask Vocobase to add hosts |
 
 ---
 
 ## What's not in scope
 
-- **Per-customer billing.** ₹ is billed to your partner account, not to individual customers. (Track per-customer usage from session metadata or session listing.)
+<Note>
+  Two wire names keep a legacy `partnerCustomer` prefix — the owner discriminator
+  `"kind": "partnerCustomer"` and the `partnerCustomerId` field. They are
+  unchanged and still correct; only the wording in these docs moved to
+  "customer". Do not rename them in your integration.
+</Note>
+
+- **Per-customer billing.** ₹ is billed to your account, not to individual customers. (Track per-customer usage from session metadata or session listing.)
 - **Sub-tenant logins.** Customers don't log in to Vocobase. They authorize via connect-links you mint.
 - **Per-customer agents.** Agents are owned by you; you bind them to specific customer connections at runtime via `connection_id`.
-- **Per-customer webhook routing.** Your single `webhook_url` receives events for all customers; the payload's `partner_customer_id` distinguishes them.
+- **Per-customer webhook routing.** Your single `webhook_url` receives events for all customers, and the payload carries no customer identifier. Attribute them the same way as billing — via session metadata or the session listing.

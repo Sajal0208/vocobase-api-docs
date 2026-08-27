@@ -1,0 +1,78 @@
+---
+title: "Getting API Access"
+description: "Create your account, generate an API key, and make your first call"
+---
+
+# Getting API Access
+
+The Vocobase API is open to every active account. There is no application to
+submit and no approval to wait for — create an account, generate a key, and start
+building.
+
+```
+Sign up  →  Create an API key  →  Start building
+```
+
+<Steps>
+  <Step title="Create a Vocobase account">
+    Visit [app.vocobase.com](https://app.vocobase.com) and sign up using your email or Google account.
+  </Step>
+
+  <Step title="Generate an API key">
+    Go to **API Keys** in the dashboard and create your first key. It looks like
+    `rg_live_…` and is shown **once** — store it somewhere safe before leaving the page.
+
+    Every request authenticates with it as a bearer token:
+
+    ```bash
+    curl https://api.vocobase.com/api/v2/config \
+      -H "Authorization: Bearer rg_live_your_key_here"
+    ```
+
+    See [Authentication](/authentication) for the full details.
+  </Step>
+
+  <Step title="Check your limits">
+    `GET /api/v2/config` returns your account's agent limit, current agent count,
+    and which telephony providers are configured. It is the quickest way to
+    confirm your key works.
+  </Step>
+
+  <Step title="Start building">
+    1. **Configure telephony** — set up [Twilio](/telephony/twilio-setup), [Plivo](/telephony/plivo-setup), [Exotel](/telephony/exotel-setup), [MCube](/telephony/mcube-setup), [Vobiz](/telephony/vobiz-setup), [VoiceLink](/telephony/voicelink-setup), [Tata Smartflo](/telephony/tata-smartflo-setup) or [SIP](/telephony/sip-setup)
+    2. **Set up webhooks** — configure [webhook endpoints](/webhooks/setup) for live call status and final session completion
+    3. **Create agents** — build your first voice agent via the API or the dashboard
+    4. **Make a call** — see the [Quick Start](/quickstart)
+
+    <Note>
+      A new account starts with a trial credit balance and a default agent limit.
+      Both are visible in `GET /api/v2/config`, and credits are covered in
+      [Credits &amp; Billing](/credits).
+    </Note>
+  </Step>
+</Steps>
+
+## What your account includes
+
+| Feature | Details |
+|---|---|
+| **API access** | Full access to the V2 API |
+| **Agent slots** | Configurable limit — check `agent_limit` in `GET /api/v2/config` |
+| **Telephony** | Twilio, Plivo, Exotel, MCube, Vobiz, VoiceLink, Tata Smartflo and SIP |
+| **Inbound calling** | Give any agent a separate [inbound configuration](/inbound-calls) |
+| **Knowledge base** | Upload documents and web links for agent context |
+| **Webhooks** | Real-time call status updates and final session completion notifications |
+| **Call recording** | Optional per-agent recording with download URLs |
+| **Downstream customers** | Isolated tool credentials per customer via the [B2B2B API](/b2b2b-customers) |
+| **Dashboard** | Web dashboard for managing agents and viewing call history |
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Configure Your Account" icon="gear" href="/onboarding/configuring-your-account">
+    Set up webhooks and telephony.
+  </Card>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Make your first API call in 5 minutes.
+  </Card>
+</CardGroup>

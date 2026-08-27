@@ -38,7 +38,7 @@ Call ends → session.completed webhook fires
 
 ## Prerequisites
 
-- An approved Vocobase partner account with an API key
+- An approved Vocobase account with an API key
 - One of the following providers configured in your Vocobase account:
   - **Twilio** ([Twilio Setup guide](/telephony/twilio-setup))
   - **Plivo** ([Plivo Setup guide](/telephony/plivo-setup))
@@ -166,8 +166,183 @@ Call ends → session.completed webhook fires
 | Billing | Same per-tier ₹/min, 15s buckets | Same per-tier ₹/min, 15s buckets |
 
 <Note>
-  An agent's type is set at creation and determines how it handles calls. You cannot use the same agent for both inbound and outbound calls. Create separate agents for each purpose.
+  You can either create two separate agents, or give **one** agent a second,
+  independent inbound configuration. The second option is usually what you want
+  when both directions share a persona and a knowledge base — see
+  [Give one agent a separate inbound configuration](#give-one-agent-a-separate-inbound-configuration)
+  below.
 </Note>
+
+---
+
+## Give one agent a separate inbound configuration
+
+Instead of maintaining two agents, you can turn on **inbound** for an existing
+agent. Vocobase deep-copies it into a hidden inbound *face* — a second
+configuration that answers incoming calls while the original keeps handling
+outbound.
+
+The two configurations are fully independent: editing the inbound prompt does not
+touch the outbound one. The face has **no public id** — every call below is
+addressed by the *parent* agent's id.
+
+### Turn inbound on
+
+The first enable performs the deep copy. It is idempotent, so calling it again on
+an already-enabled agent is safe.
+
+```bash
+curl -X PATCH https://api.vocobase.com/api/v2/agent/{agent_id}/inbound \
+  -H "Authorization: Bearer $VOCOBASE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": true}'
+```
+
+```json
+{
+  "success": true,
+  "data": { "inbound": { "enabled": true, "created": true } }
+}
+```
+
+`created` is `true` only on the first-ever enable. Re-enabling an agent you
+previously disabled revives the existing face **with its configuration intact** —
+it is never rebuilt from the outbound side, so anything you customised survives.
+
+You can also do this at creation time in a single call:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/agent \
+  -H "Authorization: Bearer $VOCOBASE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "agent_name": "Support",
+    "prompt": "You are a support agent.",
+    "voice_id": "{voice_configuration_id}",
+    "agent_type": "outbound",
+    "inbound": { "enabled": true }
+  }'
+```
+
+<Note>
+  If the agent is created but enabling inbound fails, you still get `201` with the
+  agent plus a `warnings` array — the creation is not rolled back. Retry with
+  `PATCH /agent/{id}/inbound`.
+</Note>
+
+### Read the inbound configuration
+
+`inbound.enabled` is always present on the agent. Add `?include=inbound` to get
+the face's full configuration as well.
+
+```bash
+curl "https://api.vocobase.com/api/v2/agent/{agent_id}?include=inbound" \
+  -H "Authorization: Bearer $VOCOBASE_API_KEY"
+```
+
+### Edit the inbound configuration
+
+Same body schema as `PUT /agent/{id}` — it is that endpoint pointed at the face.
+All fields optional.
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id}/inbound/config \
+  -H "Authorization: Bearer $VOCOBASE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "prompt": "You are answering inbound support calls. Greet the caller and identify their issue.",
+    "intro_message": "Thanks for calling Acme, how can I help?",
+    "extraction_enabled": true
+  }'
+```
+
+Editable groups:
+
+| Group | Fields |
+|---|---|
+| Core | `prompt`, `voice_id`, `language`, `spoken_languages`, `intro_message`, `timezone` |
+| Behaviour | `agent_type`, `enable_recording`, `user_idle_enabled`, `max_call_duration_secs` |
+| Knowledge base | `kb_threshold`, `kb_include_summaries`, `kb_result_format`, `kb_enable_llm_processing`, `kb_llm_system_prompt` |
+| Voicemail | `voicemail_detection_enabled`, `screener_handling_enabled`, `voicemail_message`, `voicemail_detection_prompt` |
+| Transfer | `transfer_enabled`, `transfer_number`, `transfer_number_fallback`, `transfer_message`, `transfer_destinations`, `transfer_instructions` |
+| End call | `end_call_enabled`, `end_call_message`, `end_call_instructions` |
+| Audio | `background_audio_id`, `background_audio_volume` |
+| Data | `variables`, `extraction_config`, `extraction_enabled`, `whatsapp_post_call_config`, `tool_ack_config` |
+
+Two fields are **ignored** here by design:
+
+- `agent_name` — the face's name tracks the parent's.
+- `project_id` — pricing is read from the serving agent's project, so letting it
+  drift would silently re-tier every inbound call on a config save.
+
+### Find agents that can take inbound calls
+
+```bash
+curl "https://api.vocobase.com/api/v2/agent?inbound_enabled=true" \
+  -H "Authorization: Bearer $VOCOBASE_API_KEY"
+```
+
+Useful when building a number-linking picker: only these agents can be bound to
+an inbound DID.
+
+### Turn inbound off
+
+Disabling is deliberately two-step, because it unlinks phone numbers and pauses
+campaigns. The first call tells you what would break:
+
+```bash
+curl -X PATCH https://api.vocobase.com/api/v2/agent/{agent_id}/inbound \
+  -H "Authorization: Bearer $VOCOBASE_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{"enabled": false}'
+```
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "CONFIRM_REQUIRED",
+    "message": "Turning inbound off will unlink the numbers below and pause the campaigns below. Re-send with confirm: true."
+  },
+  "details": {
+    "linked_numbers": [
+      { "id": "f1a2c3d4-…", "phone_number": "+918888888888", "friendly_name": "Support line" }
+    ],
+    "active_inbound_campaigns": [
+      { "id": "c1b2a3d4-…", "name": "Support inbound", "type": "INBOUND" }
+    ]
+  }
+}
+```
+
+Note `details` is a **sibling** of `error`, not nested inside it.
+
+Re-send with `confirm` to go through:
+
+```bash
+  -d '{"enabled": false, "confirm": true}'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "inbound": { "enabled": false },
+    "unlinked_numbers": 1,
+    "paused_campaigns": 1
+  }
+}
+```
+
+### Errors
+
+| Code | Meaning | Fix |
+|---|---|---|
+| `404 INBOUND_NOT_ENABLED` | You called `/inbound/config` before enabling inbound | `PATCH /agent/{id}/inbound` with `{"enabled": true}` first |
+| `409 CONFIRM_REQUIRED` | Disable would unlink numbers or pause campaigns | Re-send with `"confirm": true` |
+| `503 INBOUND_DISABLED` | The feature is switched off server-side. `503` rather than `400` because there is nothing wrong with your request — retry when it is back | Contact Vocobase; this is a rollout gate, not an account setting |
+| `404 AGENT_NOT_FOUND` | Agent is deleted or belongs to another account | Use an agent your key owns |
+| `404 AGENT_IS_FACE` | You addressed the hidden inbound face directly | Use the **parent** agent's id — the face has no public id |
 
 ---
 
@@ -244,7 +419,7 @@ export DID="+918065480085"
 export AGENT_ID="00000000-0000-0000-0000-000000000000"
 ```
 
-Confirm the partner is active and the carrier is configured:
+Confirm the account is active and the carrier is configured:
 
 ```bash
 curl -sS "$BASE_URL/config" \
@@ -406,7 +581,7 @@ Save the returned `data.id` as `AGENT_ID`.
   </Step>
 
   <Step title="List imported DIDs">
-    List the partner's imported phone numbers and save the `id` for the DID you want to assign:
+    List the account's imported phone numbers and save the `id` for the DID you want to assign:
 
     ```bash
     curl "https://api.vocobase.com/api/v2/phone-numbers?provider=$PROVIDER" \
@@ -520,7 +695,7 @@ Save the returned `data.id` as `AGENT_ID`.
 
 ### End-to-end Vobiz test script
 
-This script assumes the agent already exists and the DID belongs to the partner's Vobiz account.
+This script assumes the agent already exists and the DID belongs to the account's Vobiz account.
 
 ```bash
 set -euo pipefail
@@ -562,18 +737,18 @@ echo "\n5. After assignment succeeds, call $DID from a real phone."
 
 | Symptom | Likely cause | Fix |
 |---------|--------------|-----|
-| `400 VOBIZ_NOT_CONFIGURED` or `400 PLIVO_NOT_CONFIGURED` | Partner has no active telephony connection for that provider | Run `PUT /api/v2/config/telephony/vobiz` or `PUT /api/v2/config/telephony/plivo`, then retry |
-| `400 TATA_SMARTFLO_NOT_CONFIGURED` | Partner has no active Tata Smartflo telephony connection | Run `PUT /api/v2/config/telephony/tata-smartflo`, then retry |
-| `400 CONNECTION_AMBIGUOUS` | Partner has multiple active connections for that provider | Pass `connection_id` from `GET /api/v2/telephony/connections` |
+| `400 VOBIZ_NOT_CONFIGURED` or `400 PLIVO_NOT_CONFIGURED` | You have no active telephony connection for that provider | Run `PUT /api/v2/config/telephony/vobiz` or `PUT /api/v2/config/telephony/plivo`, then retry |
+| `400 TATA_SMARTFLO_NOT_CONFIGURED` | You have no active Tata Smartflo telephony connection | Run `PUT /api/v2/config/telephony/tata-smartflo`, then retry |
+| `400 CONNECTION_AMBIGUOUS` | You have multiple active connections for that provider | Pass `connection_id` from `GET /api/v2/telephony/connections` |
 | `400 VALIDATION_ERROR` on Vobiz sync | Body used `phone_numbers`, omitted `numbers`, or sent invalid E.164 values | Send `{ "provider": "VOBIZ", "numbers": ["+918065480085"] }` |
 | `400 VALIDATION_ERROR` on Tata Smartflo sync | Provider-side DID inventory is unavailable or the provider value is incorrect | Send `{ "provider": "TATA_SMARTFLO" }` and confirm Smartflo API access is enabled |
 | `409 VALIDATION_ERROR` | DID is already inbound-enabled on another active row | Disable inbound routing on the old row, or keep this row outbound-only with `inbound_enabled: false` |
-| `400 AGENT_NOT_FOUND` | Agent ID belongs to another user, is deleted, or is not a valid UUID | Use an active agent owned by the same partner user |
-| `404 phone number not found` | `PHONE_NUMBER_ID` is from another partner/provider or was not imported | Re-run `GET /api/v2/phone-numbers?provider=<PROVIDER>` and use that `id` |
+| `400 AGENT_NOT_FOUND` | Agent ID belongs to another user, is deleted, or is not a valid UUID | Use an active agent owned by the same account |
+| `404 phone number not found` | `PHONE_NUMBER_ID` is from another account or provider or was not imported | Re-run `GET /api/v2/phone-numbers?provider=<PROVIDER>` and use that `id` |
 | `502 VOBIZ_SYNC_FAILED` | Carrier-side assignment failed | Confirm Vobiz credentials and DID ownership, then retry |
 | `502 TATA_SMARTFLO_SYNC_FAILED` | Tata Smartflo DID sync or inbound routing failed | Confirm Smartflo API access, DID ownership, and Smartflo panel Voice-Bot routing, then retry |
 | Assignment succeeds but call reaches the wrong destination | Carrier-side Application binding may be stale | Run `POST /api/v2/phone-numbers/resync` and call again |
-| Call connects but no webhook arrives | Partner webhook is not configured or endpoint rejects delivery | Configure `POST /api/v2/config/webhooks` and check your webhook server logs |
+| Call connects but no webhook arrives | Your webhook is not configured or endpoint rejects delivery | Configure `POST /api/v2/config/webhooks` and check your webhook server logs |
 
 ---
 

@@ -97,67 +97,9 @@ verification all work end to end.
 `agent_id` is the endpoint's scope: `null` for an account-wide endpoint, the
 agent's id for an agent-scoped one.
 
-### A second `webhook.test` shape exists
-
-Vocobase support can also fire a test from the internal admin dashboard. It uses
-the **same `event` value** but a different `data` object — there is no
-`endpoint_id`, no `label`, and no `agent_id`:
-
-```json
-{
-  "event": "webhook.test",
-  "timestamp": "2026-05-25T10:30:00.000Z",
-  "data": {
-    "message": "This is a test webhook from the admin dashboard.",
-    "partner_name": "acme-corp",
-    "sample_session_completed": {
-      "session_id": "00000000-0000-0000-0000-000000000000",
-      "agent_id": "00000000-0000-0000-0000-000000000000",
-      "agent_name": "Sample Agent",
-      "duration_seconds": 122,
-      "credits_used": 2.03,
-      "transcript": [
-        { "role": "assistant", "content": "Hi Sajal, how can I help you today?" },
-        { "role": "user", "content": "I'd like to book a callback for tomorrow at 3pm." }
-      ],
-      "recording_url": "https://storage.example.com/recordings/sample.wav?signature=...",
-      "variables": { "callee_name": "Sajal", "mobile_number": "+919876543210" },
-      "extraction": {
-        "status": "success",
-        "values": { "interested": true, "outcome": "callback_requested" },
-        "model": "gemini-3-flash-preview",
-        "extractedAt": "2026-05-25T10:30:00.000Z",
-        "latencyMs": 1840,
-        "attempts": 1
-      }
-    }
-  }
-}
-```
-
-This `sample_session_completed` block is **hard-coded sample data**, not a real
-session. Everything in it is fixed placeholder content, including the zero UUIDs,
-and its transcript entries use `role: "assistant"` and carry no `timestamp` —
-unlike a real `session.completed` transcript, whose entries use `role: "bot"` and
-always include one. Do not feed it into the same code path as a real session.
-
-<Warning>
-  A strict parser keyed on `data.endpoint_id` will break on this one. Treat
-  `data` as optional on `webhook.test` and read `data.endpoint_id` defensively,
-  or ignore the event type entirely.
-</Warning>
-
-Two more differences follow from where each one is sent:
-
-| | `POST /config/webhooks/{id}/test` | Admin dashboard test |
-|---|---|---|
-| `data` shape | `endpoint_id`, `label`, `agent_id`, `message` | `message`, `partner_name`, `sample_session_completed` |
-| Targets | Exactly the one endpoint in the URL | Every **account-wide** endpoint; agent-scoped endpoints are skipped |
-| Event allowlist | Bypassed — always delivered | **Not** bypassed. `webhook.test` is not a valid allowlist value, so any endpoint with a non-empty `events` array never receives it |
-
 ## Event: `inbound.route`
 
-This event is sent when a partner-configured pre-answer policy is available for a Vobiz or Plivo inbound call.
+This event is sent when an account-configured pre-answer policy is available for a Vobiz or Plivo inbound call.
 
 ### Payload structure
 
@@ -177,9 +119,6 @@ This event is sent when a partner-configured pre-answer policy is available for 
   },
   "agent": {
     "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-  },
-  "partner": {
-    "id": "8f7c95c6-6f2e-4f8f-bd1a-a6c9d9f4e2e3"
   }
 }
 ```
@@ -197,7 +136,7 @@ Inbound route webhooks for this feature use feature-specific headers:
 
 ### Response contract
 
-Partners return JSON with an `action` value:
+Accounts return JSON with an `action` value:
 
 - `ANSWER_WITH_AI`
 - `SELECT_AGENT`
@@ -207,11 +146,11 @@ Partners return JSON with an `action` value:
 When action is `TRANSFER`, `to_number` must be E.164.
 When action is `SELECT_AGENT`, `agent_id` must be set.
 
-Vocobase records each resolved route decision for partner observability. Query `GET /api/v2/inbound-route-decisions` to inspect action, source, webhook status, webhook latency, failure reason, transfer target, and created session or phone-call IDs.
+Vocobase records each resolved route decision for your own observability. Query `GET /api/v2/inbound-route-decisions` to inspect action, source, webhook status, webhook latency, failure reason, transfer target, and created session or phone-call IDs.
 
 ## Event: `call.status.updated`
 
-Sent whenever Vocobase learns that a telephony call moved to a new meaningful call status. This event is for real-time orchestration: live dashboards, partner-owned dialer queues, and concurrency release.
+Sent whenever Vocobase learns that a telephony call moved to a new meaningful call status. This event is for real-time orchestration: live dashboards, your own dialer queues, and concurrency release.
 
 `call.status.updated` is sent for phone calls only. Browser WebRTC sessions do not have a carrier call leg and therefore do not emit this event.
 
@@ -261,7 +200,7 @@ Sent whenever Vocobase learns that a telephony call moved to a new meaningful ca
 | `data.session_id` | string (UUID) or null | Associated session identifier. Normally present for calls started through `POST /calls/start`. |
 | `data.agent_id` | string (UUID) | The agent assigned to the call |
 | `data.agent_name` | string or null | Agent display name |
-| `data.client_reference_id` | string or null | Partner-supplied correlation key from `POST /calls/start`, when provided |
+| `data.client_reference_id` | string or null | Client-supplied correlation key from `POST /calls/start`, when provided |
 | `data.direction` | string | `outbound` or `inbound` |
 | `data.from_number` | string | Caller phone number |
 | `data.to_number` | string | Destination phone number |
@@ -272,7 +211,7 @@ Sent whenever Vocobase learns that a telephony call moved to a new meaningful ca
 | `data.hangup_source` | string or null | Best-known party or system that ended the call: `caller`, `callee`, `system`, `api`, `carrier`, `error`, or `unknown` |
 | `data.previous_status` | string or null | Previous normalized status, when known |
 | `data.terminal` | boolean | `true` when this status is final for the carrier call leg |
-| `data.concurrency_released` | boolean | `true` when partners can start the next call in their own queue |
+| `data.concurrency_released` | boolean | `true` when accounts can start the next call in their own queue |
 | `data.account_concurrency` | object or null | Account-wide concurrency snapshot at event time. `limit`/`remaining` are `null` for unlimited accounts. |
 | `data.provider` | string or null | Telephony provider: `twilio`, `plivo`, `vobiz`, `tata_smartflo`, `voicelink`, `sip`, `mcube`, or `exotel` |
 | `data.provider_status` | string or null | Raw provider status value when available |
@@ -296,7 +235,7 @@ Vocobase normalizes provider-specific call states into one vocabulary:
 
 ### Provider normalization
 
-Partners should branch on `data.status`, not on provider-specific values. Vocobase stores the raw provider value for debugging.
+Accounts should branch on `data.status`, not on provider-specific values. Vocobase stores the raw provider value for debugging.
 
 | Provider value | Vocobase status |
 |---|---|
@@ -428,11 +367,11 @@ Sent when a Vocobase session has reached final post-call processing. For telepho
 | `pipeline_completed_at` | string (ISO 8601) or null | Timestamp when post-call processing finished. Non-null on the webhook. `null` when polling `GET /calls/{id}` and processing has not completed yet, or on older sessions that pre-date this field. |
 | `transcript` | array or null | Ordered list of conversation turns (see below). `null` when the bot never ran — see [How a failed session surfaces](#how-a-failed-session-surfaces). |
 | `recording_url` | string or null | Presigned URL for the call recording. `null` if recording was not enabled. URL is valid for 7 days. If it expires, mint a fresh one with `GET /calls/{call_id}/recording-url`. |
-| `variables` | object | Pre-call variable values that were substituted into the agent's prompt and greeting. Empty object `{}` when no variables were supplied. Echoed for partner-side audit. |
+| `variables` | object | Pre-call variable values that were substituted into the agent's prompt and greeting. Empty object `{}` when no variables were supplied. Echoed for your own audit. |
 | `extraction` | object or absent | Post-call extraction result, present only when the agent has a Custom Analysis config defined. Status is `success`, `failed`, or `skipped` (no transcript). Values are typed per the agent's config; missing keys are emitted as `null`. See [Post-call Extraction](#post-call-extraction) below. |
 | `call` | object or absent | Call metadata. Present only for telephony sessions started via `POST /calls/start`. **Omitted entirely** for browser WebRTC sessions started via `POST /sessions/webrtc` (no associated phone call). |
 | `call.call_id` | string (UUID) | Unique call identifier |
-| `call.client_reference_id` | string or null | Partner-supplied correlation key from `POST /calls/start`, when provided. Same key and value as on `call.status.updated`. |
+| `call.client_reference_id` | string or null | Client-supplied correlation key from `POST /calls/start`, when provided. Same key and value as on `call.status.updated`. |
 | `call.from_number` | string | Caller phone number (E.164) |
 | `call.to_number` | string | Destination phone number (E.164) |
 | `call.direction` | string | `"outbound"` |
@@ -571,7 +510,7 @@ Emitted for phone calls only. Browser WebRTC sessions cannot be transferred.
 | `data.agent_id` | string (UUID) | The agent that handed off the call |
 | `data.agent_name` | string or null | Agent display name |
 | `data.call.call_id` | string (UUID) | Unique call identifier |
-| `data.call.client_reference_id` | string or null | Partner-supplied correlation key from `POST /calls/start`, when provided |
+| `data.call.client_reference_id` | string or null | Client-supplied correlation key from `POST /calls/start`, when provided |
 | `data.call.from_number` | string | Caller phone number (E.164) |
 | `data.call.to_number` | string | Destination phone number (E.164) |
 | `data.call.direction` | string | `outbound` or `inbound` |
@@ -650,7 +589,7 @@ agent-scoped endpoint will never see it. See
 
 ## Polling `GET /calls/{id}` vs webhook
 
-Both the webhook and `GET /api/v2/calls/{id}` return the same `data` shape, so a partner that can't accept inbound webhooks (or wants to reconcile dropped deliveries) can poll the GET endpoint instead.
+Both the webhook and `GET /api/v2/calls/{id}` return the same `data` shape, so an account that can't accept inbound webhooks (or wants to reconcile dropped deliveries) can poll the GET endpoint instead.
 
 A call can appear completed before all transcript, recording, and extraction fields are ready. The `processing_complete` boolean tells you when the response is final:
 
@@ -678,7 +617,7 @@ async function fetchUntilReady(callId) {
 }
 ```
 
-In practice the `session.completed` webhook will reach you before polling kicks in — polling is the fallback for partners that can't accept inbound webhooks, or for reconciliation after a delivery failure.
+In practice the `session.completed` webhook will reach you before polling kicks in — polling is the fallback for accounts that can't accept inbound webhooks, or for reconciliation after a delivery failure.
 
 <Note>
   For sessions created **before this field shipped**, `pipeline_completed_at` will be `null` permanently. Treat `null` + `status: completed` on an older row as "final" — those rows pre-date the signal.
@@ -716,7 +655,7 @@ When the agent has a **Custom Analysis** config defined, the platform runs an LL
 | `attempts` | integer | Number of attempts (1 = success on first try; 2-3 = retried) |
 
 <Note>
-  Extraction failures **never block webhook delivery**. The unified payload always ships with `extraction.status` indicating outcome — partners that need extraction values can branch on `status === 'success'`, partners that just need transcript + recording can ignore the field.
+  Extraction failures **never block webhook delivery**. The unified payload always ships with `extraction.status` indicating outcome — accounts that need extraction values can branch on `status === 'success'`, accounts that just need transcript + recording can ignore the field.
 </Note>
 
 ### Replay extraction against a past session

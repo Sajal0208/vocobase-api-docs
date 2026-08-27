@@ -15,7 +15,7 @@ given event depends on the endpoint's scope and its event allowlist — see
 
 | Event | Purpose | Use it for |
 |---|---|---|
-| `call.status.updated` | Real-time phone call lifecycle updates from the telephony provider | Partner queue orchestration, live UI state, freeing concurrency when the call reaches a terminal status |
+| `call.status.updated` | Real-time phone call lifecycle updates from the telephony provider | Queue orchestration, live UI state, freeing concurrency when the call reaches a terminal status |
 | `session.completed` | Final Vocobase session data after the bot and post-call pipeline finish | Transcript, recording URL, credits, variables, extraction, and final call metadata |
 
 For outbound telephony calls, use `call.status.updated` to know what is happening right now. Use `session.completed` only when you need final post-call data.
