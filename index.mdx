@@ -1,24 +1,37 @@
 ---
-title: "Vocobase V2 API"
+title: "Vocobase API"
 description: "Build voice AI agents with the Vocobase API"
 ---
 
-# Welcome to Vocobase API
+# Vocobase API
 
-Vocobase is a voice AI agent platform that enables you to create, manage, and deploy voice agents programmatically.
+Create voice agents, give them knowledge and tools, and put them on the phone — over HTTP.
 
-## What you can do
+## Start here
 
-- Create and configure AI voice agents
-- Upload knowledge base documents
-- Bias speech recognition with [custom dictionaries](/dictionaries) for domain-specific vocabulary
-- Transfer live calls to human agents with [call transfer](/call-transfer) mid-conversation
-- Template prompts with [pre-call variables](/pre-call-variables) (`{{name}}` placeholders that flow in per call)
-- Pull structured fields from completed calls with [post-call extraction](/post-call-extraction) (LLM-driven; results inline in `session.completed`)
-- Initiate outbound calls via Twilio, Exotel, Plivo, Vobiz, or MCube
-- Receive webhook notifications for live call status and final session completion
-- Manage your account configuration
+<CardGroup cols={2}>
+  <Card title="Quick Start" icon="rocket" href="/quickstart">
+    Create an agent and make your first call in five minutes.
+  </Card>
+  <Card title="Authentication" icon="key" href="/authentication">
+    API keys, error codes, and rate limits.
+  </Card>
+</CardGroup>
 
-## Get Started
+## What you can build
 
-Check out the [Quick Start](/quickstart) guide to make your first API call in 5 minutes.
+| | |
+|---|---|
+| **Agents** | Create agents, give them a [knowledge base](/knowledge-base), bias transcription with [dictionaries](/dictionaries), and template prompts with [pre-call variables](/pre-call-variables). |
+| **Tools** | Let the agent call your own HTTP endpoints with [custom functions](/custom-functions), or fetch and push data automatically with [lifecycle hooks](/lifecycle-hooks). |
+| **Outbound** | Dial through [your own telephony provider](/telephony/byop-setup), one call at a time or as a [campaign](/campaigns). |
+| **Inbound** | Point a number at an agent and [route calls before they are answered](/inbound-routing-policies). |
+| **In the browser** | Talk to an agent over WebRTC with no phone call at all — see [web voice](/web-voice-testing). |
+| **Results** | Pull structured fields out of finished calls with [post-call extraction](/post-call-extraction), delivered on [webhooks](/webhooks/payloads). |
+| **Live calls** | [Transfer to a human](/call-transfer) mid-conversation, or [detect voicemail and screeners](/voicemail-and-screener-detection). |
+
+## Also available
+
+- [**B2B2B customers**](/b2b2b-customers) — let your own customers connect their tool accounts, without you handling their credentials.
+- [**WhatsApp messaging**](/whatsapp-messaging) — send template messages through your AiSensy or Interakt account.
+- [**Credits & billing**](/credits) — how calls are priced, and how to read your balance.

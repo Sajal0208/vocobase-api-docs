@@ -1,0 +1,163 @@
+---
+title: "WhatsApp Messaging"
+description: "Send WhatsApp template messages through your own AiSensy or Interakt account"
+---
+
+# WhatsApp Messaging
+
+Send WhatsApp template messages through your own provider account. Vocobase holds the credentials
+and queues the send; the message goes out on your WhatsApp business number, not ours.
+
+Two providers are supported: **AiSensy** and **Interakt**.
+
+<Note>
+  This is bring-your-own-provider, the same model as [telephony](/telephony/byop-setup). You need an
+  existing AiSensy or Interakt account with approved templates.
+</Note>
+
+---
+
+## Connect your account
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/messaging/connections \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "provider": "aisensy",
+    "api_mode": "campaign",
+    "name": "AiSensy — Sales",
+    "api_key": "your_aisensy_api_key",
+    "webhook_secret": "a-secret-you-choose"
+  }'
+```
+
+Which credentials to send depends on the provider:
+
+| Provider | `api_mode` | Credentials |
+|---|---|---|
+| AiSensy | `campaign` | `api_key` |
+| AiSensy | `project` | `project_id`, `app_password` |
+| Interakt | — | `secret_key` |
+
+Credentials are encrypted at rest and only ever returned masked.
+
+### Wire up the webhook
+
+The response includes a `webhook_url`. Paste it into your provider dashboard so delivery-status
+webhooks reach Vocobase:
+
+```json
+{
+  "success": true,
+  "data": {
+    "connection": {
+      "connection_id": "mc_4d5e6f70-8192-a3b4-c5d6-e7f809122334",
+      "webhook_url": "https://api.vocobase.com/api/whatsapp/webhooks/aisensy/7c1f9a2b4d6e8013",
+      "webhook_secret_set": true,
+      "status": "PENDING"
+    },
+    "webhook_secret_note": "Set this webhook_secret as the signing secret in your provider dashboard so inbound delivery-status webhooks verify."
+  }
+}
+```
+
+<Warning>
+  **You choose `webhook_secret`, and you must set the same value in your provider dashboard.**
+  Vocobase never generates it. If the two do not match, delivery-status webhooks fail signature
+  verification and are dropped.
+</Warning>
+
+### Verify before sending
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/messaging/connections/CONNECTION_ID/verify \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+This calls your provider with the stored credentials and records the outcome. The connection must
+reach `ACTIVE` before sends are accepted — otherwise `POST /messaging/send` returns
+`400 CONNECTION_INACTIVE`. On failure, the reason lands in `last_error_message`.
+
+---
+
+## Send a message
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/messaging/send \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "connection_id": "mc_4d5e6f70-8192-a3b4-c5d6-e7f809122334",
+    "to": "+919876543210",
+    "campaign_name": "renewal_followup",
+    "variables": ["Asha", "1 September"]
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": { "log_id": "ml_5e6f7081-92a3-b4c5-d6e7-f80912233445", "status": "QUEUED" }
+}
+```
+
+The call returns as soon as the message is queued — `202`, not `200`. Delivery is asynchronous;
+track it through your provider's delivery webhooks, correlating on `log_id`.
+
+### Which template fields to send
+
+This differs by connection, and it is the most common source of a `400`:
+
+| Connection | Required fields |
+|---|---|
+| AiSensy, `campaign` mode | `campaign_name` |
+| Everything else | `template_name` **and** `language_code` |
+
+`variables` fills the template body placeholders in order; `header_values` fills the header ones.
+
+<Warning>
+  `to` must include its own country code. It is parsed rather than pattern-matched, and there is no
+  default country — a partner-supplied number has no call to borrow one from. `+919876543210` works;
+  `9876543210` does not.
+</Warning>
+
+---
+
+## Manage connections
+
+| Do this | Endpoint |
+|---|---|
+| List your connections | `GET /messaging/connections` |
+| Get one | `GET /messaging/connections/{id}` |
+| Update name or credentials | `PATCH /messaging/connections/{id}` |
+| Re-check credentials | `POST /messaging/connections/{id}/verify` |
+| Delete | `DELETE /messaging/connections/{id}` |
+
+Sending credentials on `PATCH` replaces them. Deleting a connection stops any agent referencing it
+from sending.
+
+---
+
+## Troubleshooting
+
+| Symptom | Cause |
+|---|---|
+| `400 CONNECTION_INACTIVE` | The connection has not been verified, or verification failed. Run `verify` and read `last_error_message`. |
+| `400 VALIDATION_ERROR` on `to` | The number is missing its country code, or is not a real number in that country. |
+| `400` naming `campaign_name` or `template_name` | You sent the fields for the other connection type. See the table above. |
+| Queued but never delivered | Check your provider dashboard — the template may not be approved, or the recipient may be outside the 24-hour window. |
+| Delivery webhooks never arrive | `webhook_secret` in Vocobase does not match the signing secret in your provider dashboard. |
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Bring Your Own Phone" icon="phone" href="/telephony/byop-setup">
+    The same model for telephony providers.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference">
+    Every messaging field and error code.
+  </Card>
+</CardGroup>

@@ -1,0 +1,163 @@
+---
+title: "Lifecycle Hooks"
+description: "Fetch context before a call and push results after it, automatically"
+---
+
+# Lifecycle Hooks
+
+A lifecycle hook runs automatically around a call, without the agent deciding to call it.
+
+- **`PRE_CALL`** hooks run before the agent speaks. Use them to fetch context — look the caller up
+  in your CRM, pull their order history — and expose the result to the prompt.
+- **`POST_CALL`** hooks run after the call ends. Use them to push the outcome somewhere — log an
+  activity, append a row, open a ticket.
+
+This is the difference between a hook and a [custom function](/custom-functions): a function is a
+tool the model *chooses* to call mid-conversation; a hook always runs, at a fixed point, in a fixed
+order.
+
+<Note>
+  These endpoints return a bare object (`{ "hook": … }`, `{ "hooks": [ … ] }`) and a bare
+  `{ "error": … }` on failure, rather than the `success`/`data` envelope used elsewhere in this API.
+  Validation failures return `422` with an `issues` array naming each bad field.
+</Note>
+
+---
+
+## Create a hook
+
+A hook needs a source: either an integration (`toolSlug` plus `toolFn`) or one of your own custom
+functions (`functionId`).
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/agents/AGENT_ID/lifecycle-hooks \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "stage": "PRE_CALL",
+    "name": "Look up lead",
+    "toolSlug": "leadsquared",
+    "toolFn": "lookup_lead",
+    "input": { "phone": "{{to_number}}" },
+    "exposeAs": "lead"
+  }'
+```
+
+Omit `position` and the hook is appended to the end of its stage.
+
+### `input` is a template
+
+Values in `input` are substituted from the call's variables and from the output of hooks that ran
+earlier in the same stage. So a second hook can consume the first one's result.
+
+### `exposeAs` publishes the result to the prompt
+
+`"exposeAs": "lead"` makes the hook's response available as `{{lead.FirstName}}`,
+`{{lead.Company}}`, and so on inside the agent's prompt. It is pre-call only — a post-call hook has
+no prompt left to feed — and must be unique among that agent's pre-call hooks.
+
+### Failure handling
+
+| Field | Effect |
+|---|---|
+| `required: false` (default) | A failure is logged and the call continues without the data. |
+| `required: true` | A failure fails the call. |
+| `timeoutMs` | How long to wait. Defaults to 3000. |
+
+Keep `required` off unless the call is genuinely useless without the data — a slow CRM should not
+drop customer calls.
+
+---
+
+## Preview before you ship
+
+A mistyped template key does not error; it renders empty and the agent quietly gets nothing. Check
+it first:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/agents/AGENT_ID/lifecycle-hooks/HOOK_ID/preview \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{ "variables": { "to_number": "+919876543210", "name": "Asha Menon" } }'
+```
+
+```json
+{
+  "renderedInput": { "phone": "+919876543210" },
+  "hook": { "id": "lh_2b3c...", "stage": "PRE_CALL", "exposeAs": "lead" }
+}
+```
+
+The integration is not called — only the template is rendered. Omit `variables` to render against
+built-in samples.
+
+<Tip>
+  For Google Sheets hooks, `GET /agent/{id}/tools/google_sheets/sheet-columns` returns the real
+  header row so you can write `lookup_row` against actual column names instead of guessing.
+</Tip>
+
+---
+
+## Ordering
+
+Hooks run by ascending `position` within their stage. To change the order, send the stage's hook IDs
+in the order you want:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/agents/AGENT_ID/lifecycle-hooks/reorder \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{ "stage": "PRE_CALL", "ids": ["lh_2b3c...", "lh_3c4d..."] }'
+```
+
+Order matters when one hook consumes another's output.
+
+---
+
+## Turn one off without deleting it
+
+`PATCH` with `enabled: false` leaves the hook and its position intact:
+
+```bash
+curl -X PATCH https://api.vocobase.com/api/v2/agents/AGENT_ID/lifecycle-hooks/HOOK_ID \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{ "enabled": false }'
+```
+
+Prefer this to `DELETE` while debugging — deleting loses the configuration and the ordering.
+
+`stage` cannot be changed on an existing hook. Delete it and create it on the other stage.
+
+---
+
+## Debugging
+
+When a hook does not seem to fire, [`GET /integration-logs`](/api-reference) has the audit row —
+what was sent, what came back, the upstream status code, and how long it took:
+
+```bash
+curl -X GET "https://api.vocobase.com/api/v2/integration-logs?agentId=AGENT_ID&toolSlug=leadsquared" \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+It covers the last 30 days, successes and failures alike.
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Custom Functions" icon="code" href="/custom-functions">
+    Tools the agent chooses to call mid-conversation.
+  </Card>
+  <Card title="Pre-call Variables" icon="brackets-curly" href="/pre-call-variables">
+    What a pre-call hook can read from and write to.
+  </Card>
+  <Card title="B2B2B Customers" icon="users" href="/b2b2b-customers">
+    Connect integrations on behalf of your own customers.
+  </Card>
+  <Card title="API Reference" icon="terminal" href="/api-reference">
+    Every hook field and error code.
+  </Card>
+</CardGroup>

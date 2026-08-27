@@ -96,6 +96,18 @@
     {
       "name": "Integration Logs",
       "description": "Audit trail for integration calls."
+    },
+    {
+      "name": "Connectors",
+      "description": "Catalog of tools an agent can be connected to."
+    },
+    {
+      "name": "Customers",
+      "description": "B2B2B sub-tenants and their tool connections."
+    },
+    {
+      "name": "Agent Tools",
+      "description": "Binding connectors and connections to an agent."
     }
   ],
   "paths": {
@@ -15362,6 +15374,2262 @@
           }
         }
       }
+    },
+    "/connectors": {
+      "get": {
+        "operationId": "listConnectors",
+        "summary": "List available connectors",
+        "tags": [
+          "Connectors"
+        ],
+        "description": "The connector catalog your account may offer. Only `ACTIVE` connectors are returned — the dashboard's \"coming soon\" previews are excluded, since you cannot mint a connect-link for one.\n\nVisibility is curated per account. An empty list means none have been enabled for you yet.",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "connectors": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/Connector"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "connectors": [
+                      {
+                        "id": "tl_8192a3b4-c5d6-e7f8-0912-233445566778",
+                        "slug": "google_sheets",
+                        "name": "Google Sheets",
+                        "description": "Read and append rows in a spreadsheet.",
+                        "provider": "google",
+                        "status": "ACTIVE",
+                        "oauth_scopes": [
+                          "https://www.googleapis.com/auth/spreadsheets"
+                        ],
+                        "capabilities": [
+                          "lookup_row",
+                          "append_row"
+                        ]
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/connectors/{slug}": {
+      "get": {
+        "operationId": "getConnector",
+        "summary": "Get a connector",
+        "tags": [
+          "Connectors"
+        ],
+        "description": "Look up one connector by slug. A connector your account cannot see returns `404`, not `403` — restricted connectors are invisible rather than forbidden.",
+        "parameters": [
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "pattern": "^[a-z0-9_-]{1,64}$"
+            },
+            "description": "Connector slug, e.g. `google_sheets`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/Connector"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "tl_8192a3b4-c5d6-e7f8-0912-233445566778",
+                    "slug": "google_sheets",
+                    "name": "Google Sheets",
+                    "description": "Read and append rows in a spreadsheet.",
+                    "provider": "google",
+                    "status": "ACTIVE",
+                    "oauth_scopes": [
+                      "https://www.googleapis.com/auth/spreadsheets"
+                    ],
+                    "capabilities": [
+                      "lookup_row",
+                      "append_row"
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "The slug is not a valid connector slug.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "INVALID_SLUG",
+                    "message": "Invalid connector slug format"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such connector, or it is not visible to your account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "Connector not found"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/customers": {
+      "post": {
+        "operationId": "createCustomer",
+        "summary": "Create a customer",
+        "tags": [
+          "Customers"
+        ],
+        "description": "Registers one of your end-customers as a sub-tenant so they can connect their own tool accounts. See [B2B2B customers](/b2b2b-customers) for the full flow.\n\n`external_id` is your identifier and must be unique on your account — re-creating with the same one is how you find a customer again without storing our ID.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "external_id",
+                  "name"
+                ],
+                "properties": {
+                  "external_id": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "name": {
+                    "type": "string",
+                    "minLength": 1,
+                    "maxLength": 200
+                  },
+                  "email": {
+                    "type": "string",
+                    "maxLength": 254,
+                    "nullable": true
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "nullable": true,
+                    "additionalProperties": true
+                  }
+                }
+              },
+              "example": {
+                "external_id": "acct_10231",
+                "name": "Northwind Traders",
+                "email": "ops@northwind.example",
+                "metadata": {
+                  "plan": "enterprise"
+                }
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Customer created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PartnerCustomer"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "pc_92a3b4c5-d6e7-f809-1223-344556677889",
+                    "external_id": "acct_10231",
+                    "name": "Northwind Traders",
+                    "email": "ops@northwind.example",
+                    "metadata": {
+                      "plan": "enterprise"
+                    },
+                    "status": "ACTIVE",
+                    "created_at": "2026-08-10T09:00:00.000Z",
+                    "updated_at": "2026-08-10T09:00:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`INVALID_EXTERNAL_ID`, `INVALID_NAME`, or `INVALID_EMAIL`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "INVALID_EXTERNAL_ID",
+                    "message": "external_id is required, 1..200 chars"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "get": {
+        "operationId": "listCustomers",
+        "summary": "List customers",
+        "tags": [
+          "Customers"
+        ],
+        "description": "Cursor-paginated. Pass the previous response's `next_cursor` for the next page; it is `null` on the last one.",
+        "parameters": [
+          {
+            "name": "status",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "ACTIVE",
+                "ARCHIVED"
+              ]
+            },
+            "description": "Filter by status."
+          },
+          {
+            "name": "cursor",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "`next_cursor` from the previous page."
+          },
+          {
+            "name": "limit",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "integer"
+            },
+            "description": "Page size."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "customers": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/PartnerCustomer"
+                          }
+                        },
+                        "next_cursor": {
+                          "type": "string",
+                          "nullable": true
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "customers": [
+                      {
+                        "id": "pc_92a3b4c5-d6e7-f809-1223-344556677889",
+                        "external_id": "acct_10231",
+                        "name": "Northwind Traders",
+                        "email": "ops@northwind.example",
+                        "metadata": {
+                          "plan": "enterprise"
+                        },
+                        "status": "ACTIVE",
+                        "created_at": "2026-08-10T09:00:00.000Z",
+                        "updated_at": "2026-08-10T09:00:00.000Z"
+                      }
+                    ],
+                    "next_cursor": null
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/customers/{id}": {
+      "get": {
+        "operationId": "getCustomer",
+        "summary": "Get a customer",
+        "tags": [
+          "Customers"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Customer ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PartnerCustomer"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "pc_92a3b4c5-d6e7-f809-1223-344556677889",
+                    "external_id": "acct_10231",
+                    "name": "Northwind Traders",
+                    "email": "ops@northwind.example",
+                    "metadata": {
+                      "plan": "enterprise"
+                    },
+                    "status": "ACTIVE",
+                    "created_at": "2026-08-10T09:00:00.000Z",
+                    "updated_at": "2026-08-10T09:00:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "patch": {
+        "operationId": "updateCustomer",
+        "summary": "Update a customer",
+        "tags": [
+          "Customers"
+        ],
+        "description": "Every field is optional. `external_id` cannot be changed.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Customer ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "name": {
+                    "type": "string",
+                    "maxLength": 200
+                  },
+                  "email": {
+                    "type": "string",
+                    "maxLength": 254,
+                    "nullable": true
+                  },
+                  "metadata": {
+                    "type": "object",
+                    "nullable": true,
+                    "additionalProperties": true
+                  }
+                }
+              },
+              "example": {
+                "name": "Northwind Traders Ltd"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/PartnerCustomer"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "pc_92a3b4c5-d6e7-f809-1223-344556677889",
+                    "external_id": "acct_10231",
+                    "name": "Northwind Traders Ltd",
+                    "email": "ops@northwind.example",
+                    "metadata": {
+                      "plan": "enterprise"
+                    },
+                    "status": "ACTIVE",
+                    "created_at": "2026-08-10T09:00:00.000Z",
+                    "updated_at": "2026-08-10T09:00:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "archiveCustomer",
+        "summary": "Archive a customer",
+        "tags": [
+          "Customers"
+        ],
+        "description": "Archives the customer and revokes every tool connection they had authorised. Agents bound to those connections stop being able to use them.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Customer ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "archived": {
+                          "type": "boolean",
+                          "const": true
+                        },
+                        "connections_revoked": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "archived": true,
+                    "connections_revoked": 2
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/customers/{id}/connect-link": {
+      "post": {
+        "operationId": "mintConnectLink",
+        "summary": "Mint a connect-link",
+        "tags": [
+          "Customers"
+        ],
+        "description": "Returns a short-lived hosted URL. Send your customer there and they authorise the connector against their own account — you never handle their credentials.\n\n`redirect_uri` must be on one of your account's allowed redirect hosts, or the request is rejected. After the customer finishes, they are sent back to it.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Customer ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tool_slug",
+                  "redirect_uri"
+                ],
+                "properties": {
+                  "tool_slug": {
+                    "type": "string",
+                    "description": "Connector the customer will authorise."
+                  },
+                  "redirect_uri": {
+                    "type": "string",
+                    "format": "uri",
+                    "description": "Where to send the customer afterwards. Host must be allow-listed on your account."
+                  },
+                  "expires_in_seconds": {
+                    "type": "integer",
+                    "description": "Link lifetime. Defaults to the platform value."
+                  }
+                }
+              },
+              "example": {
+                "tool_slug": "google_sheets",
+                "redirect_uri": "https://app.example.com/integrations/callback"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "url": {
+                          "type": "string",
+                          "format": "uri"
+                        },
+                        "expires_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "url": "https://app.vocobase.com/connect/6f1a...",
+                    "expires_at": "2026-08-27T10:15:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`INVALID_TOOL_SLUG` or `INVALID_REDIRECT_URI` — including a redirect host that is not allow-listed on your account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "INVALID_REDIRECT_URI",
+                    "message": "redirect_uri is required"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/customers/{id}/tools": {
+      "get": {
+        "operationId": "listCustomerTools",
+        "summary": "List a customer's connector status",
+        "tags": [
+          "Customers"
+        ],
+        "description": "Every connector on your account merged with this customer's connection status — so one call tells you what they have connected and what is still outstanding.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Customer ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "tools": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "additionalProperties": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "tools": [
+                      {
+                        "tool_slug": "google_sheets",
+                        "tool_name": "Google Sheets",
+                        "connected": true,
+                        "connection_id": "uc_a3b4c5d6-e7f8-0912-2334-45566778899a",
+                        "status": "ACTIVE",
+                        "provider_email": "ops@northwind.example",
+                        "connected_at": "2026-08-10T09:14:22.000Z"
+                      },
+                      {
+                        "tool_slug": "slack",
+                        "tool_name": "Slack",
+                        "connected": false,
+                        "connection_id": null,
+                        "status": null,
+                        "provider_email": null,
+                        "connected_at": null
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/customers/{id}/connections": {
+      "get": {
+        "operationId": "listCustomerConnections",
+        "summary": "List a customer's connections",
+        "tags": [
+          "Customers"
+        ],
+        "description": "Just the connections, without merging the connector catalog over them.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Customer ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "connections": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/CustomerConnection"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "connections": [
+                      {
+                        "id": "uc_a3b4c5d6-e7f8-0912-2334-45566778899a",
+                        "tool_slug": "google_sheets",
+                        "tool_name": "Google Sheets",
+                        "status": "ACTIVE",
+                        "provider_email": "ops@northwind.example",
+                        "created_at": "2026-08-10T09:14:22.000Z",
+                        "updated_at": "2026-08-10T09:14:22.000Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/customers/{id}/connections/{connId}": {
+      "delete": {
+        "operationId": "revokeCustomerConnection",
+        "summary": "Revoke a connection",
+        "tags": [
+          "Customers"
+        ],
+        "description": "Agents bound to this connection stop being able to use it.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Customer ID."
+          },
+          {
+            "name": "connId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Connection ID."
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Revoked. No response body."
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/customers/{id}/connections/api-key": {
+      "post": {
+        "operationId": "createApiKeyConnection",
+        "summary": "Connect a single-key tool for a customer",
+        "tags": [
+          "Customers"
+        ],
+        "description": "Submits a customer's credential directly, for connectors that authenticate with one API key (Cal.com, Calendly) rather than OAuth. Use this when you already hold the key and do not want to send the customer through the hosted flow.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Customer ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "tool_slug",
+                  "api_key"
+                ],
+                "properties": {
+                  "tool_slug": {
+                    "type": "string"
+                  },
+                  "api_key": {
+                    "type": "string",
+                    "description": "Stored encrypted; never returned."
+                  }
+                }
+              },
+              "example": {
+                "tool_slug": "cal_com",
+                "api_key": "cal_live_..."
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "connection_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "tool_slug": {
+                          "type": "string"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "connection_id": "uc_b4c5d6e7-f809-1223-3445-566778899aab",
+                    "tool_slug": "cal_com"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/customers/{id}/connections/zendesk": {
+      "post": {
+        "operationId": "createZendeskConnection",
+        "summary": "Connect Zendesk for a customer",
+        "tags": [
+          "Customers"
+        ],
+        "description": "Zendesk needs three values rather than one key, so it has its own endpoint.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Customer ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "email",
+                  "api_token",
+                  "subdomain"
+                ],
+                "properties": {
+                  "email": {
+                    "type": "string",
+                    "description": "Zendesk agent email."
+                  },
+                  "api_token": {
+                    "type": "string",
+                    "description": "Stored encrypted; never returned."
+                  },
+                  "subdomain": {
+                    "type": "string",
+                    "description": "The `<subdomain>` in `<subdomain>.zendesk.com`."
+                  }
+                }
+              },
+              "example": {
+                "email": "support@northwind.example",
+                "api_token": "zd_...",
+                "subdomain": "northwind"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "connection_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "tool_slug": {
+                          "type": "string",
+                          "const": "zendesk"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "connection_id": "uc_c5d6e7f8-0912-2334-4556-6778899aabbc",
+                    "tool_slug": "zendesk"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/agent/{id}/tools": {
+      "get": {
+        "operationId": "listAgentTools",
+        "summary": "List an agent's tool bindings",
+        "tags": [
+          "Agent Tools"
+        ],
+        "description": "Every connection available to this agent — your own and your customers' — with whether the agent may currently use it.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Agent ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "tools": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "toolSlug": {
+                                "type": "string"
+                              },
+                              "toolName": {
+                                "type": "string"
+                              },
+                              "enabled": {
+                                "type": "boolean"
+                              },
+                              "connectionId": {
+                                "type": "string",
+                                "format": "uuid",
+                                "nullable": true
+                              },
+                              "connectionStatus": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "providerEmail": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "tools": [
+                      {
+                        "toolSlug": "google_sheets",
+                        "toolName": "Google Sheets",
+                        "enabled": true,
+                        "connectionId": "uc_a3b4c5d6-e7f8-0912-2334-45566778899a",
+                        "connectionStatus": "ACTIVE",
+                        "providerEmail": "ops@northwind.example"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/agent/{id}/available-connections": {
+      "get": {
+        "operationId": "listAgentAvailableConnections",
+        "summary": "List connections eligible for an agent",
+        "tags": [
+          "Agent Tools"
+        ],
+        "description": "Connections this agent could be bound to, each labelled with its owner — your account, or one of your customers. Use it to pick the right `connection_id` before calling `PUT /agent/{id}/tools/{slug}`.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Agent ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "connections": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "toolSlug": {
+                                "type": "string"
+                              },
+                              "toolName": {
+                                "type": "string"
+                              },
+                              "status": {
+                                "type": "string"
+                              },
+                              "providerEmail": {
+                                "type": "string",
+                                "nullable": true
+                              },
+                              "owner": {
+                                "type": "object",
+                                "description": "`kind` is `user` for your own connection, or `partnerCustomer` for a customer's.",
+                                "additionalProperties": true
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "connections": [
+                      {
+                        "id": "uc_a3b4c5d6-e7f8-0912-2334-45566778899a",
+                        "toolSlug": "google_sheets",
+                        "toolName": "Google Sheets",
+                        "status": "ACTIVE",
+                        "providerEmail": "ops@northwind.example",
+                        "owner": {
+                          "kind": "partnerCustomer",
+                          "partnerCustomerId": "pc_92a3b4c5-d6e7-f809-1223-344556677889",
+                          "name": "Northwind Traders",
+                          "externalId": "acct_10231"
+                        }
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/agent/{id}/tools/{slug}": {
+      "put": {
+        "operationId": "setAgentTool",
+        "summary": "Bind or unbind a tool on an agent",
+        "tags": [
+          "Agent Tools"
+        ],
+        "description": "Turns a connector on or off for this agent. When more than one connection exists for the slug — typically one per customer — pass `connection_id` to say which one this agent should use.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Agent ID."
+          },
+          {
+            "name": "slug",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Connector slug."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "enabled"
+                ],
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "connection_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Which connection to bind. Required when the agent has more than one eligible."
+                  }
+                }
+              },
+              "example": {
+                "enabled": true,
+                "connection_id": "uc_a3b4c5d6-e7f8-0912-2334-45566778899a"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "enabled": {
+                          "type": "boolean"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "enabled": true
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`INVALID_ENABLED` or `INVALID_CONNECTION_ID` for a malformed body. `TOOL_NOT_AVAILABLE` when the tool is not connected, or the chosen `connection_id` is not eligible for this agent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "TOOL_NOT_AVAILABLE",
+                    "message": "Tool not connected, or chosen connection_id is not eligible."
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/agent/{id}/tools/google_sheets/sheet-columns": {
+      "get": {
+        "operationId": "getSheetColumns",
+        "summary": "Read a Google Sheet's column headers",
+        "tags": [
+          "Agent Tools"
+        ],
+        "description": "Returns the header row of the agent's connected spreadsheet, plus the available tab names.\n\nWorth the round trip: a mistyped column name does not error at call time, it soft-fails to an empty value. Discover the real headers here before you write a `lookup_row` hook against them.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Agent ID."
+          },
+          {
+            "name": "spreadsheet_id",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Spreadsheet to read. Defaults to the one configured on the agent."
+          },
+          {
+            "name": "sheet_name",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string"
+            },
+            "description": "Tab to read. Defaults to the first tab."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "columns": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Header row values, left to right."
+                        },
+                        "sheet_name": {
+                          "type": "string",
+                          "description": "Tab actually read."
+                        },
+                        "spreadsheet_id": {
+                          "type": "string"
+                        },
+                        "tabs": {
+                          "type": "array",
+                          "items": {
+                            "type": "string"
+                          },
+                          "description": "Every tab in the spreadsheet."
+                        },
+                        "truncated": {
+                          "type": "boolean",
+                          "description": "`true` when the header row was longer than the read limit."
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "columns": [
+                      "Name",
+                      "Phone",
+                      "Plan",
+                      "Renews On"
+                    ],
+                    "sheet_name": "Leads",
+                    "spreadsheet_id": "1AbC...",
+                    "tabs": [
+                      "Leads",
+                      "Archive"
+                    ],
+                    "truncated": false
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`spreadsheet_id` or `sheet_name` is not a string, or the sheet could not be read.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "sheet_name must be a string"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/agent/{id}/inbound": {
+      "patch": {
+        "operationId": "toggleAgentInbound",
+        "summary": "Turn an agent's inbound face on or off",
+        "tags": [
+          "Agents"
+        ],
+        "description": "Gives one agent a separate inbound configuration. Enabling the first time deep-copies the agent into an inbound face; the face's name and project always track the parent and cannot be set independently.\n\nDisabling is guarded: if numbers are linked or inbound campaigns are running, the request returns `409 CONFIRM_REQUIRED` with exactly what would break. Re-send with `confirm: true` to unlink those numbers and pause those campaigns.\n\nThis endpoint is rate-limited more tightly than the rest of the API.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Agent ID. Always the parent — the face is not addressable by its own ID."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "enabled"
+                ],
+                "properties": {
+                  "enabled": {
+                    "type": "boolean"
+                  },
+                  "confirm": {
+                    "type": "boolean",
+                    "description": "Send `true` with `enabled: false` to accept the consequences listed in a prior `409`."
+                  }
+                }
+              },
+              "example": {
+                "enabled": true
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "inbound": {
+                          "type": "object",
+                          "properties": {
+                            "enabled": {
+                              "type": "boolean"
+                            },
+                            "created": {
+                              "type": "boolean",
+                              "description": "`true` when this call created the face. Only present when enabling."
+                            }
+                          }
+                        },
+                        "unlinked_numbers": {
+                          "type": "integer",
+                          "description": "Only present when disabling."
+                        },
+                        "paused_campaigns": {
+                          "type": "integer",
+                          "description": "Only present when disabling."
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "inbound": {
+                      "enabled": true,
+                      "created": true
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`enabled` must be a boolean.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "VALIDATION_ERROR",
+                    "message": "enabled must be a boolean"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "Disabling would unlink numbers or pause campaigns. `details` lists them; re-send with `confirm: true`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "object",
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "const": "CONFIRM_REQUIRED"
+                        },
+                        "message": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "details": {
+                      "type": "object",
+                      "properties": {
+                        "linked_numbers": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "phone_number": {
+                                "type": "string"
+                              },
+                              "friendly_name": {
+                                "type": "string",
+                                "nullable": true
+                              }
+                            }
+                          }
+                        },
+                        "active_inbound_campaigns": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "name": {
+                                "type": "string"
+                              },
+                              "type": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "CONFIRM_REQUIRED",
+                    "message": "Turning inbound off will unlink the numbers below and pause the campaigns below. Re-send with confirm: true."
+                  },
+                  "details": {
+                    "linked_numbers": [
+                      {
+                        "id": "pn_1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f",
+                        "phone_number": "+918065480085",
+                        "friendly_name": "Support line"
+                      }
+                    ],
+                    "active_inbound_campaigns": []
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Inbound is switched off server-side. Retry later.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "INBOUND_DISABLED",
+                    "message": "Inbound is currently disabled"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/agent/{id}/inbound/config": {
+      "put": {
+        "operationId": "updateAgentInboundConfig",
+        "summary": "Update an agent's inbound configuration",
+        "tags": [
+          "Agents"
+        ],
+        "description": "Updates the inbound face's configuration. Takes the same body as `PUT /agent/{id}`, so the inbound side of an agent can have its own prompt, greeting, voice, and behaviour.\n\n`agent_name` and `project_id` are ignored if sent — the face inherits both from the parent and may never drift, because pricing is resolved from the serving agent's project.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Agent ID. Always the parent."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "additionalProperties": true,
+                "description": "Same shape as the `PUT /agent/{id}` body, minus `agent_name` and `project_id`."
+              },
+              "example": {
+                "prompt": "You are answering inbound support calls for Northwind.",
+                "greeting": "Thanks for calling Northwind support, how can I help?"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "additionalProperties": true,
+                      "description": "The updated inbound face, in the same shape as an agent."
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "greeting": "Thanks for calling Northwind support, how can I help?"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "$ref": "#/components/responses/ValidationError"
+          },
+          "404": {
+            "description": "Agent not found, or `INBOUND_NOT_ENABLED` when the agent has no inbound face yet.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "INBOUND_NOT_ENABLED",
+                    "message": "Inbound is not enabled for this agent"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/campaigns/{id}/extraction-sets": {
+      "get": {
+        "operationId": "listCampaignExtractionSets",
+        "summary": "List a campaign's extraction sets",
+        "tags": [
+          "Extraction Sets"
+        ],
+        "description": "Sets attached at campaign level. Their keys apply to every call the campaign makes.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Campaign ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "extraction_sets": {
+                          "type": "array",
+                          "items": {
+                            "$ref": "#/components/schemas/ExtractionSet"
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "extraction_sets": [
+                      {
+                        "id": "es_8c7b6a59-4837-2615-0493-8271605948af",
+                        "name": "Renewal outcomes",
+                        "description": "Fields every renewal call should return",
+                        "keys": [
+                          {
+                            "name": "will_renew",
+                            "type": "boolean",
+                            "description": "Did the customer commit to renewing?"
+                          }
+                        ],
+                        "created_at": "2026-08-01T12:00:00.000Z",
+                        "updated_at": "2026-08-14T15:30:00.000Z"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/campaigns/{id}/extraction-sets/{setId}": {
+      "post": {
+        "operationId": "attachCampaignExtractionSet",
+        "summary": "Attach an extraction set to a campaign",
+        "tags": [
+          "Extraction Sets"
+        ],
+        "description": "Rejected if a key in the set clashes with one the campaign's agent already produces.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Campaign ID."
+          },
+          {
+            "name": "setId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Extraction set ID."
+          }
+        ],
+        "responses": {
+          "201": {
+            "description": "Attached.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "attached": {
+                          "type": "boolean",
+                          "const": true
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "attached": true
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "A key in this set clashes with a key already reaching the campaign's agent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "EXTRACTION_KEY_CLASH",
+                    "message": "Key name clash: will_renew"
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Another set is being attached to this campaign. Retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "WRITE_CONFLICT",
+                    "message": "Busy — another set is being attached to this campaign. Retry."
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      },
+      "delete": {
+        "operationId": "detachCampaignExtractionSet",
+        "summary": "Detach an extraction set from a campaign",
+        "tags": [
+          "Extraction Sets"
+        ],
+        "description": "The set itself is untouched and stays on your account.",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Campaign ID."
+          },
+          {
+            "name": "setId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Extraction set ID."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "attached": {
+                          "type": "boolean",
+                          "const": false
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "attached": false
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "Campaign not found, or the set is not attached to it.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "Extraction set is not attached to this campaign"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -19810,6 +22078,119 @@
           "last_error_message": {
             "type": "string",
             "nullable": true
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "Connector": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "slug": {
+            "type": "string",
+            "description": "Stable identifier, e.g. `google_sheets`. Lowercase, digits, `_` and `-`."
+          },
+          "name": {
+            "type": "string"
+          },
+          "description": {
+            "type": "string",
+            "nullable": true
+          },
+          "provider": {
+            "type": "string",
+            "description": "Upstream OAuth provider."
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE"
+            ]
+          },
+          "oauth_scopes": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "Scopes the connect-link will request."
+          },
+          "capabilities": {
+            "description": "Functions this connector exposes to an agent."
+          }
+        }
+      },
+      "PartnerCustomer": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "Vocobase ID for the customer."
+          },
+          "external_id": {
+            "type": "string",
+            "description": "Your own ID for this customer. Unique on your account."
+          },
+          "name": {
+            "type": "string"
+          },
+          "email": {
+            "type": "string",
+            "nullable": true
+          },
+          "metadata": {
+            "type": "object",
+            "nullable": true,
+            "additionalProperties": true
+          },
+          "status": {
+            "type": "string",
+            "enum": [
+              "ACTIVE",
+              "ARCHIVED"
+            ]
+          },
+          "created_at": {
+            "type": "string",
+            "format": "date-time"
+          },
+          "updated_at": {
+            "type": "string",
+            "format": "date-time"
+          }
+        }
+      },
+      "CustomerConnection": {
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "tool_slug": {
+            "type": "string"
+          },
+          "tool_name": {
+            "type": "string"
+          },
+          "status": {
+            "type": "string",
+            "description": "`ACTIVE` once the customer has completed the connect flow."
+          },
+          "provider_email": {
+            "type": "string",
+            "nullable": true,
+            "description": "Account the customer authorised, when the provider reports one."
           },
           "created_at": {
             "type": "string",

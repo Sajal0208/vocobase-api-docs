@@ -24,41 +24,43 @@
           "index",
           "quickstart",
           "authentication",
-          "projects"
-        ]
-      },
-      {
-        "group": "Guides",
-        "pages": [
-          "web-voice-testing",
-          "custom-functions",
-          "dictionaries",
-          "pre-call-variables",
-          "post-call-extraction",
-          "knowledge-base",
-          "credits",
-          "inbound-calls",
-          "inbound-routing-policies",
-          "call-transfer",
-          "voicemail-and-screener-detection",
-          "call-duration-and-background-audio",
-          "b2b2b-customers"
-        ]
-      },
-      {
-        "group": "Onboarding",
-        "pages": [
           "onboarding/getting-api-access",
           "onboarding/configuring-your-account"
         ]
       },
       {
-        "group": "API Reference",
-        "openapi": "openapi.json"
+        "group": "Building Agents",
+        "pages": [
+          "projects",
+          "knowledge-base",
+          "dictionaries",
+          "pre-call-variables",
+          "custom-functions",
+          "lifecycle-hooks",
+          "call-duration-and-background-audio"
+        ]
       },
       {
-        "group": "Webhooks",
+        "group": "Making Calls",
         "pages": [
+          "telephony/byop-setup",
+          "campaigns",
+          "web-voice-testing",
+          "call-transfer",
+          "voicemail-and-screener-detection"
+        ]
+      },
+      {
+        "group": "Receiving Calls",
+        "pages": [
+          "inbound-calls",
+          "inbound-routing-policies"
+        ]
+      },
+      {
+        "group": "After the Call",
+        "pages": [
+          "post-call-extraction",
           "webhooks/setup",
           "webhooks/scoping",
           "webhooks/payloads",
@@ -66,9 +68,8 @@
         ]
       },
       {
-        "group": "Telephony",
+        "group": "Telephony Providers",
         "pages": [
-          "telephony/byop-setup",
           "telephony/connections",
           "telephony/twilio-setup",
           "telephony/mcube-setup",
@@ -80,6 +81,18 @@
           "telephony/voicelink-setup",
           "telephony/voicelink-management"
         ]
+      },
+      {
+        "group": "Advanced",
+        "pages": [
+          "b2b2b-customers",
+          "whatsapp-messaging",
+          "credits"
+        ]
+      },
+      {
+        "group": "API Reference",
+        "openapi": "openapi.json"
       }
     ]
   },
