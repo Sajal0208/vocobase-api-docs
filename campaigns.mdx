@@ -1,0 +1,225 @@
+---
+title: "Campaigns"
+description: "Dial a list of contacts with one agent, with retries and live progress"
+---
+
+# Campaigns
+
+A campaign dials a list of contacts with one agent. You add contacts, start it, and Vocobase
+works through the list at the concurrency you set — retrying the ones that do not connect and
+reporting progress as it goes.
+
+## How it works
+
+<Steps>
+  <Step title="Create the campaign">
+    Pick the agent and the caller IDs to dial from. The campaign starts in `draft` and nothing dials yet.
+  </Step>
+  <Step title="Add contacts">
+    Up to 10,000 per request. Numbers are canonicalised, so the same number written two ways
+    becomes one contact.
+  </Step>
+  <Step title="Start it">
+    Vocobase dials up to `concurrency_limit` contacts at once and retries failures on your schedule.
+  </Step>
+  <Step title="Watch it">
+    Poll `GET /campaigns/{id}/stats`, or let the ordinary `session.completed` webhook deliver each
+    call's transcript and extraction as it finishes.
+  </Step>
+</Steps>
+
+---
+
+## Create a campaign
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/campaigns \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "March renewals",
+    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "phone_number_ids": ["pn_1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f"],
+    "concurrency_limit": 10,
+    "retry_count": 2,
+    "retry_delays_minutes": [30, 240]
+  }'
+```
+
+The response is the campaign in `draft`, with a `campaign_id` you use for everything below.
+
+### Choosing caller IDs
+
+There are two ways to say which number the campaign dials from, and they are mutually exclusive:
+
+| | When to use it |
+|---|---|
+| `phone_number_ids` | **Preferred.** A list of imported numbers. The campaign rotates through them in order, which spreads volume across numbers. |
+| `provider` | Legacy single-provider mode, for accounts that have not imported numbers yet. |
+
+Sending both fails unless they agree. Each number must be active, owned by you, and voice-capable —
+this is re-checked when the campaign starts, so a campaign whose numbers were deactivated while it
+sat in draft refuses to start rather than dispatching doomed calls.
+
+<Note>
+  `tata_smartflo` is rejected on campaigns. Smartflo does not support streaming voice bots on
+  Broadcast/Dialer campaigns yet — only 1:1 click-to-call and inbound DIDs.
+</Note>
+
+### Retries
+
+`retry_count` is how many times a contact is re-dialled after the first attempt. The wait between
+attempts comes from one of two fields:
+
+- `cooldown_minutes` — the same wait every time.
+- `retry_delays_minutes` — a per-attempt list, e.g. `[30, 240]` waits 30 minutes before the second
+  attempt and 4 hours before the third. Overrides `cooldown_minutes` when present.
+
+`retry_concurrency` caps retry calls separately from first attempts, so a backlog of retries cannot
+starve fresh contacts.
+
+---
+
+## Add contacts
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/campaigns/CAMPAIGN_ID/contacts \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "contacts": [
+      { "phone": "+919876543210", "name": "Asha Menon", "metadata": { "plan": "pro" } },
+      { "phone": "+919812345678", "name": "Ravi Kumar" }
+    ]
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "added": 2,
+    "duplicates": 0,
+    "contacts_created": 1,
+    "contacts_existing": 1,
+    "campaign_reopened": false
+  }
+}
+```
+
+Four things worth knowing:
+
+- **`metadata` reaches the call.** Anything you put there is available to the prompt as a
+  [pre-call variable](/pre-call-variables) and comes back on the `session.completed` webhook.
+- **Contacts are reused, not duplicated.** A number already in your contact library is linked
+  rather than re-created — that is the split between `contacts_created` and `contacts_existing`.
+- **`duplicates` means already on this campaign.** Those rows are skipped, not re-queued.
+- **Adding to a finished campaign re-opens it.** A `completed` campaign moves back to `running`
+  and `campaign_reopened` is `true`. This is how you top up a campaign instead of creating a new one.
+
+---
+
+## Run it
+
+| Action | Endpoint | Allowed from |
+|---|---|---|
+| Start | `POST /campaigns/{id}/start` | `draft` |
+| Pause | `POST /campaigns/{id}/pause` | `running` |
+| Resume | `POST /campaigns/{id}/resume` | `paused`, `credit_exhausted` |
+| Stop | `POST /campaigns/{id}/stop` | `running`, `paused`, `credit_exhausted` |
+
+Each returns the updated campaign. Calling one from the wrong status returns `400 INVALID_STATE`.
+
+Pausing lets in-flight calls finish and dispatches no new ones. Stopping is terminal — every
+still-queued contact is marked `skipped` and the campaign cannot be resumed.
+
+<Warning>
+  `start` and `resume` require enough balance for at least one 30-second call, and re-validate every
+  caller ID. If the balance runs out mid-run the campaign moves to `credit_exhausted` on its own;
+  top up and `resume`.
+</Warning>
+
+---
+
+## Track progress
+
+```bash
+curl -X GET https://api.vocobase.com/api/v2/campaigns/CAMPAIGN_ID/stats \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "queued": 501,
+    "in_progress": 8,
+    "completed": 846,
+    "failed": 61,
+    "skipped": 4,
+    "avg_duration_seconds": 74.2,
+    "total_credits": 4318.5,
+    "dispositions": { "completed": 712, "no_answer": 96, "busy": 24, "voicemail": 14 },
+    "screener_encountered": 31,
+    "callbacks_pending": 27
+  }
+}
+```
+
+The top five counters partition your contacts — they add up to `total_contacts`. `dispositions`
+does not: it breaks down only the calls that reached an outcome.
+
+<Note>
+  `screener_encountered` cuts across dispositions rather than partitioning them. A call can be both
+  `completed` and screener-encountered, so do not add it to the disposition counts.
+</Note>
+
+### One contact's history
+
+`GET /campaigns/{id}/contacts/{contactId}/journey` returns every touch for a single contact,
+oldest first — each outbound attempt with its disposition and cost, plus any inbound call they made
+back. Use it to answer "what actually happened to this lead" without stitching sessions together
+yourself.
+
+---
+
+## Callbacks
+
+By default, calls ask the lead for a better time if they cannot talk now, and the campaign re-queues
+them for it. `callbacks_pending` in the stats is how many are waiting.
+
+Set `callback_enabled: false` at creation to turn this off. It is an opt-out, not an opt-in.
+
+---
+
+## Campaign-wide extraction
+
+Attach an [extraction set](/post-call-extraction) to the campaign and its keys apply to every call
+the campaign makes, on top of whatever the agent already extracts:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/campaigns/CAMPAIGN_ID/extraction-sets/SET_ID \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+Rejected with `409 EXTRACTION_KEY_CLASH` if a key in the set collides with one the agent already
+produces — two sources writing the same field would silently shadow each other.
+
+---
+
+## Next steps
+
+<CardGroup cols={2}>
+  <Card title="Pre-call Variables" icon="brackets-curly" href="/pre-call-variables">
+    Use contact `metadata` inside the prompt.
+  </Card>
+  <Card title="Webhook Payloads" icon="webhook" href="/webhooks/payloads">
+    Receive each call's transcript and result.
+  </Card>
+  <Card title="Credits & Billing" icon="coins" href="/credits">
+    What a campaign costs to run.
+  </Card>
+  <Card title="API Reference" icon="code" href="/api-reference">
+    Every campaign field and error code.
+  </Card>
+</CardGroup>

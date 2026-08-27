@@ -316,42 +316,17 @@ curl -X GET https://api.vocobase.com/api/v2/agent/AGENT_ID/functions \
 
 ## Manage functions
 
-### List all your functions
+Functions are ordinary CRUD resources — see the [API Reference](/api-reference) for
+full schemas.
 
-```bash cURL
-curl -X GET https://api.vocobase.com/api/v2/functions \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
-```
+| Do this | Endpoint |
+|---|---|
+| List your functions | `GET /functions` |
+| Get one | `GET /functions/{id}` |
+| Update (all fields optional; only what you send changes) | `PUT /functions/{id}` |
+| Delete | `DELETE /functions/{id}` |
 
-### Get a single function
-
-```bash cURL
-curl -X GET https://api.vocobase.com/api/v2/functions/FUNCTION_ID \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
-```
-
-### Update a function
-
-All fields are optional — only provided fields are updated.
-
-```bash cURL
-curl -X PUT https://api.vocobase.com/api/v2/functions/FUNCTION_ID \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "description": "Updated description for better LLM invocation",
-    "timeout": 15
-  }'
-```
-
-### Delete a function
-
-```bash cURL
-curl -X DELETE https://api.vocobase.com/api/v2/functions/FUNCTION_ID \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
-```
-
-Returns `204 No Content`. Deleting a function automatically detaches it from all agents.
+Deleting returns `204 No Content` and detaches the function from every agent using it.
 
 ---
 

@@ -13,7 +13,7 @@ This guide walks you through connecting your Twilio account to Vocobase for outb
 - A Twilio phone number with voice capabilities
 - An approved Vocobase account with an API key
 
-## Step 1: Get your Twilio credentials
+## Get your Twilio credentials
 
 <Steps>
   <Step title="Log in to the Twilio Console">
@@ -42,7 +42,7 @@ This guide walks you through connecting your Twilio account to Vocobase for outb
   </Step>
 </Steps>
 
-## Step 2: Configure Twilio in Vocobase
+## Configure Twilio in Vocobase
 
 Send your Twilio credentials to the Vocobase config API:
 
@@ -118,9 +118,11 @@ A successful response confirms your credentials were saved:
   Your Auth Token is encrypted at rest and never returned in API responses. The Account SID is masked for security.
 </Tip>
 
-## Step 3: Make a test call
+To rotate credentials later, send the same request again with the new values. Every field is required on each call — the endpoint replaces the stored credential set rather than patching it.
 
-Start an outbound call using the `twilio` provider. If your account has multiple active Twilio connections, include `connection_id`.
+## Make a test call
+
+Start an outbound call with `"provider": "twilio"`.
 
 ```bash
 curl -X POST https://api.vocobase.com/api/v2/calls/start \
@@ -129,38 +131,13 @@ curl -X POST https://api.vocobase.com/api/v2/calls/start \
   -d '{
     "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
     "to_number": "+919876543210",
-    "provider": "twilio",
-    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20"
+    "provider": "twilio"
   }'
 ```
 
-```json
-{
-  "success": true,
-  "data": {
-    "call_id": "c1234567-abcd-1234-abcd-123456789012",
-    "session_id": "s1234567-abcd-1234-abcd-123456789012",
-    "status": "pending",
-    "provider": "twilio",
-    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
-    "from_number": "+14155551234",
-    "to_number": "+919876543210",
-    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-  }
-}
-```
-
-Passing only `"provider": "twilio"` remains valid while there is exactly one active Twilio connection.
+If your account has more than one active Twilio connection, also pass `connection_id` — omitting it returns `CONNECTION_AMBIGUOUS`. See [Bring Your Own Phone](/telephony/byop-setup#start-a-call) for the full request and response shape.
 
 ## Troubleshooting
-
-### "Twilio not configured" error
-
-You will receive a `400` error if you try to make a call with `"provider": "twilio"` before configuring credentials. Run `PUT /config/telephony/twilio` with valid credentials.
-
-### `CONNECTION_AMBIGUOUS` error
-
-Your account has multiple active Twilio connections. Call `GET /api/v2/telephony/connections?provider=twilio` and pass the desired `connection_id` in `POST /api/v2/calls/start`.
 
 ### "Invalid Twilio credentials" error
 
@@ -183,10 +160,6 @@ Double-check your Account SID and Auth Token in the [Twilio Console](https://con
 ### Geographic restrictions
 
 Twilio trial accounts can only call verified phone numbers. Upgrade to a paid Twilio account to call any number. Additionally, some countries require regulatory compliance — check Twilio's [supported countries list](https://www.twilio.com/en-us/voice).
-
-## Updating credentials
-
-To update your Twilio credentials (e.g., after rotating your Auth Token), call `PUT /config/telephony/twilio` again with the new values. All three fields (`account_sid`, `auth_token`, `from_number`) are required each time.
 
 ## Next steps
 

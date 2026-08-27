@@ -15,7 +15,7 @@ This guide walks you through connecting your MCube account to Vocobase for outbo
 - Every inbound DID in E.164 format
 - An approved Vocobase account with an API key
 
-## Step 1: Get your MCube credentials
+## Get your MCube credentials
 
 <Steps>
   <Step title="Log in to MCube">
@@ -37,7 +37,7 @@ This guide walks you through connecting your MCube account to Vocobase for outbo
   </Step>
 </Steps>
 
-## Step 2: Configure MCube in Vocobase
+## Configure MCube in Vocobase
 
 MCube is a first-class BYOP provider on the [telephony connections](/telephony/connections) model. Create a named connection (recommended — every connection gets a stable `connection_id` you can pass to `POST /calls/start`):
 
@@ -125,7 +125,9 @@ A successful response confirms your credentials were saved:
   Your JWT token is encrypted at rest and never returned in API responses.
 </Tip>
 
-## Step 3: Add and assign inbound DIDs
+To rotate credentials later, send the same request again with the new values. Every field is required on each call — the endpoint replaces the stored credential set rather than patching it.
+
+## Add and assign inbound DIDs
 
 MCube does not expose a DID inventory endpoint that Vocobase pulls. Add the DIDs manually to the selected connection with `POST /api/v2/phone-numbers/sync`. Use E.164 format even if MCube sends the webhook DID without `+91`; Vocobase handles national-format suffix matching during inbound routing.
 
@@ -185,9 +187,9 @@ curl -X DELETE https://api.vocobase.com/api/v2/phone-numbers/f1a2c3d4-1111-2222-
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
 ```
 
-## Step 4: Make a test call
+## Make a test call
 
-Start an outbound call using the `mcube` provider:
+Start an outbound call with `"provider": "mcube"`.
 
 ```bash
 curl -X POST https://api.vocobase.com/api/v2/calls/start \
@@ -200,41 +202,13 @@ curl -X POST https://api.vocobase.com/api/v2/calls/start \
   }'
 ```
 
-```json
-{
-  "success": true,
-  "data": {
-    "call_id": "c1234567-abcd-1234-abcd-123456789012",
-    "session_id": "s1234567-abcd-1234-abcd-123456789012",
-    "status": "pending",
-    "provider": "mcube",
-    "from_number": "+919876543210",
-    "to_number": "+911234567890",
-    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890"
-  }
-}
-```
-
 <Note>
   If you omit the `provider` field in the call request, MCube is used by default.
 </Note>
 
-If you have multiple MCube connections, pass `connection_id` to select one (omitting it with multiple active connections returns `CONNECTION_AMBIGUOUS`):
-
-```json
-{
-  "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-  "to_number": "+919876543210",
-  "provider": "mcube",
-  "connection_id": "tc_12345678-abcd-1234-abcd-123456789012"
-}
-```
+If your account has more than one active MCube connection, also pass `connection_id` — omitting it returns `CONNECTION_AMBIGUOUS`. See [Bring Your Own Phone](/telephony/byop-setup#start-a-call) for the full request and response shape.
 
 ## Troubleshooting
-
-### "MCube not configured" error
-
-You will receive a `400` error if you try to make a call with `"provider": "mcube"` before configuring credentials. Run `PUT /config/telephony/mcube` with valid credentials.
 
 ### "Invalid MCube credentials" error
 
@@ -268,10 +242,6 @@ curl -X PUT https://api.vocobase.com/api/v2/config/telephony/mcube \
     "exe_number": "+919876543210"
   }'
 ```
-
-## Updating credentials
-
-To update your MCube credentials, call `PUT /config/telephony/mcube` again with the new values. Both fields (`jwt_token`, `exe_number`) are required each time. This updates your default MCube connection; additional named connections are managed through the [connections API](/telephony/connections).
 
 ## Next steps
 

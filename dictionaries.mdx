@@ -225,99 +225,33 @@ Detach a less-relevant dictionary, or split a large dictionary into smaller, mor
   Bigger is not better. A focused 200-term dictionary biases the STT engine more effectively than a 2,000-term grab-bag because the engine has fewer distractors to weigh. Keep dictionaries narrow.
 </Warning>
 
-### List an agent's attached dictionaries
-
-```bash
-curl -X GET https://api.vocobase.com/api/v2/agent/{agent_id}/dictionaries \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
-```
-
-Returns the summary shape (no `description`, no `terms`) for every dictionary currently attached to the agent.
-
 ---
 
-## List all dictionaries
+## Manage dictionaries
 
-```bash
-curl -X GET https://api.vocobase.com/api/v2/dictionaries \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
-```
+Dictionaries are ordinary CRUD resources — see the [API Reference](/api-reference) for
+full schemas.
 
-```json
-{
-  "success": true,
-  "data": {
-    "dictionaries": [
-      {
-        "id": "d1234567-abcd-1234-abcd-123456789012",
-        "name": "Vocobase Product Catalog",
-        "description": "Product names, SKUs, and plan tiers referenced on support calls.",
-        "term_count": 5,
-        "char_count": 52,
-        "attached_agent_count": 1,
-        "created_at": "2026-04-24T10:30:00.000Z",
-        "updated_at": "2026-04-24T10:30:00.000Z"
-      }
-    ]
-  }
-}
-```
+| Do this | Endpoint |
+|---|---|
+| List your dictionaries (summary shape, no `terms`) | `GET /dictionaries` |
+| Get one, including `terms` | `GET /dictionaries/{id}` |
+| Update `name`, `description`, or `terms` | `PATCH /dictionaries/{id}` |
+| Delete | `DELETE /dictionaries/{id}` |
+| List an agent's attached dictionaries | `GET /agent/{id}/dictionaries` |
+| Replace an agent's attached set | `PUT /agent/{id}/dictionaries` |
 
-Returns every dictionary owned by the account, ordered by `created_at` descending. The list endpoint does not include `terms` -- fetch a single dictionary to see them.
+Four behaviours that are easy to get wrong:
 
-### Get a single dictionary
-
-```bash
-curl -X GET https://api.vocobase.com/api/v2/dictionaries/d1234567-abcd-1234-abcd-123456789012 \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
-```
-
-Returns the full detail shape including `terms`.
-
----
-
-## Update a dictionary
-
-`PATCH` any subset of `name`, `description`, or `terms`. Passing `terms` **replaces the whole list** -- there is no incremental add/remove. Merge the lists client-side before sending.
-
-```bash
-curl -X PATCH https://api.vocobase.com/api/v2/dictionaries/d1234567-abcd-1234-abcd-123456789012 \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "terms": ["Vocobase", "SKU-4471", "SKU-4472", "Pro Annual Plan"]
-  }'
-```
-
-If the dictionary is attached to any agent and the new `char_count` would push that agent over 10,000 combined characters, the request fails with `400 DICTIONARY_CHAR_LIMIT_EXCEEDED`. The error `details` include the offending `agent_id`:
-
-```json
-{
-  "success": false,
-  "error": {
-    "code": "DICTIONARY_CHAR_LIMIT_EXCEEDED",
-    "message": "This update would push agent a1b2c3d4-e5f6-7890-abcd-ef1234567890 over the 10,000-character limit.",
-    "details": {
-      "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-      "current_chars": 10820,
-      "limit_chars": 10000
-    }
-  }
-}
-```
-
-Changes take effect on the **next** session that starts. In-flight calls continue with the snapshot taken at session start.
-
----
-
-## Delete a dictionary
-
-```bash
-curl -X DELETE https://api.vocobase.com/api/v2/dictionaries/d1234567-abcd-1234-abcd-123456789012 \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
-```
-
-Returns `204 No Content`. The dictionary is removed and detached from every agent it was attached to. No other data is touched.
+- **`terms` replaces the whole list.** There is no incremental add or remove. Merge
+  client-side, then send the full array.
+- **Updates are validated against every agent.** If the new `char_count` would push an
+  attached agent over the 10,000-character combined limit, the request fails with
+  `400 DICTIONARY_CHAR_LIMIT_EXCEEDED` and the `details` name the offending `agent_id`.
+- **Changes apply to the next session.** In-flight calls keep the snapshot taken when
+  they started.
+- **Deleting detaches everywhere.** `DELETE /dictionaries/{id}` returns `204 No Content`
+  and removes the dictionary from every agent it was attached to. Nothing else is touched.
 
 ---
 

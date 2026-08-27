@@ -46,9 +46,18 @@ Call ends → session.completed webhook fires
   - **Tata Smartflo** ([Tata Smartflo Setup guide](/telephony/tata-smartflo-setup))
 - A phone number with voice capabilities from your chosen provider
 
-<Note>
-  Inbound calling is supported with **Twilio**, **Plivo**, **Vobiz**, and **Tata Smartflo**. MCube inbound is not yet available. The flow below uses Twilio as the example; for Plivo, Vobiz, and Tata Smartflo, use the V2 phone-numbers API section at the bottom of this page to manage DIDs and agent assignment programmatically.
-</Note>
+### Which half of this page applies to you
+
+Inbound is supported on **Twilio**, **Plivo**, **Vobiz**, and **Tata Smartflo**. MCube
+inbound is not yet available. There are two routes, and you only need one:
+
+| Your provider | Read |
+|---|---|
+| Twilio | [Set up inbound calling](#set-up-inbound-calling) — the console-driven flow below |
+| Plivo, Vobiz, Tata Smartflo | [Use the V2 phone-numbers API](#use-the-v2-phone-numbers-api-plivo--vobiz--tata-smartflo) — sync DIDs and assign agents over the API |
+
+Everything between the two — agent configuration, knowledge base, troubleshooting —
+applies either way.
 
 <Note>
   If you create telephony connections through the V2 API, use the returned `connection_id` when syncing DIDs or starting outbound calls. The same active DID can exist on multiple connections for outbound caller ID use, but only one active row can have `inbound_enabled: true`, which keeps inbound routing deterministic.
@@ -692,46 +701,6 @@ Save the returned `data.id` as `AGENT_ID`.
 <Tip>
   See the per-provider setup guides for credential configuration — [Plivo Setup](/telephony/plivo-setup), [Vobiz Setup](/telephony/vobiz-setup), and [Tata Smartflo Setup](/telephony/tata-smartflo-setup). For multiple named connections, use [Telephony Connections](/telephony/connections).
 </Tip>
-
-### End-to-end Vobiz test script
-
-This script assumes the agent already exists and the DID belongs to the account's Vobiz account.
-
-```bash
-set -euo pipefail
-
-: "${API_KEY:?Set API_KEY}"
-: "${AGENT_ID:?Set AGENT_ID}"
-: "${DID:?Set DID in E.164 format, e.g. +918065480085}"
-
-BASE_URL="${BASE_URL:-https://api.vocobase.com/api/v2}"
-CONNECTION_FRAGMENT=""
-if [ -n "${CONNECTION_ID:-}" ]; then
-  CONNECTION_FRAGMENT=",\"connection_id\":\"$CONNECTION_ID\""
-fi
-
-echo "1. Check config"
-curl -sS "$BASE_URL/config" \
-  -H "Authorization: Bearer $API_KEY"
-
-echo "\n2. Sync Vobiz DID"
-curl -sS -X POST "$BASE_URL/phone-numbers/sync" \
-  -H "Authorization: Bearer $API_KEY" \
-  -H "Content-Type: application/json" \
-  -d "{\"provider\":\"VOBIZ\"$CONNECTION_FRAGMENT,\"numbers\":[\"$DID\"]}"
-
-echo "\n3. List Vobiz DIDs"
-curl -sS "$BASE_URL/phone-numbers?provider=VOBIZ${CONNECTION_ID:+&connection_id=$CONNECTION_ID}" \
-  -H "Authorization: Bearer $API_KEY"
-
-echo "\n4. Set PHONE_NUMBER_ID from the list response, then run:"
-echo "curl -X PUT \"$BASE_URL/phone-numbers/\$PHONE_NUMBER_ID\" \\"
-echo "  -H \"Authorization: Bearer \$API_KEY\" \\"
-echo "  -H \"Content-Type: application/json\" \\"
-echo "  -d '{ \"agent_id\": \"'\$AGENT_ID'\", \"inbound_enabled\": true }'"
-
-echo "\n5. After assignment succeeds, call $DID from a real phone."
-```
 
 ### Troubleshooting V2 inbound
 
