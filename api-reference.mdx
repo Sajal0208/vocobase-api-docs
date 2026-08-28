@@ -1,0 +1,59 @@
+---
+title: "API Reference"
+description: "Every /api/v2 endpoint, with request and response schemas read off the handlers."
+---
+
+# API Reference
+
+The pages under this section document all **166** endpoints on the V2 partner API, generated from
+[`openapi.json`](https://github.com/Sajal0208/vocobase-api-docs/blob/main/openapi.json). Every
+endpoint takes the same base URL and auth:
+
+```
+https://api.vocobase.com/api/v2
+Authorization: Bearer rg_live_...
+```
+
+See [Authentication](/authentication) for how to get a key, and [Getting API access](/onboarding/getting-api-access)
+for account setup.
+
+## What lives where
+
+| Area | Endpoints |
+|---|---|
+| **Agents** | `/agent/*` — CRUD, voices, tools, documents, dictionaries, extraction sets, inbound face |
+| **Calls** | `/calls/*` — start, list, recording URLs, transfer, extraction, concurrency |
+| **Campaigns** | `/campaigns/*` — batch calling, contacts, lifecycle, stats. Guide: [Campaigns](/campaigns) |
+| **Documents** | `/documents/*` — upload, web links, paragraphs. Guide: [Knowledge base](/knowledge-base) |
+| **Dictionaries** | `/dictionaries/*`. Guide: [Dictionaries](/dictionaries) |
+| **Extraction sets** | `/extraction-sets/*`. Guide: [Post-call extraction](/post-call-extraction) |
+| **Functions** | `/functions/*` and `/agent/{id}/functions/*`. Guide: [Custom functions](/custom-functions) |
+| **Lifecycle hooks** | `/agents/{agentId}/lifecycle-hooks/*`. Guide: [Lifecycle hooks](/lifecycle-hooks) |
+| **Telephony** | `/telephony/*`, `/phone-numbers/*`, `/config/telephony/*`, `/voicelink/*`. Guide: [Bring your own provider](/telephony/byop-setup) |
+| **Inbound routing** | `/inbound-route-policies/*`, `/inbound-route-decisions`. Guide: [Inbound routing policies](/inbound-routing-policies) |
+| **Messaging** | `/messaging/*`. Guide: [WhatsApp messaging](/whatsapp-messaging) |
+| **Customers** | `/customers/*`, `/connectors/*`. Guide: [B2B2B customers](/b2b2b-customers) |
+| **Billing** | `/billing/*`. Guide: [Credits](/credits) |
+| **Config & webhooks** | `/config/*`. Guide: [Webhook setup](/webhooks/setup) |
+| **Projects** | `/projects/*`. Guide: [Projects](/projects) |
+
+## Response shape
+
+Almost every endpoint returns an envelope:
+
+```json
+{ "success": true, "data": { } }
+```
+
+```json
+{ "success": false, "error": { "code": "VALIDATION_ERROR", "message": "…" } }
+```
+
+Two families are the exception and return a **bare object** with no envelope — lifecycle hooks
+(`/agents/{agentId}/lifecycle-hooks/*`) and the integration audit log (`/integration-logs`). Their
+errors are bare too, in the form `{ "error": "…" }`. Each affected operation says so on its own page.
+
+## Rate limits
+
+The partner API is limited to 60 requests per minute per account. Exceeding it returns `429` with
+code `RATE_LIMIT_EXCEEDED`.

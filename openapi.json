@@ -9685,7 +9685,7 @@
         "tags": [
           "Campaigns"
         ],
-        "description": "Adds contacts by phone number. Numbers are canonicalised to E.164 before storage, so the same number written two ways resolves to one contact.\n\nContacts already in your library are reused rather than duplicated, and contacts already on this campaign are counted as `duplicates` and skipped. Adding contacts to a `completed` campaign re-opens it to `running` — the response says so via `campaign_reopened`.\n\nMaximum 10,000 contacts per request.",
+        "description": "Adds contacts by phone number. Numbers are canonicalised to E.164 before storage, so the same number written two ways resolves to one contact.\n\nContacts already in your library are reused rather than duplicated, and contacts already on this campaign are counted as `duplicates` and skipped. Adding contacts to a `completed` campaign re-opens it to `paused`, **not** `running` — the response says so via `campaign_reopened`. Dialling does not resume on its own: call `POST /campaigns/{id}/resume`, which re-validates caller IDs and provider access first.\n\nMaximum 10,000 contacts per request.",
         "parameters": [
           {
             "name": "id",
@@ -9789,7 +9789,7 @@
                         },
                         "campaign_reopened": {
                           "type": "boolean",
-                          "description": "`true` when this request put a finished campaign back to `running`."
+                          "description": "`true` when this request put a finished campaign back to `paused`. It is now an ordinary paused campaign — `POST /campaigns/{id}/resume` is the only way on from here."
                         }
                       }
                     }
@@ -9809,7 +9809,7 @@
             }
           },
           "400": {
-            "description": "`VALIDATION_ERROR` for an empty array, more than 10,000 contacts, or invalid E.164 numbers. `INVALID_STATE` when the campaign is cancelled or is an inbound campaign.",
+            "description": "`VALIDATION_ERROR` for an empty array, more than 10,000 contacts, or invalid E.164 numbers. `INVALID_STATE` when the campaign is an inbound campaign, or has been stopped — a stopped campaign refuses contacts forever, including after it is relabelled `completed`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9945,6 +9945,33 @@
           "500": {
             "$ref": "#/components/responses/InternalError"
           }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "concurrency_limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10,
+                    "description": "Optional. Calls dialled at once, clamped to 1–10 and further clamped at dispatch by your account concurrency limit. Omit to keep the campaign's current value."
+                  },
+                  "retry_concurrency": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Optional. Slots reserved for retries; must be between 0 and the resulting `concurrency_limit`. Omit to keep the campaign's current value."
+                  }
+                }
+              },
+              "example": {
+                "concurrency_limit": 6,
+                "retry_concurrency": 2
+              }
+            }
+          }
         }
       }
     },
@@ -10063,7 +10090,7 @@
         "tags": [
           "Campaigns"
         ],
-        "description": "Moves a `paused` or `credit_exhausted` campaign back to `running`, re-validating caller IDs and balance the same way `start` does.",
+        "description": "Moves a `paused` or `credit_exhausted` campaign back to `running`, re-validating caller IDs the same way `start` does. The balance is only re-checked when the campaign is in `credit_exhausted` — resuming from `paused` runs no credit check.",
         "parameters": [
           {
             "name": "id",
@@ -10133,7 +10160,7 @@
             }
           },
           "400": {
-            "description": "`INVALID_STATE` when the campaign is not in a status this action allows. `VALIDATION_ERROR` when a caller ID is no longer usable or the campaign has no contacts. `INSUFFICIENT_CREDITS` when the balance will not cover one 30-second call.",
+            "description": "`INVALID_STATE` when the campaign is not in a status this action allows. `VALIDATION_ERROR` when a caller ID is no longer usable. `INSUFFICIENT_CREDITS` when the balance will not cover one 30-second call.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10160,6 +10187,33 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          }
+        },
+        "requestBody": {
+          "required": false,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "properties": {
+                  "concurrency_limit": {
+                    "type": "integer",
+                    "minimum": 1,
+                    "maximum": 10,
+                    "description": "Optional. Calls dialled at once, clamped to 1–10 and further clamped at dispatch by your account concurrency limit. Omit to keep the campaign's current value."
+                  },
+                  "retry_concurrency": {
+                    "type": "integer",
+                    "minimum": 0,
+                    "description": "Optional. Slots reserved for retries; must be between 0 and the resulting `concurrency_limit`. Omit to keep the campaign's current value."
+                  }
+                }
+              },
+              "example": {
+                "concurrency_limit": 6,
+                "retry_concurrency": 2
+              }
+            }
           }
         }
       }
@@ -11052,7 +11106,8 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 60,
-                    "default": 10
+                    "default": 30,
+                    "description": "Defaults to 30."
                   },
                   "started_messages": {
                     "type": "array",
@@ -11360,7 +11415,8 @@
                     "type": "integer",
                     "minimum": 1,
                     "maximum": 60,
-                    "default": 10
+                    "default": 30,
+                    "description": "Defaults to 30."
                   },
                   "started_messages": {
                     "type": "array",
@@ -11468,7 +11524,7 @@
         "tags": [
           "Custom Functions"
         ],
-        "description": "Detaches the function from every agent using it, then deletes it.",
+        "description": "Soft-deletes the function: its status becomes `DELETED` and it stops being listed or called. Existing agent attachments are **not** removed.",
         "parameters": [
           {
             "name": "id",
@@ -11630,7 +11686,7 @@
         "tags": [
           "Custom Functions"
         ],
-        "description": "Idempotent. Attaching an already-attached function succeeds without duplicating it.",
+        "description": "Attaches a function to an agent. **Not idempotent** — re-attaching an already-attached function returns `409 ALREADY_ATTACHED`, it does not succeed silently.",
         "parameters": [
           {
             "name": "agentId",
@@ -11710,6 +11766,40 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "400": {
+            "description": "`ATTACH_FAILED` when the attachment could not be created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "ATTACH_FAILED",
+                    "message": "Failed to attach function to agent"
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`ALREADY_ATTACHED` when the function is already attached to this agent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "ALREADY_ATTACHED",
+                    "message": "Function already assigned to this agent"
+                  }
+                }
+              }
+            }
           }
         }
       },
@@ -12635,7 +12725,7 @@
         "tags": [
           "Extraction Sets"
         ],
-        "description": "Promotes an agent's inline extraction keys into a reusable set, attaches the set to that agent, and clears the moved keys from the agent's inline config — so each key still reaches the agent exactly once.\n\nSend exactly one of `name` (create a new set) or `set_id` (merge into an existing set). When merging, an inline key whose name already exists in the target set is dropped in favour of the set's definition and reported in `dropped_inline_keys`; pass `on_conflict: \"keep_set_definition\"` to state that intent explicitly.",
+        "description": "Promotes an agent's inline extraction keys into a reusable set, attaches the set to that agent, and clears the moved keys from the agent's inline config — so each key still reaches the agent exactly once.\n\nSend exactly one of `name` (create a new set) or `set_id` (merge into an existing set). When merging, an inline key whose name already exists in the target set is a **conflict and the request is rejected with `409 EXTRACTION_KEY_CLASH`**. Pass `on_conflict: \"keep_set_definition\"` to opt in to dropping those inline keys in favour of the set's definition; they are then reported in `dropped_inline_keys`. Omitting `on_conflict` is *not* the same as passing it.",
         "requestBody": {
           "required": true,
           "content": {
@@ -12669,7 +12759,7 @@
                     "enum": [
                       "keep_set_definition"
                     ],
-                    "description": "Optional. The only accepted value; it is also the default behaviour."
+                    "description": "Optional; `keep_set_definition` is the only accepted value. Opt in to dropping clashing inline keys. Omit it and any clash returns `409 EXTRACTION_KEY_CLASH` instead."
                   }
                 }
               },
@@ -12802,7 +12892,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "A set with this name already exists.",
+            "description": "`DUPLICATE_NAME` when a set with this name already exists, or `EXTRACTION_KEY_CLASH` when an inline key name already exists in the target set and `on_conflict` was not supplied.",
             "content": {
               "application/json": {
                 "schema": {
@@ -12811,8 +12901,8 @@
                 "example": {
                   "success": false,
                   "error": {
-                    "code": "DUPLICATE_NAME",
-                    "message": "An extraction set with this name already exists"
+                    "code": "EXTRACTION_KEY_CLASH",
+                    "message": "'renewal_date' already defined by set 'Renewal outcomes' with a possibly different type or description. Rename the agent's key, or pass on_conflict: 'keep_set_definition'."
                   }
                 }
               }
@@ -12948,7 +13038,7 @@
         "tags": [
           "Extraction Sets"
         ],
-        "description": "Rejected if any key in the set collides with a key the agent already produces, inline or via another attached set.",
+        "description": "Rejected if any key in the set collides with a key the agent already produces, inline or via another attached set.\n\nRe-attaching an already-attached set returns `200` instead of `201`; nothing changes.",
         "parameters": [
           {
             "name": "id",
@@ -12972,6 +13062,37 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Already attached — nothing changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "attached": {
+                          "type": "boolean",
+                          "const": true
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "attached": true
+                  }
+                }
+              }
+            }
+          },
           "201": {
             "description": "Attached.",
             "content": {
@@ -13003,6 +13124,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -13023,6 +13147,12 @@
               }
             }
           },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
           "503": {
             "description": "Another set is being attached to this agent. Retry.",
             "content": {
@@ -13039,15 +13169,6 @@
                 }
               }
             }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimitExceeded"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
           }
         }
       },
@@ -13244,6 +13365,7 @@
               "schema": {
                 "type": "object",
                 "required": [
+                  "name",
                   "stage"
                 ],
                 "properties": {
@@ -13276,7 +13398,8 @@
                   },
                   "exposeAs": {
                     "type": "string",
-                    "description": "Pre-call only."
+                    "description": "Pre-call only.",
+                    "pattern": "^[a-z_][a-z0-9_]*$"
                   },
                   "required": {
                     "type": "boolean",
@@ -13284,7 +13407,9 @@
                   },
                   "timeoutMs": {
                     "type": "integer",
-                    "default": 3000
+                    "default": 3000,
+                    "minimum": 100,
+                    "maximum": 30000
                   },
                   "position": {
                     "type": "integer",
@@ -16135,7 +16260,7 @@
         "tags": [
           "Customers"
         ],
-        "description": "Every connector on your account merged with this customer's connection status — so one call tells you what they have connected and what is still outstanding.",
+        "description": "Every connector on your account merged with this customer's connection status — so one call tells you what they have connected and what is still outstanding. Each entry is the raw connector definition in camelCase, plus a `connection` object that is `null` when the customer has not connected it.",
         "parameters": [
           {
             "name": "id",
@@ -16179,22 +16304,29 @@
                   "data": {
                     "tools": [
                       {
-                        "tool_slug": "google_sheets",
-                        "tool_name": "Google Sheets",
-                        "connected": true,
-                        "connection_id": "uc_a3b4c5d6-e7f8-0912-2334-45566778899a",
-                        "status": "ACTIVE",
-                        "provider_email": "ops@northwind.example",
-                        "connected_at": "2026-08-10T09:14:22.000Z"
+                        "id": "7c1f2a90-0d54-4a1e-9c2b-1f3d5e7a9b01",
+                        "slug": "google_sheets",
+                        "name": "Google Sheets",
+                        "isRestricted": false,
+                        "oauthScopes": [
+                          "https://www.googleapis.com/auth/spreadsheets"
+                        ],
+                        "connection": {
+                          "id": "2f8b1d64-3a77-4c0e-9d51-6b0a7c2e4f13",
+                          "status": "ACTIVE",
+                          "providerEmail": "ops@northwind.example",
+                          "connectedAt": "2026-08-10T09:14:22.000Z"
+                        }
                       },
                       {
-                        "tool_slug": "slack",
-                        "tool_name": "Slack",
-                        "connected": false,
-                        "connection_id": null,
-                        "status": null,
-                        "provider_email": null,
-                        "connected_at": null
+                        "id": "b3d9e0a2-51c6-4f88-a0d7-9e2c4b6f8a15",
+                        "slug": "slack",
+                        "name": "Slack",
+                        "isRestricted": false,
+                        "oauthScopes": [
+                          "chat:write"
+                        ],
+                        "connection": null
                       }
                     ]
                   }
@@ -16377,7 +16509,12 @@
                 ],
                 "properties": {
                   "tool_slug": {
-                    "type": "string"
+                    "type": "string",
+                    "enum": [
+                      "calcom",
+                      "calendly"
+                    ],
+                    "description": "The connector slug. Only `calcom` and `calendly` accept a direct API key; anything else returns `400 TOOL_NOT_API_KEY`."
                   },
                   "api_key": {
                     "type": "string",
@@ -16386,7 +16523,7 @@
                 }
               },
               "example": {
-                "tool_slug": "cal_com",
+                "tool_slug": "calcom",
                 "api_key": "cal_live_..."
               }
             }
@@ -16422,14 +16559,28 @@
                   "success": true,
                   "data": {
                     "connection_id": "uc_b4c5d6e7-f809-1223-3445-566778899aab",
-                    "tool_slug": "cal_com"
+                    "tool_slug": "calcom"
                   }
                 }
               }
             }
           },
           "400": {
-            "$ref": "#/components/responses/ValidationError"
+            "description": "`INVALID_TOOL_SLUG` when `tool_slug` is missing, `TOOL_NOT_API_KEY` when the connector does not accept a direct API key, `INVALID_API_KEY` when the key is empty.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "TOOL_NOT_API_KEY",
+                    "message": "tool \"cal_com\" does not accept direct API keys"
+                  }
+                }
+              }
+            }
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
@@ -16442,6 +16593,23 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "409": {
+            "description": "`CUSTOMER_NOT_ACTIVE` when the customer has been archived.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "CUSTOMER_NOT_ACTIVE",
+                    "message": "Customer is not active"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -16551,6 +16719,23 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          },
+          "409": {
+            "description": "`CUSTOMER_NOT_ACTIVE` when the customer has been archived.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "CUSTOMER_NOT_ACTIVE",
+                    "message": "Customer is not active"
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -17277,11 +17462,11 @@
               "schema": {
                 "type": "object",
                 "additionalProperties": true,
-                "description": "Same shape as the `PUT /agent/{id}` body, minus `agent_name` and `project_id`."
+                "description": "Same shape as the `PUT /agent/{id}` body, minus `agent_name` and `project_id`. The opening line is `intro_message`; a field named `greeting` is ignored."
               },
               "example": {
                 "prompt": "You are answering inbound support calls for Northwind.",
-                "greeting": "Thanks for calling Northwind support, how can I help?"
+                "intro_message": "Thanks for calling Northwind support, how can I help?"
               }
             }
           }
@@ -17308,8 +17493,8 @@
                 "example": {
                   "success": true,
                   "data": {
-                    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-                    "greeting": "Thanks for calling Northwind support, how can I help?"
+                    "id": "f1e2d3c4-b5a6-7890-abcd-ef1234567890",
+                    "intro_message": "Thanks for calling Northwind support, how can I help?"
                   }
                 }
               }
@@ -17438,7 +17623,7 @@
         "tags": [
           "Extraction Sets"
         ],
-        "description": "Rejected if a key in the set clashes with one the campaign's agent already produces.",
+        "description": "Rejected if a key in the set clashes with one the campaign's agent already produces.\n\nRe-attaching an already-attached set returns `200` instead of `201`; nothing changes.",
         "parameters": [
           {
             "name": "id",
@@ -17462,6 +17647,37 @@
           }
         ],
         "responses": {
+          "200": {
+            "description": "Already attached — nothing changed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "attached": {
+                          "type": "boolean",
+                          "const": true
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "attached": true
+                  }
+                }
+              }
+            }
+          },
           "201": {
             "description": "Attached.",
             "content": {
@@ -17493,6 +17709,9 @@
               }
             }
           },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
@@ -17513,6 +17732,12 @@
               }
             }
           },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
           "503": {
             "description": "Another set is being attached to this campaign. Retry.",
             "content": {
@@ -17529,15 +17754,6 @@
                 }
               }
             }
-          },
-          "401": {
-            "$ref": "#/components/responses/Unauthorized"
-          },
-          "429": {
-            "$ref": "#/components/responses/RateLimitExceeded"
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
           }
         }
       },
@@ -19038,6 +19254,33 @@
                       "null"
                     ],
                     "description": "Default outbound DID."
+                  }
+                }
+              },
+              "tata_smartflo": {
+                "type": "object",
+                "properties": {
+                  "configured": {
+                    "type": "boolean"
+                  },
+                  "email": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "base_url": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "from_number": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "agent_number": {
+                    "type": "string",
+                    "nullable": true
+                  },
+                  "click_to_call_api_key_set": {
+                    "type": "boolean"
                   }
                 }
               }
@@ -21978,7 +22221,7 @@
           },
           "name": {
             "type": "string",
-            "description": "Display name. Auto-filled from the tool or function when omitted."
+            "description": "Required. 1–200 characters."
           },
           "input": {
             "type": "object",
@@ -21988,7 +22231,8 @@
           "exposeAs": {
             "type": "string",
             "nullable": true,
-            "description": "Name the result is published under in the variables map, so the prompt can read `{{lead.FirstName}}`. Pre-call only, and unique per agent within the stage."
+            "description": "Name the result is published under in the variables map, so the prompt can read `{{lead.FirstName}}`. Pre-call only, and unique per agent within the stage.",
+            "pattern": "^[a-z_][a-z0-9_]*$"
           },
           "required": {
             "type": "boolean",
@@ -21996,7 +22240,9 @@
           },
           "timeoutMs": {
             "type": "integer",
-            "default": 3000
+            "default": 3000,
+            "minimum": 100,
+            "maximum": 30000
           },
           "enabled": {
             "type": "boolean",

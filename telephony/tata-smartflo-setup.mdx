@@ -147,7 +147,7 @@ curl -X POST https://api.vocobase.com/api/v2/telephony/connections \
   `agent_number` wiring for outbound `click_to_call` is pending Tata confirmation. Do not pass `agent_number` unless Vocobase has confirmed the value to use for your Smartflo account.
 </Note>
 
-To rotate credentials later, send the same request again with the new values. Every field is required on each call — the endpoint replaces the stored credential set rather than patching it.
+To rotate credentials on this named connection, create a replacement connection and repoint your calls at the new `connection_id` — `PATCH /api/v2/telephony/connections/{connection_id}` only renames a connection. Do **not** re-send the create request above: it adds a *second* connection rather than updating the first. To rotate the **default** connection instead, re-send the `PUT /api/v2/config/telephony/tata-smartflo` request at the top of this page with the new values; that endpoint replaces the stored credential set rather than patching it, so every field is required on each call.
 
 ## Confirm it is configured
 

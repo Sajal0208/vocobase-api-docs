@@ -35,11 +35,19 @@ The response includes `allowed_telephony_providers` and a `telephony` object tha
 {
   "success": true,
   "data": {
-    "allowed_telephony_providers": ["twilio", "plivo", "vobiz"],
+    "allowed_telephony_providers": ["twilio", "plivo", "vobiz", "tata_smartflo"],
     "telephony": {
       "twilio": { "configured": true, "from_number": "+14155551234" },
       "plivo": { "configured": false, "from_number": null },
-      "vobiz": { "configured": false, "from_number": null }
+      "vobiz": { "configured": false, "from_number": null },
+      "tata_smartflo": {
+        "configured": false,
+        "email": null,
+        "base_url": null,
+        "from_number": null,
+        "agent_number": null,
+        "click_to_call_api_key_set": false
+      }
     }
   }
 }
@@ -116,7 +124,7 @@ Existing integrations that pass only `provider` keep working while there is exac
 
 ## Inbound numbers
 
-For inbound calling with Plivo, Vobiz, or MCube, use the V2 phone-numbers API to sync DIDs and assign agents. MCube uses an explicit E.164 `numbers` array because its DID inventory is added manually:
+For inbound calling with Plivo or Vobiz, use the V2 phone-numbers API to sync DIDs and assign agents. MCube DIDs can be registered the same way — its inventory is added manually, so it takes an explicit E.164 `numbers` array — but MCube **inbound is not currently available**; registering the DID does not make it ring. See [Inbound Calls](/inbound-calls).
 
 ```bash
 curl -X POST https://api.vocobase.com/api/v2/phone-numbers/sync \

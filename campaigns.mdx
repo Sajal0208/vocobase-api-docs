@@ -20,7 +20,8 @@ reporting progress as it goes.
     becomes one contact.
   </Step>
   <Step title="Start it">
-    Vocobase dials up to `concurrency_limit` contacts at once and retries failures on your schedule.
+    Vocobase dials up to `concurrency_limit` contacts at once — clamped by your account's own
+    concurrency limit — and retries failures on your schedule, inside the dialling window.
   </Step>
   <Step title="Watch it">
     Poll `GET /campaigns/{id}/stats`, or let the ordinary `session.completed` webhook deliver each
@@ -73,10 +74,12 @@ attempts comes from one of two fields:
 
 - `cooldown_minutes` — the same wait every time.
 - `retry_delays_minutes` — a per-attempt list, e.g. `[30, 240]` waits 30 minutes before the second
-  attempt and 4 hours before the third. Overrides `cooldown_minutes` when present.
+  attempt and 4 hours before the third. It is consulted per attempt: once the list runs out, later
+  attempts fall back to `cooldown_minutes`. Max 20 entries, max 10080 minutes each.
 
-`retry_concurrency` caps retry calls separately from first attempts, so a backlog of retries cannot
-starve fresh contacts.
+`retry_count` accepts up to 20. `retry_concurrency` **reserves** slots for retries rather than
+capping them — it stops a backlog of retries from starving fresh contacts, and retries may still
+borrow the whole pool once fresh contacts are exhausted. It is inert at its default of `0`.
 
 ---
 
@@ -107,15 +110,22 @@ curl -X POST https://api.vocobase.com/api/v2/campaigns/CAMPAIGN_ID/contacts \
 }
 ```
 
-Four things worth knowing:
+Five things worth knowing:
 
-- **`metadata` reaches the call.** Anything you put there is available to the prompt as a
-  [pre-call variable](/pre-call-variables) and comes back on the `session.completed` webhook.
+- **`metadata` reaches the bot, but not as a template variable.** It arrives under
+  `campaign_context.contact_metadata`, not as a [pre-call variable](/pre-call-variables) — writing
+  `{{plan}}` in the prompt renders an empty string. Prompt variables come from the campaign's
+  column-to-variable map, which the v2 API does not expose, so `variables` is empty on
+  API-created campaigns and `metadata` does not appear on the `session.completed` payload.
 - **Contacts are reused, not duplicated.** A number already in your contact library is linked
   rather than re-created — that is the split between `contacts_created` and `contacts_existing`.
 - **`duplicates` means already on this campaign.** Those rows are skipped, not re-queued.
-- **Adding to a finished campaign re-opens it.** A `completed` campaign moves back to `running`
-  and `campaign_reopened` is `true`. This is how you top up a campaign instead of creating a new one.
+- **Adding to a finished campaign re-opens it to `paused`, not `running`.** A `completed` campaign
+  moves back to `paused` and `campaign_reopened` is `true`. Dialling has **not** resumed — you must
+  call `POST /campaigns/{id}/resume` yourself, which is what re-validates caller IDs and provider
+  access before any new call goes out. This is how you top up a campaign instead of creating a new one.
+- **A stopped campaign can never be topped up.** `/stop` is terminal and is keyed on the stop itself,
+  not the status, so a stopped campaign that later reads `completed` still returns `400 INVALID_STATE`.
 
 ---
 
@@ -134,10 +144,32 @@ Pausing lets in-flight calls finish and dispatches no new ones. Stopping is term
 still-queued contact is marked `skipped` and the campaign cannot be resumed.
 
 <Warning>
-  `start` and `resume` require enough balance for at least one 30-second call, and re-validate every
-  caller ID. If the balance runs out mid-run the campaign moves to `credit_exhausted` on its own;
-  top up and `resume`.
+  `start` requires enough balance for at least one 30-second call. `resume` only re-checks the
+  balance when the campaign is in `credit_exhausted` — resuming from `paused` runs no credit check.
+  Both re-validate every caller ID. If the balance runs out mid-run the campaign moves to
+  `credit_exhausted` on its own; top up and `resume`.
 </Warning>
+
+Both `start` and `resume` also accept an optional body to shift concurrency mid-campaign:
+
+```json
+{ "concurrency_limit": 6, "retry_concurrency": 2 }
+```
+
+`concurrency_limit` is clamped to 1–10; `retry_concurrency` must be between `0` and the resulting
+`concurrency_limit`. Omit the body to keep the campaign's current values.
+
+---
+
+## The dialling window
+
+Campaigns only dial between **09:00 and 20:59** in your account's timezone. The window is fixed —
+there is no per-campaign override and no exemption, including for promised callbacks.
+
+A campaign started outside the window reaches `running` and simply dials nothing until 09:00.
+Retries are rolled forward into the window when they are booked, and held again at dispatch time,
+so `cooldown_minutes` and `retry_delays_minutes` are a *minimum* wait, never an exact one — a retry
+due at 22:00 goes out the next morning.
 
 ---
 

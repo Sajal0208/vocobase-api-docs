@@ -98,7 +98,7 @@ Paste the `livekit_sip_uri` into your carrier's DID-origination or outbound rout
   Connections created through the V2 API also appear in the Vocobase dashboard telephony settings with their name and connection ID.
 </Note>
 
-To rotate credentials later, send the same request again with the new values. Every field is required on each call — the endpoint replaces the stored credential set rather than patching it.
+To rotate credentials later, create a replacement connection and repoint your calls at the new `connection_id`. There is no `PUT /api/v2/config/telephony/sip` endpoint, and `PATCH /api/v2/telephony/connections/{connection_id}` only renames a connection — it does not rotate its credentials. Do **not** re-send the create request above: it adds a *second* SIP connection, which makes `/calls/start` fail with `CONNECTION_AMBIGUOUS`. See [Rename a connection](/telephony/connections#rename-a-connection).
 
 ## Make a test call
 
