@@ -92,6 +92,12 @@
       },
       {
         "group": "API Reference",
+        "pages": [
+          "api-reference"
+        ]
+      },
+      {
+        "group": "Endpoints",
         "openapi": "openapi.json"
       }
     ]

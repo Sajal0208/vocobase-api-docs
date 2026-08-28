@@ -139,6 +139,10 @@ If your account has more than one active Twilio connection, also pass `connectio
 
 ## Troubleshooting
 
+### "Twilio not configured" error
+
+You will receive a `400` error if you try to make a call with `"provider": "twilio"` before configuring credentials. Send the `PUT /api/v2/config/telephony/twilio` request above first.
+
 ### "Invalid Twilio credentials" error
 
 Double-check your Account SID and Auth Token in the [Twilio Console](https://console.twilio.com). Common issues:

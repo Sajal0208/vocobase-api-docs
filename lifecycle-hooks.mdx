@@ -61,11 +61,18 @@ no prompt left to feed — and must be unique among that agent's pre-call hooks.
 | Field | Effect |
 |---|---|
 | `required: false` (default) | A failure is logged and the call continues without the data. |
-| `required: true` | A failure fails the call. |
-| `timeoutMs` | How long to wait. Defaults to 3000. |
+| `required: true` | A failure is logged and the call **still continues**. The only difference is that `{{pre_call_degraded}}` becomes `true` in the prompt. |
+| `timeoutMs` | How long to wait. Defaults to 3000; accepted range 100–30000. |
 
-Keep `required` off unless the call is genuinely useless without the data — a slow CRM should not
-drop customer calls.
+<Warning>
+  `required: true` does not abort the call. A hook problem never fails a session — on the post-call
+  stage `required` is recorded and otherwise ignored, since the caller is already gone. If the agent
+  must not speak without the data, branch on `{{pre_call_degraded}}` in the prompt.
+</Warning>
+
+All pre-call hooks share a **5-second wall budget**. Two hooks at `timeoutMs: 3000` can exhaust it,
+and every remaining hook in the stage is skipped and recorded as failed — so keep the sum of your
+pre-call timeouts under 5000.
 
 ---
 
