@@ -216,7 +216,24 @@ Sent whenever Vocobase learns that a telephony call moved to a new meaningful ca
 | `data.provider` | string or null | Telephony provider: `twilio`, `plivo`, `vobiz`, `tata_smartflo`, `voicelink`, `sip`, `mcube`, or `exotel` |
 | `data.provider_status` | string or null | Raw provider status value when available |
 | `data.provider_event` | string or null | Raw provider event name when available |
-| `data.occurred_at` | string (ISO 8601) | When the status transition was recorded |
+| `data.occurred_at` | string (ISO 8601) | When the status transition was recorded. **Not an end-of-call timestamp** — see the warning below. |
+
+<Warning>
+  **Do not build a call record from `call.status.updated` alone.** This event is
+  enqueued from the carrier's callback, which can arrive several seconds before
+  we have written the call's final row. On a terminal update that means
+  `hangup_cause` and `hangup_source` are frequently still `null`, and there is
+  no end timestamp on this event at all — `occurred_at` marks the moment of the
+  *state transition*, not the end of the call.
+
+  Use `call.status.updated` for real-time dialer and concurrency orchestration.
+  Use `session.completed` for the final record: it is built after the call row
+  is settled and carries `call.started_at`, `call.answered_at`, `call.ended_at`
+  and the final hangup attribution. If you need the record before
+  `session.completed` arrives, poll `GET /calls/{call_id}`, which returns
+  `started_at` and `ended_at` under those same names. `answered_at` is
+  currently carried only on `session.completed`.
+</Warning>
 
 ### Call status values
 
@@ -336,6 +353,9 @@ Sent when a Vocobase session has reached final post-call processing. For telepho
       "status": "completed",
       "disposition": "completed",
       "answered_by": "human",
+      "started_at": "2026-03-15T14:30:01.000Z",
+      "answered_at": "2026-03-15T14:30:09.400Z",
+      "ended_at": "2026-03-15T14:32:05.200Z",
       "hangup_cause": "NORMAL_CLEARING",
       "hangup_source": "callee",
       "transferred": false,
@@ -378,6 +398,9 @@ Sent when a Vocobase session has reached final post-call processing. For telepho
 | `call.status` | string | Final call lifecycle/carrier status at the time `session.completed` is emitted. Voicemail is exposed through `call.disposition`, not `call.status`. |
 | `call.disposition` | string or null | Final call outcome: `completed`, `voicemail`, `user_hangup_no_speech`, `no_answer`, `busy`, `canceled`, `blocked`, `failed`, or `transferred`. |
 | `call.answered_by` | string or null | Best-known answer classification: `human`, `machine`, `unknown`, or `not_answered`. `machine` indicates an answering machine or voicemail. |
+| `call.started_at` | string (ISO 8601) | When the call leg was created — the moment Vocobase handed the dial to the carrier. Always present. |
+| `call.answered_at` | string (ISO 8601) or null | When the callee picked up. `null` for calls that were never answered (`no_answer`, `busy`, `canceled`) — there was no media path, so there is no answer time. |
+| `call.ended_at` | string (ISO 8601) or null | When the call leg was torn down. `null` only if the leg was never closed out (a stuck call the reaper has not yet finalized). **This is the authoritative end-of-call timestamp** — see the note below. |
 | `call.hangup_cause` | string or null | Raw normalized carrier hangup cause when available. Same value and same key as on `call.status.updated`. |
 | `call.hangup_source` | string or null | Best-known party or system that ended the call: `caller`, `callee`, `system`, `api`, `carrier`, `error`, or `unknown`. Same value and same key as on `call.status.updated`. **Not reported by every carrier** — see [Hangup attribution coverage](#hangup-attribution-coverage) below. |
 | `call.transferred` | boolean | `true` if the bot handed the call off to a human via the cold-transfer flow. See [Transferred calls](#transferred-calls) below. |
