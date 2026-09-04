@@ -4385,7 +4385,7 @@
       "post": {
         "operationId": "createInboundRoutePolicy",
         "summary": "Create inbound routing policy",
-        "description": "Creates a webhook-backed policy for pre-answer inbound call routing. PHONE_NUMBER policies target one active inbound-enabled Vobiz or Plivo DID, AGENT policies target an active agent, and PARTNER policies apply as the account-wide default.",
+        "description": "Creates a webhook-backed policy for pre-answer inbound call routing. PHONE_NUMBER policies target one active inbound-enabled Vobiz, Plivo, or VoiceLink DID, AGENT policies target an active agent, and PARTNER policies apply as the account-wide default.",
         "tags": [
           "Inbound Routing Policies"
         ],
@@ -18343,7 +18343,8 @@
         "description": "Inbound provider currently supported by inbound routing policies.",
         "enum": [
           "vobiz",
-          "plivo"
+          "plivo",
+          "voicelink"
         ]
       },
       "InboundRoutePolicy": {
@@ -18472,7 +18473,7 @@
           "phone_number_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Required when scope is PHONE_NUMBER. Must reference an active inbound-enabled Vobiz or Plivo DID owned by the account."
+            "description": "Required when scope is PHONE_NUMBER. Must reference an active inbound-enabled Vobiz, Plivo, or VoiceLink DID owned by the account. TRANSFER cannot be listed in allowed_actions for a VoiceLink DID."
           },
           "agent_id": {
             "type": "string",
