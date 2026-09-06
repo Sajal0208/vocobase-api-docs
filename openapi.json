@@ -10700,7 +10700,7 @@
                 "properties": {
                   "amount_rupees": {
                     "type": "integer",
-                    "description": "Whole rupees to add to the wallet, before GST. Must be within the `min` and `max` returned by `GET /billing/topup/config`."
+                    "description": "Whole rupees to add to the wallet, before GST. Must be within the `min` and `max` returned by `GET /billing/topup/config`. Send a JSON number, not a string."
                   }
                 }
               },
@@ -10785,7 +10785,7 @@
         "tags": [
           "Billing"
         ],
-        "description": "Mints a Razorpay-hosted Payment Link for `amount_rupees` plus GST. Open or forward the `short_url`; when it is paid, `base` is added to **this API key's workspace wallet** — the same balance `GET /billing/balance` reports. Poll `GET /billing/topup/links/{payment_order_id}` to learn when the credit lands; there is no callback.\n\nLinks expire 24 hours after creation. At most 5 unpaid links may be open per account at once; a sixth returns `409 OPEN_ORDER_LIMIT`. Rate limit: 10 links per hour per account.\n\nThe link always credits your own wallet. Do not forward it to your end-customers as a way to bill them — the money lands in your account, not theirs, and a chargeback on their card is charged back to you.",
+        "description": "Mints a Razorpay-hosted Payment Link for `amount_rupees` plus GST. Open or forward the `short_url`; when it is paid, `base` is added to **this API key's workspace wallet** — the same balance `GET /billing/balance` reports. Poll `GET /billing/topup/links/{payment_order_id}` to learn when the credit lands; there is no callback.\n\nLinks expire 24 hours after creation. At most 5 open links per account at once (a link is open until it is paid, expires, or a payment attempt is made on it); a sixth returns `409 OPEN_ORDER_LIMIT`. Link creation is also limited to 10 per hour per account (`429`); the 5-link cap is the limit you will hit first.\n\nThe link always credits your own wallet. Do not forward it to your end-customers as a way to bill them — the money lands in your account, not theirs, and a chargeback on their card is charged back to you.",
         "requestBody": {
           "required": true,
           "content": {
@@ -10798,7 +10798,7 @@
                 "properties": {
                   "amount_rupees": {
                     "type": "integer",
-                    "description": "Whole rupees to add to the wallet, before GST. Must be within the `min` and `max` returned by `GET /billing/topup/config`."
+                    "description": "Whole rupees to add to the wallet, before GST. Must be within the `min` and `max` returned by `GET /billing/topup/config`. Send a JSON number, not a string."
                   }
                 }
               },
@@ -10896,7 +10896,7 @@
             }
           },
           "502": {
-            "description": "`RAZORPAY_LINK_CREATE_FAILED` — the payment provider did not accept the link. Safe to retry.",
+            "description": "`RAZORPAY_LINK_CREATE_FAILED` — the payment provider did not accept the link. Safe to retry, but back off: if the provider timed out, the attempt may still hold one of the 5 open-link slots for up to 24 hours. `PAYMENT_ORDER_PATCH_FAILED` — the link was created but could not be recorded; no `short_url` is returned. Mint a new link.",
             "content": {
               "application/json": {
                 "example": {
@@ -10928,7 +10928,7 @@
         "tags": [
           "Billing"
         ],
-        "description": "Poll after handing out a link. Scoped to the calling account: another account's id returns 404. The credit is applied by Razorpay's webhook, usually within seconds of payment; an hourly reconciliation job covers a missed webhook, so a paid link can take up to an hour to show `CREDITED` in the worst case.",
+        "description": "Poll after handing out a link, every 30–60 seconds. Scoped to the calling account: another account's id returns 404.\n\nStop polling when `status` is `CREDITED` (the wallet moved), `EXPIRED` or `MISMATCH` (the link is dead; mint a new one — for `MISMATCH` contact support with the `payment_order_id`), or once `expires_at` has passed (the status flips to `EXPIRED` on an hourly sweep, so it can lag `expires_at` by up to an hour). Keep polling on `CREATED`, `ATTEMPTED` and `FAILED`; `FAILED` is not final, the payer can retry on the same link.\n\nThe credit is applied by Razorpay's webhook, usually within seconds of payment; an hourly reconciliation job covers a missed webhook, so a paid link can take up to about an hour to show `CREDITED`.",
         "parameters": [
           {
             "name": "payment_order_id",

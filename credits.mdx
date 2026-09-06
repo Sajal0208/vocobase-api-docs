@@ -149,17 +149,26 @@ curl -s -X POST https://api.vocobase.com/api/v2/billing/topup/links \
 ```
 
 ```bash
-# 3. Open or forward short_url, then poll until status is CREDITED
+# 3. Open or forward short_url, then poll (see "Polling" below)
 curl -s https://api.vocobase.com/api/v2/billing/topup/links/0d5d3d3a-5a1f-4b7f-9a4c-1234567890ab \
   -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
 ```
 
+**Polling.** Check the link every 30–60 seconds. Stop when:
+
+- `status` is `CREDITED` — the wallet moved. This is the only status that means money landed.
+- `status` is `EXPIRED` or `MISMATCH` — the link is dead. Mint a new one. `MISMATCH` means Razorpay reported an amount that does not match the link; contact **support@vocobase.com** with the `payment_order_id`.
+- `expires_at` has passed — stop polling even if the status still reads `CREATED`. The status flips to `EXPIRED` on an hourly sweep, so it can lag `expires_at` by up to an hour.
+
+Keep polling on `CREATED`, `ATTEMPTED`, and `FAILED`. `FAILED` is not final: a payer whose first attempt failed can retry on the same link.
+
 Things to know:
 
 - **Links expire after 24 hours.** Mint a fresh one rather than reusing an old URL.
-- **At most 5 unpaid links can be open at once.** A sixth returns `409 OPEN_ORDER_LIMIT`. Rate limit is 10 links per hour per account.
-- **Amounts are whole rupees** within the `min`/`max` from `/topup/config` (currently ₹1,000 to ₹4,00,000). Anything else is `400 INVALID_AMOUNT`.
-- **`CREDITED` is the only status that means the wallet moved.** `FAILED` is not final: a payer whose first attempt failed can retry on the same link. Credit normally lands within seconds of payment; if Razorpay's webhook is missed, an hourly reconciliation job catches it, so allow up to an hour in the worst case.
+- **At most 5 open links per account.** A link counts as open until it is paid, expires, or a payment attempt is made on it. A sixth returns `409 OPEN_ORDER_LIMIT`. Link creation is also limited to 10 per hour per account (`429`); in practice the 5-link cap is the limit you will hit first.
+- **A `502 RAZORPAY_LINK_CREATE_FAILED` is safe to retry, but back off.** If the provider timed out, the attempt may still hold one of your 5 open slots for up to 24 hours. Do not retry in a tight loop.
+- **Amounts are whole rupees, sent as a JSON number** (not a string) within the `min`/`max` from `/topup/config` (currently ₹1,000 to ₹4,00,000). Anything else is `400 INVALID_AMOUNT`.
+- **Credit normally lands within seconds of payment.** If Razorpay's webhook is missed, an hourly reconciliation job catches it, so allow up to about an hour before treating a paid link as stuck.
 - **UPI may be capped by the payer's bank** on large amounts. Cards and netbanking cover the full range.
 
 <Warning>
