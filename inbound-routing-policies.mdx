@@ -8,7 +8,7 @@ description: "Evaluate inbound calls before AI session creation and route each c
 Inbound Routing Policies are webhook-backed pre-answer routing hooks for inbound phone calls. Vocobase resolves the inbound DID, finds the applicable policy, calls your policy webhook, and only then decides whether to create an AI session, select another agent, transfer the call, or reject it.
 
 <Note>
-  Policies currently run for Vobiz and Plivo inbound calls. Runtime scope priority is `PHONE_NUMBER` -> `AGENT` -> `PARTNER`.
+  Policies run for Vobiz, Plivo, and VoiceLink inbound calls. `TRANSFER` is not available on VoiceLink (see [Provider Support](#provider-support)). Runtime scope priority is `PHONE_NUMBER` -> `AGENT` -> `PARTNER`.
 </Note>
 
 ## API
@@ -32,7 +32,7 @@ Decision logs are newest-first and scoped to the authenticated account. Query fi
 | `policy_id` | Filter by inbound policy ID. |
 | `phone_number_id` | Filter by DID row ID. |
 | `action` | `ANSWER_WITH_AI`, `SELECT_AGENT`, `TRANSFER`, or `REJECT`. |
-| `provider` | `vobiz` or `plivo`. |
+| `provider` | `vobiz`, `plivo`, or `voicelink`. |
 | `limit` | Defaults to `50`, maximum `200`. |
 | `cursor` | Opaque cursor returned as `next_cursor`. |
 
@@ -57,7 +57,7 @@ If no policy matches, Vocobase continues with the normal AI answer path.
 | Field | Type | Required | Notes |
 |---|---|---|---|
 | `scope` | `PHONE_NUMBER` \| `AGENT` \| `PARTNER` | Yes | Selects the policy level. |
-| `phone_number_id` | UUID | For `PHONE_NUMBER` | Must reference an active inbound-enabled Vobiz or Plivo DID owned by your account. |
+| `phone_number_id` | UUID | For `PHONE_NUMBER` | Must reference an active inbound-enabled Vobiz, Plivo, or VoiceLink DID owned by your account. |
 | `agent_id` | UUID | For `AGENT` | Must reference an active agent owned by your account. |
 | `name` | string (1-200) | Yes (POST) / No (PATCH) | Policy label for your own reference. |
 | `enabled` | boolean | No (default: `true`) | Toggle policy evaluation without deleting it. |
@@ -105,6 +105,9 @@ curl -X POST https://api.vocobase.com/api/v2/inbound-route-policies \
     "allowed_actions": ["ANSWER_WITH_AI","SELECT_AGENT","TRANSFER","REJECT"]
   }'
 ```
+
+For a VoiceLink DID, omit `TRANSFER` from `allowed_actions`, or omit the field entirely.
+
 
 ### Create an agent fallback policy
 
@@ -187,8 +190,31 @@ ${timestamp}.${raw_json_body}
 |---|---|---|
 | `ANSWER_WITH_AI` | Route call to AI. Optional `variables` are merged into session variables. | `{ "action": "ANSWER_WITH_AI", "variables": { "customer_status": "unknown", "language": "en" } }` |
 | `SELECT_AGENT` | Route call to a different agent owned by the same account. | `{ "action": "SELECT_AGENT", "agent_id": "agent_id", "variables": { "owner_level": "vip" } }` |
-| `TRANSFER` | Transfer to a destination number without creating an AI session. | `{ "action": "TRANSFER", "to_number": "+919999999999", "reason": "known_customer_owner" }` |
+| `TRANSFER` | Transfer to a destination number without creating an AI session. Not supported on VoiceLink — see below. | `{ "action": "TRANSFER", "to_number": "+919999999999", "reason": "known_customer_owner" }` |
 | `REJECT` | End call without AI. | `{ "action": "REJECT", "reason": "blocked_number" }` |
+
+### Provider Support
+
+Policies are evaluated on inbound calls for Vobiz, Plivo, and VoiceLink.
+
+`TRANSFER` is **not supported on VoiceLink**. A VoiceLink inbound call reaches the
+policy after the media session has already connected, so there is no point at which
+Vocobase can hand the call to a carrier. Behaviour:
+
+- A policy scoped to a VoiceLink DID is rejected at write time (`400 VALIDATION_ERROR`,
+  `allowed_actions must not include TRANSFER for a VoiceLink phone number`) if
+  `allowed_actions` names `TRANSFER` explicitly. Omitting `allowed_actions` (all
+  actions permitted) stays valid.
+- If a webhook returns `TRANSFER` on a VoiceLink call anyway, Vocobase answers with
+  AI instead of dropping the call, and records the decision with
+  `failure_reason: "transfer_unsupported_on_voicelink"`. This overrides
+  `failure_action`, including `REJECT` — a transfer that cannot be performed is not
+  a reason to hang up on a caller.
+
+`ANSWER_WITH_AI`, `SELECT_AGENT`, and `REJECT` produce the same outcome across all
+three providers. One difference in caller experience: on Vobiz and Plivo a `REJECT`
+refuses the call before it is answered, while on VoiceLink the call has already been
+answered by the time the policy runs, so `REJECT` ends a connected call.
 
 ## Response Handling And Failure Behavior
 
