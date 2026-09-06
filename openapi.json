@@ -10609,6 +10609,423 @@
         }
       }
     },
+    "/billing/topup/config": {
+      "get": {
+        "operationId": "getTopupConfig",
+        "summary": "Get top-up bounds and presets",
+        "tags": [
+          "Billing"
+        ],
+        "description": "The amounts the server will accept for a top-up. `presets` are suggested whole-rupee amounts already filtered to the current bounds. GST is added on top of the amount you pass; `gst_rate_bps` is the rate in basis points (1800 = 18%).",
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "presets": {
+                          "type": "array",
+                          "items": {
+                            "type": "integer"
+                          }
+                        },
+                        "min": {
+                          "type": "integer"
+                        },
+                        "max": {
+                          "type": "integer"
+                        },
+                        "gst_rate_bps": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "presets": [
+                      5000,
+                      10000,
+                      25000,
+                      50000
+                    ],
+                    "min": 1000,
+                    "max": 400000,
+                    "gst_rate_bps": 1800
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/billing/topup/quote": {
+      "post": {
+        "operationId": "quoteTopup",
+        "summary": "Quote a top-up",
+        "tags": [
+          "Billing"
+        ],
+        "description": "Returns the GST breakdown for an amount without creating anything. `base` is what lands in the wallet; `total` is what the payer is charged.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "amount_rupees"
+                ],
+                "properties": {
+                  "amount_rupees": {
+                    "type": "integer",
+                    "description": "Whole rupees to add to the wallet, before GST. Must be within the `min` and `max` returned by `GET /billing/topup/config`. Send a JSON number, not a string."
+                  }
+                }
+              },
+              "example": {
+                "amount_rupees": 5000
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "base": {
+                          "type": "number",
+                          "description": "Rupees, to two decimal places."
+                        },
+                        "gst": {
+                          "type": "number",
+                          "description": "Rupees, to two decimal places."
+                        },
+                        "total": {
+                          "type": "number",
+                          "description": "Rupees, to two decimal places."
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "base": 5000,
+                    "gst": 900,
+                    "total": 5900
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`INVALID_AMOUNT` — not a whole number, or outside `min`..`max`.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "INVALID_AMOUNT",
+                    "message": "amount_rupees must be a whole number between 1000 and 400000"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/billing/topup/links": {
+      "post": {
+        "operationId": "createTopupLink",
+        "summary": "Create a top-up payment link",
+        "tags": [
+          "Billing"
+        ],
+        "description": "Mints a Razorpay-hosted Payment Link for `amount_rupees` plus GST. Open or forward the `short_url`; when it is paid, `base` is added to **this API key's workspace wallet** — the same balance `GET /billing/balance` reports. Poll `GET /billing/topup/links/{payment_order_id}` to learn when the credit lands; there is no callback.\n\nLinks expire 24 hours after creation. At most 5 open links per account at once (a link is open until it is paid, expires, or a payment attempt is made on it); a sixth returns `409 OPEN_ORDER_LIMIT`. Link creation is also limited to 10 per hour per account (`429`); the 5-link cap is the limit you will hit first.\n\nThe link always credits your own wallet. Do not forward it to your end-customers as a way to bill them — the money lands in your account, not theirs, and a chargeback on their card is charged back to you.",
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "type": "object",
+                "required": [
+                  "amount_rupees"
+                ],
+                "properties": {
+                  "amount_rupees": {
+                    "type": "integer",
+                    "description": "Whole rupees to add to the wallet, before GST. Must be within the `min` and `max` returned by `GET /billing/topup/config`. Send a JSON number, not a string."
+                  }
+                }
+              },
+              "example": {
+                "amount_rupees": 5000
+              }
+            }
+          }
+        },
+        "responses": {
+          "201": {
+            "description": "Link created.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "payment_order_id": {
+                          "type": "string",
+                          "format": "uuid",
+                          "description": "Use this to poll status."
+                        },
+                        "short_url": {
+                          "type": "string",
+                          "format": "uri",
+                          "description": "Razorpay-hosted checkout page."
+                        },
+                        "expires_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        },
+                        "base": {
+                          "type": "number",
+                          "description": "Rupees, to two decimal places."
+                        },
+                        "gst": {
+                          "type": "number",
+                          "description": "Rupees, to two decimal places."
+                        },
+                        "total": {
+                          "type": "number",
+                          "description": "Rupees, to two decimal places."
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "payment_order_id": "0d5d3d3a-5a1f-4b7f-9a4c-1234567890ab",
+                    "short_url": "https://rzp.io/i/abc123",
+                    "expires_at": "2026-09-07T10:00:00.000Z",
+                    "base": 5000,
+                    "gst": 900,
+                    "total": 5900
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "`INVALID_AMOUNT` — not a whole number, or outside `min`..`max`.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "INVALID_AMOUNT",
+                    "message": "amount_rupees must be a whole number between 1000 and 400000"
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`OPEN_ORDER_LIMIT` — 5 unpaid links are already open. Wait for one to be paid or to expire.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "OPEN_ORDER_LIMIT",
+                    "message": "At most 5 unpaid top-up links may be open at once"
+                  }
+                }
+              }
+            }
+          },
+          "502": {
+            "description": "`RAZORPAY_LINK_CREATE_FAILED` — the payment provider did not accept the link. Safe to retry, but back off: if the provider timed out, the attempt may still hold one of the 5 open-link slots for up to 24 hours. `PAYMENT_ORDER_PATCH_FAILED` — the link was created but could not be recorded; no `short_url` is returned. Mint a new link.",
+            "content": {
+              "application/json": {
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "RAZORPAY_LINK_CREATE_FAILED",
+                    "message": "Payment provider did not accept the top-up link"
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/billing/topup/links/{payment_order_id}": {
+      "get": {
+        "operationId": "getTopupLink",
+        "summary": "Get top-up link status",
+        "tags": [
+          "Billing"
+        ],
+        "description": "Poll after handing out a link, every 30–60 seconds. Scoped to the calling account: another account's id returns 404.\n\nStop polling when `status` is `CREDITED` (the wallet moved), `EXPIRED` or `MISMATCH` (the link is dead; mint a new one — for `MISMATCH` contact support with the `payment_order_id`), or once `expires_at` has passed (the status flips to `EXPIRED` on an hourly sweep, so it can lag `expires_at` by up to an hour). Keep polling on `CREATED`, `ATTEMPTED` and `FAILED`; `FAILED` is not final, the payer can retry on the same link.\n\nThe credit is applied by Razorpay's webhook, usually within seconds of payment; an hourly reconciliation job covers a missed webhook, so a paid link can take up to about an hour to show `CREDITED`.",
+        "parameters": [
+          {
+            "name": "payment_order_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Success.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "payment_order_id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "CREATED",
+                            "ATTEMPTED",
+                            "CREDITED",
+                            "FAILED",
+                            "EXPIRED",
+                            "MISMATCH"
+                          ],
+                          "description": "`CREDITED` is the only state that means the wallet moved. `FAILED` is an annotation, not terminal: a customer whose first attempt failed can retry on the same link. `EXPIRED` rows never credit unless a late capture arrives, in which case they still do."
+                        },
+                        "base": {
+                          "type": "number",
+                          "description": "Rupees, to two decimal places."
+                        },
+                        "gst": {
+                          "type": "number",
+                          "description": "Rupees, to two decimal places."
+                        },
+                        "total": {
+                          "type": "number",
+                          "description": "Rupees, to two decimal places."
+                        },
+                        "credited_at": {
+                          "type": "string",
+                          "format": "date-time",
+                          "nullable": true
+                        },
+                        "created_at": {
+                          "type": "string",
+                          "format": "date-time"
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "payment_order_id": "0d5d3d3a-5a1f-4b7f-9a4c-1234567890ab",
+                    "status": "CREDITED",
+                    "base": 5000,
+                    "gst": 900,
+                    "total": 5900,
+                    "credited_at": "2026-09-06T11:00:00.000Z",
+                    "created_at": "2026-09-06T10:00:00.000Z"
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "429": {
+            "$ref": "#/components/responses/RateLimitExceeded"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
     "/billing/transactions": {
       "get": {
         "operationId": "listTransactions",
