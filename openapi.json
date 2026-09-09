@@ -5030,8 +5030,8 @@
                   },
                   "enable_recording": {
                     "type": "boolean",
-                    "default": false,
-                    "description": "Whether to record calls made with this agent."
+                    "default": true,
+                    "description": "Whether to record calls made with this agent. Defaults to true — send false to create the agent with recording off."
                   },
                   "kb_threshold": {
                     "type": [
