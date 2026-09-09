@@ -625,7 +625,7 @@ Save the returned `data.id` as `AGENT_ID`.
   </Step>
 
   <Step title="Assign an agent to a DID">
-    `PUT /api/v2/phone-numbers/:id` with `agent_id`. By default, assigning an agent also sets `inbound_enabled` to `true`. For outbound-only testing with the same DID on another account, send `"inbound_enabled": false`.
+    `PUT /api/v2/phone-numbers/:id` with `agent_id` **and** `"inbound_enabled": true`. Inbound is explicit: assigning an agent on its own leaves the number's current inbound setting untouched, so a new DID stays outbound-only until you send the flag. `agent_id` is required whenever `inbound_enabled` is `true`. For outbound-only use with the same DID on another account, send `"inbound_enabled": false`.
 
     ```bash
     curl -X PUT https://api.vocobase.com/api/v2/phone-numbers/f1a2... \
