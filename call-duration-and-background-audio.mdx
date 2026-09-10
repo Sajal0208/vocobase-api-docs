@@ -105,12 +105,15 @@ Response:
 Bytes go directly to a presigned upload URL. Vocobase then converts the file
 into the exact shape the bot needs and marks the asset ready.
 
-**Accepted formats:** `wav`, `mp3`, `m4a`, `aac`, `ogg`, `flac`, `webm`, `aiff`.
+**Accepted formats:** `wav`, `mp3`, `m4a`, `aac`, `ogg`, `opus`, `flac`, `webm`, `aiff`.
 
 **Constraints (enforced server-side):**
 
 - Size: ≤ 5 MB.
-- Duration: ≤ 5 minutes (loops anyway).
+- Duration: ≤ 5 minutes (loops anyway). An over-length file is never quietly
+  accepted — it either fails at `finalize` or, if its container declared no
+  length for the check to read, ends up `FAILED` with the reason in
+  `error_message`.
 
 **Channels and sample rate are not constraints.** Stereo is downmixed and the
 audio is resampled for you — you do not need to know, or match, the rate the
@@ -161,8 +164,15 @@ responds, and an asset cannot be attached to an agent until it is `READY` —
 attaches immediately after `finalize` will not find it.
 
 Poll `GET /agent/background-audio/{id}/status` until `status` leaves
-`UPLOADING`. A `FAILED` status carries the reason in `error_message`. A 5 MB
-upload converts in seconds, so polling once a second is ample.
+`UPLOADING`. A `FAILED` status carries the reason in `error_message`.
+
+A 5 MB upload converts in seconds, but **status polls count against the same
+60 requests/minute limit as every other `/api/v2` endpoint** — poll once a
+second and you will spend your whole budget on the upload and start getting
+`429` on your call starts. Poll every 2-3 seconds, and back off on `429` using
+`Retry-After`. Give up after 60 seconds: an asset still `UPLOADING` by then is
+not going to finish, so surface it to the user as a failed upload and have them
+re-upload rather than polling on.
 
 An undecodable file still fails at `finalize`, immediately, with a specific
 error — so you get fast feedback on a genuinely bad upload.
