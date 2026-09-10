@@ -102,16 +102,29 @@ Response:
 
 ### Uploading your own asset
 
-Two-step upload — bytes go directly to the presigned upload URL, then
-Vocobase validates the WAV header and marks the asset ready.
+Bytes go directly to a presigned upload URL. Vocobase then converts the file
+into the exact shape the bot needs and marks the asset ready.
+
+**Accepted formats:** `wav`, `mp3`, `m4a`, `aac`, `ogg`, `opus`, `flac`, `webm`, `aiff`.
 
 **Constraints (enforced server-side):**
 
-- Format: **WAV** (RIFF/WAVE container, PCM or IEEE float).
-- Channels: **must be mono** (`channels === 1`). Stereo is rejected
-  with an explicit error including the `ffmpeg` downmix command.
 - Size: ≤ 5 MB.
-- Duration: ≤ 5 minutes (loops anyway).
+- Duration: ≤ 5 minutes (loops anyway). An over-length file is never quietly
+  accepted — it either fails at `finalize` or, if its container declared no
+  length for the check to read, ends up `FAILED` with the reason in
+  `error_message`.
+
+**Channels and sample rate are not constraints.** Stereo is downmixed and the
+audio is resampled for you — you do not need to know, or match, the rate the
+call runs at.
+
+<Note>
+Compressed formats go further inside the 5 MB ceiling than WAV does. A
+one-minute bed is roughly 235 KB as a 32 kbps MP3 against roughly 937 KB as an
+8 kHz WAV, so uploading MP3 rather than WAV buys you about four times the
+length.
+</Note>
 
 ```bash
 # 1. Mint an upload URL
@@ -121,20 +134,49 @@ curl -X POST https://api.vocobase.com/api/v2/agent/background-audio/upload-url \
   -d '{
     "slug": "my-cafe",
     "label": "My Café",
-    "mime_type": "audio/wav",
+    "mime_type": "audio/mpeg",
     "size_bytes": 1234567
   }'
 # → { "data": { "id": "<uuid>", "upload_url": "https://..." } }
 
-# 2. PUT the bytes directly to the upload URL
+# 2. PUT the bytes directly to the upload URL.
+#    Content-Type must match the mime_type you sent in step 1 exactly,
+#    or storage rejects the upload.
 curl -X PUT "https://..." \
-  -H "Content-Type: audio/wav" \
-  --data-binary @my-cafe.wav
+  -H "Content-Type: audio/mpeg" \
+  --data-binary @my-cafe.mp3
 
-# 3. Finalize — Vocobase validates the file and marks it READY
+# 3. Finalize — checks the file is decodable audio, then starts conversion
 curl -X POST https://api.vocobase.com/api/v2/agent/background-audio/<id>/finalize \
   -H "Authorization: Bearer rg_live_..."
+# → { "data": { "status": "UPLOADING", ... } }
+
+# 4. Poll until conversion finishes
+curl https://api.vocobase.com/api/v2/agent/background-audio/<id>/status \
+  -H "Authorization: Bearer rg_live_..."
+# → { "data": { "status": "READY", "duration_secs": 61.2, ... } }
 ```
+
+<Warning>
+**`finalize` returns `UPLOADING`, not `READY`.** Conversion runs after it
+responds, and an asset cannot be attached to an agent until it is `READY` —
+`GET /agent/background-audio` lists only `READY` assets, so a client that
+attaches immediately after `finalize` will not find it.
+
+Poll `GET /agent/background-audio/{id}/status` until `status` leaves
+`UPLOADING`. A `FAILED` status carries the reason in `error_message`.
+
+A 5 MB upload converts in seconds, but **status polls count against the same
+60 requests/minute limit as every other `/api/v2` endpoint** — poll once a
+second and you will spend your whole budget on the upload and start getting
+`429` on your call starts. Poll every 2-3 seconds, and back off on `429` using
+`Retry-After`. Give up after 60 seconds: an asset still `UPLOADING` by then is
+not going to finish, so surface it to the user as a failed upload and have them
+re-upload rather than polling on.
+
+An undecodable file still fails at `finalize`, immediately, with a specific
+error — so you get fast feedback on a genuinely bad upload.
+</Warning>
 
 ### Attaching to an agent
 

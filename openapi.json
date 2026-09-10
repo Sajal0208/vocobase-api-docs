@@ -5713,7 +5713,7 @@
       "post": {
         "operationId": "createBackgroundAudioUploadUrl",
         "summary": "Mint a presigned upload URL",
-        "description": "Step 1 of the two-step upload: returns a 15-minute presigned PUT URL plus the `id` of a new upload. Then PUT the WAV bytes directly to `upload_url` with `Content-Type: audio/wav`, then call `POST /agent/background-audio/{id}/finalize`.",
+        "description": "Step 1 of the upload: returns a 15-minute presigned PUT URL plus the `id` of a new upload. Then PUT the bytes directly to `upload_url` with a `Content-Type` header **exactly matching** the `mime_type` you sent here — a mismatch is rejected by storage — then call `POST /agent/background-audio/{id}/finalize`.",
         "tags": [
           "Background Audio"
         ],
@@ -5744,9 +5744,25 @@
                   "mime_type": {
                     "type": "string",
                     "enum": [
-                      "audio/wav"
+                      "audio/wav",
+                      "audio/x-wav",
+                      "audio/wave",
+                      "audio/vnd.wave",
+                      "audio/mpeg",
+                      "audio/mp3",
+                      "audio/mp4",
+                      "audio/m4a",
+                      "audio/x-m4a",
+                      "audio/aac",
+                      "audio/ogg",
+                      "audio/opus",
+                      "audio/flac",
+                      "audio/x-flac",
+                      "audio/webm",
+                      "audio/aiff",
+                      "audio/x-aiff"
                     ],
-                    "description": "Must be `audio/wav` — only WAV is accepted in v1."
+                    "description": "Container format of the file you are uploading. Several spellings of the same container are accepted — send the exact type your client reports (a browser's `File.type` on Windows is often `audio/mp3` rather than `audio/mpeg`, and both are valid here), because the `Content-Type` on the PUT must match this value byte for byte or storage rejects the upload. Channels and sample rate are not constrained: Vocobase converts every upload into the mono, correct-rate asset the bot needs."
                   },
                   "size_bytes": {
                     "type": "integer",
@@ -5822,7 +5838,7 @@
       "post": {
         "operationId": "finalizeBackgroundAudio",
         "summary": "Finalize an uploaded asset",
-        "description": "Step 3 of the upload: Vocobase validates the just-uploaded WAV file and either marks the asset `READY` (with detected `duration_secs`, `sample_rate`, `channels`) or `FAILED` with a human-readable error.\n\n**Validation rules:**\n- WAV (RIFF/WAVE) container, PCM or IEEE float.\n- **Mono only** (channels === 1). Stereo is rejected with an explicit downmix hint.\n- Size ≤ 5 MB. Duration ≤ 5 minutes.",
+        "description": "Step 3: confirms the uploaded bytes are decodable audio, then starts conversion.\n\n**Returns `status: \"UPLOADING\"`, not `READY`.** Conversion runs after this responds, and the asset cannot be attached to an agent until it is `READY` — `GET /agent/background-audio` lists only `READY` assets. Poll `GET /agent/background-audio/{id}/status` until the status leaves `UPLOADING`.\n\nA file that is not decodable audio fails here, immediately, with a specific error.",
         "tags": [
           "Background Audio"
         ],
@@ -5840,7 +5856,7 @@
         ],
         "responses": {
           "200": {
-            "description": "Asset is now READY.",
+            "description": "Upload accepted. Conversion runs asynchronously after this responds, so the asset comes back as `UPLOADING` — poll `GET /agent/background-audio/{id}/status` for the terminal state.",
             "content": {
               "application/json": {
                 "schema": {
@@ -5866,14 +5882,19 @@
                         "status": {
                           "type": "string",
                           "enum": [
-                            "READY"
-                          ]
+                            "UPLOADING",
+                            "READY",
+                            "FAILED"
+                          ],
+                          "description": "`UPLOADING` on this response — conversion has not run yet. The other members are the terminal states `GET /agent/background-audio/{id}/status` will report."
                         },
                         "duration_secs": {
-                          "type": "number"
+                          "type": "number",
+                          "description": "Provisional. Measured again from the converted asset once conversion finishes, so read the value from `GET /agent/background-audio/{id}/status` rather than this one."
                         },
                         "sample_rate": {
-                          "type": "integer"
+                          "type": "integer",
+                          "description": "Provisional — the uploaded file's rate. Once conversion finishes this is always `8000`, the rate of the normalized asset."
                         },
                         "preview_url": {
                           "type": "string"
@@ -5887,6 +5908,87 @@
           },
           "400": {
             "$ref": "#/components/responses/ValidationError"
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "404": {
+            "$ref": "#/components/responses/NotFound"
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/agent/background-audio/{id}/status": {
+      "get": {
+        "operationId": "getBackgroundAudioStatus",
+        "summary": "Check conversion status",
+        "description": "Conversion runs after `finalize` returns, so poll this until `status` leaves `UPLOADING`.\n\n- `UPLOADING` — still converting.\n- `READY` — usable; attach it to an agent.\n- `FAILED` — see `error_message`. A file that is decodable but longer than 5 minutes lands here rather than converting.\n\nA 5 MB upload converts in seconds. **Polls count against the 60 requests/minute partner limit, which is shared across the whole `/api/v2` surface** — polling once a second will exhaust it and start returning `429` on your call starts. Poll every 2-3 seconds, and back off on `429` using `Retry-After`.\n\nGive up after 60 seconds: an asset still `UPLOADING` at that point is not going to finish, and should be surfaced as a failed upload and re-uploaded rather than polled indefinitely.",
+        "tags": [
+          "Background Audio"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Asset id returned by `POST /agent/background-audio/upload-url`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "UPLOADING",
+                            "READY",
+                            "FAILED"
+                          ]
+                        },
+                        "error_message": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Why conversion failed. Null unless `status` is `FAILED`."
+                        },
+                        "duration_secs": {
+                          "type": "number",
+                          "description": "Length of the normalized asset, measured from the converted file after conversion. Meaningful once `status` is `READY`."
+                        },
+                        "sample_rate": {
+                          "type": "integer",
+                          "description": "Sample rate of the normalized asset, not of the file you uploaded. Always `8000` once `status` is `READY`, whatever the upload's rate was."
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
@@ -19983,18 +20085,20 @@
             "description": "Null for platform assets; the owning user id otherwise."
           },
           "size_bytes": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Size of the normalized asset — the converted 8 kHz mono MP3 — not of the file that was uploaded. A 4.2 MB 44.1 kHz WAV typically lands here as a couple of hundred KB."
           },
           "duration_secs": {
             "type": "number",
-            "description": "Detected from WAV header at upload time."
+            "description": "Measured from the normalized asset after conversion, not from the uploaded file's header."
           },
           "sample_rate": {
-            "type": "integer"
+            "type": "integer",
+            "description": "Sample rate of the normalized asset, not of the file that was uploaded. Always `8000`, whatever rate the upload was at."
           },
           "preview_url": {
             "type": "string",
-            "description": "15-minute presigned preview URL."
+            "description": "15-minute presigned preview URL, pointing at the original uploaded file rather than the normalized asset — so a format the browser cannot decode (AIFF, WebM/Opus) will not play in a preview even though the bed itself works on a call."
           }
         }
       },
