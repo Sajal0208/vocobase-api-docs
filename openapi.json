@@ -5713,7 +5713,7 @@
       "post": {
         "operationId": "createBackgroundAudioUploadUrl",
         "summary": "Mint a presigned upload URL",
-        "description": "Step 1 of the two-step upload: returns a 15-minute presigned PUT URL plus the `id` of a new upload. Then PUT the WAV bytes directly to `upload_url` with `Content-Type: audio/wav`, then call `POST /agent/background-audio/{id}/finalize`.",
+        "description": "Step 1 of the upload: returns a 15-minute presigned PUT URL plus the `id` of a new upload. Then PUT the bytes directly to `upload_url` with a `Content-Type` header **exactly matching** the `mime_type` you sent here — a mismatch is rejected by storage — then call `POST /agent/background-audio/{id}/finalize`.",
         "tags": [
           "Background Audio"
         ],
@@ -5744,9 +5744,18 @@
                   "mime_type": {
                     "type": "string",
                     "enum": [
-                      "audio/wav"
+                      "audio/wav",
+                      "audio/x-wav",
+                      "audio/mpeg",
+                      "audio/mp4",
+                      "audio/x-m4a",
+                      "audio/aac",
+                      "audio/ogg",
+                      "audio/flac",
+                      "audio/webm",
+                      "audio/aiff"
                     ],
-                    "description": "Must be `audio/wav` — only WAV is accepted in v1."
+                    "description": "Container format of the file you are uploading. Channels and sample rate are not constrained: Vocobase converts every upload into the mono, correct-rate asset the bot needs."
                   },
                   "size_bytes": {
                     "type": "integer",
@@ -5822,7 +5831,7 @@
       "post": {
         "operationId": "finalizeBackgroundAudio",
         "summary": "Finalize an uploaded asset",
-        "description": "Step 3 of the upload: Vocobase validates the just-uploaded WAV file and either marks the asset `READY` (with detected `duration_secs`, `sample_rate`, `channels`) or `FAILED` with a human-readable error.\n\n**Validation rules:**\n- WAV (RIFF/WAVE) container, PCM or IEEE float.\n- **Mono only** (channels === 1). Stereo is rejected with an explicit downmix hint.\n- Size ≤ 5 MB. Duration ≤ 5 minutes.",
+        "description": "Step 3: confirms the uploaded bytes are decodable audio, then starts conversion.\n\n**Returns `status: \"UPLOADING\"`, not `READY`.** Conversion runs after this responds, and the asset cannot be attached to an agent until it is `READY` — `GET /agent/background-audio` lists only `READY` assets. Poll `GET /agent/background-audio/{id}/status` until the status leaves `UPLOADING`.\n\nA file that is not decodable audio fails here, immediately, with a specific error.",
         "tags": [
           "Background Audio"
         ],
@@ -5896,6 +5905,79 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/agent/background-audio/{id}/status": {
+      "get": {
+        "operationId": "getBackgroundAudioStatus",
+        "summary": "Check conversion status",
+        "description": "Conversion runs after `finalize` returns, so poll this until `status` leaves `UPLOADING`.\n\n- `UPLOADING` — still converting.\n- `READY` — usable; attach it to an agent.\n- `FAILED` — see `error_message`.\n\nA 5 MB upload converts in seconds. Polling once a second is ample.",
+        "tags": [
+          "Background Audio"
+        ],
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Asset id returned by `POST /agent/background-audio/upload-url`."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Current status.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "object",
+                      "properties": {
+                        "id": {
+                          "type": "string",
+                          "format": "uuid"
+                        },
+                        "status": {
+                          "type": "string",
+                          "enum": [
+                            "UPLOADING",
+                            "READY",
+                            "FAILED"
+                          ]
+                        },
+                        "error_message": {
+                          "type": [
+                            "string",
+                            "null"
+                          ],
+                          "description": "Why conversion failed. Null unless `status` is `FAILED`."
+                        },
+                        "duration_secs": {
+                          "type": "number"
+                        },
+                        "sample_rate": {
+                          "type": "integer"
+                        }
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No such asset for this account."
           }
         }
       }
