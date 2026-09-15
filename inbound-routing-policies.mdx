@@ -81,7 +81,7 @@ If no policy matches, Vocobase continues with the normal AI answer path.
 | `has_webhook_secret` | boolean | `true` when a signing secret is configured. |
 | `timeout_ms` | integer | Decision timeout in ms. |
 | `failure_action` | `ANSWER_WITH_AI` \| `REJECT` | Default action on failure. |
-| `allowed_actions` | array<string> \| null | Restriction list; `null` means no explicit allowlist. |
+| `allowed_actions` | `array<string>` \| null | Restriction list; `null` means no explicit allowlist. |
 | `created_at` | ISO timestamp | Creation time. |
 | `updated_at` | ISO timestamp | Last edit time. |
 

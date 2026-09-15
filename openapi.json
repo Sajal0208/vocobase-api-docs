@@ -18749,7 +18749,8 @@
                   "string",
                   "null"
                 ],
-                "description": "Raw normalized carrier hangup cause when available. **Deprecated — removed in the next release; use `end_call_reason`.**"
+                "description": "Raw normalized carrier hangup cause when available. **Deprecated — removed in the next release; use `end_call_reason`.**",
+                "deprecated": true
               },
               "hangup_source": {
                 "type": [
@@ -18766,7 +18767,8 @@
                   "unknown",
                   null
                 ],
-                "description": "Best-known party or system that ended the call. **Deprecated — removed in the next release; use `end_call_reason`.**"
+                "description": "Best-known party or system that ended the call. **Deprecated — removed in the next release; use `end_call_reason`.**",
+                "deprecated": true
               },
               "terminal": {
                 "type": "boolean",
@@ -19558,6 +19560,32 @@
                       "UNKNOWN"
                     ],
                     "description": "Why the call ended, in one vocabulary that reads the same on every carrier, including MCube and Exotel which report no carrier hangup cause. Never null on a terminal call — `UNKNOWN` and `NOT_CONNECTED` are values, not absence. Supersedes the deprecated `hangup_cause` / `hangup_source`."
+                  },
+                  "hangup_cause": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "deprecated": true,
+                    "description": "Raw normalized carrier hangup cause when available. Same value and same key as on `call.status.updated`. **Deprecated — removed in the next release; use `end_call_reason`.**"
+                  },
+                  "hangup_source": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "caller",
+                      "callee",
+                      "system",
+                      "api",
+                      "carrier",
+                      "error",
+                      "unknown",
+                      null
+                    ],
+                    "deprecated": true,
+                    "description": "Best-known party or system that ended the call: `caller`, `callee`, `system`, `api`, `carrier`, `error`, or `unknown`. Not reported by every carrier. Same value and same key as on `call.status.updated`. **Deprecated — removed in the next release; use `end_call_reason`.**"
                   },
                   "transferred": {
                     "type": "boolean"
@@ -20521,7 +20549,8 @@
               "string",
               "null"
             ],
-            "description": "Raw normalized carrier hangup cause when available. **Deprecated — removed in the next release; use `end_call_reason`.**"
+            "description": "Raw normalized carrier hangup cause when available. **Deprecated — removed in the next release; use `end_call_reason`.**",
+            "deprecated": true
           },
           "hangup_source": {
             "type": [
@@ -20538,7 +20567,8 @@
               "unknown",
               null
             ],
-            "description": "Best-known party or system that ended the call. **Deprecated — removed in the next release; use `end_call_reason`.**"
+            "description": "Best-known party or system that ended the call. **Deprecated — removed in the next release; use `end_call_reason`.**",
+            "deprecated": true
           },
           "bill_duration_seconds": {
             "type": [
