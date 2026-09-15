@@ -18719,12 +18719,38 @@
                 ],
                 "description": "Best-known answer classification. `machine` indicates an answering machine or voicemail."
               },
+              "end_call_reason": {
+                "type": [
+                  "string",
+                  "null"
+                ],
+                "enum": [
+                  "COMPLETED",
+                  "CUSTOMER_HUNG_UP",
+                  "VOICEMAIL",
+                  "SCREENER",
+                  "TRANSFERRED",
+                  "SYSTEM_ERROR",
+                  "BUSY",
+                  "NO_ANSWER",
+                  "REJECTED",
+                  "BLOCKED",
+                  "INVALID_NUMBER",
+                  "NETWORK_ERROR",
+                  "CANCELED",
+                  "NOT_CONNECTED",
+                  "UNKNOWN",
+                  null
+                ],
+                "description": "Why the call ended, in one vocabulary that reads the same on every carrier. `null` while the call is still live. On a terminal event this usually reflects the carrier half only — the carrier's completion callback arrives before the bot's own end-of-call report is persisted — so `session.completed` is the authoritative source. Supersedes the deprecated `hangup_cause` / `hangup_source`."
+              },
               "hangup_cause": {
                 "type": [
                   "string",
                   "null"
                 ],
-                "description": "Raw normalized carrier hangup cause when available."
+                "description": "Raw normalized carrier hangup cause when available. **Deprecated — removed in the next release; use `end_call_reason`.**",
+                "deprecated": true
               },
               "hangup_source": {
                 "type": [
@@ -18741,7 +18767,8 @@
                   "unknown",
                   null
                 ],
-                "description": "Best-known party or system that ended the call."
+                "description": "Best-known party or system that ended the call. **Deprecated — removed in the next release; use `end_call_reason`.**",
+                "deprecated": true
               },
               "terminal": {
                 "type": "boolean",
@@ -19512,6 +19539,53 @@
                       "not_answered",
                       null
                     ]
+                  },
+                  "end_call_reason": {
+                    "type": "string",
+                    "enum": [
+                      "COMPLETED",
+                      "CUSTOMER_HUNG_UP",
+                      "VOICEMAIL",
+                      "SCREENER",
+                      "TRANSFERRED",
+                      "SYSTEM_ERROR",
+                      "BUSY",
+                      "NO_ANSWER",
+                      "REJECTED",
+                      "BLOCKED",
+                      "INVALID_NUMBER",
+                      "NETWORK_ERROR",
+                      "CANCELED",
+                      "NOT_CONNECTED",
+                      "UNKNOWN"
+                    ],
+                    "description": "Why the call ended, in one vocabulary that reads the same on every carrier, including MCube and Exotel which report no carrier hangup cause. Never null on a terminal call — `UNKNOWN` and `NOT_CONNECTED` are values, not absence. Supersedes the deprecated `hangup_cause` / `hangup_source`."
+                  },
+                  "hangup_cause": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "deprecated": true,
+                    "description": "Raw normalized carrier hangup cause when available. Same value and same key as on `call.status.updated`. **Deprecated — removed in the next release; use `end_call_reason`.**"
+                  },
+                  "hangup_source": {
+                    "type": [
+                      "string",
+                      "null"
+                    ],
+                    "enum": [
+                      "caller",
+                      "callee",
+                      "system",
+                      "api",
+                      "carrier",
+                      "error",
+                      "unknown",
+                      null
+                    ],
+                    "deprecated": true,
+                    "description": "Best-known party or system that ended the call: `caller`, `callee`, `system`, `api`, `carrier`, `error`, or `unknown`. Not reported by every carrier. Same value and same key as on `call.status.updated`. **Deprecated — removed in the next release; use `end_call_reason`.**"
                   },
                   "transferred": {
                     "type": "boolean"
@@ -20445,12 +20519,38 @@
             ],
             "description": "Best-known answer classification. `machine` indicates an answering machine or voicemail."
           },
+          "end_call_reason": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "enum": [
+              "COMPLETED",
+              "CUSTOMER_HUNG_UP",
+              "VOICEMAIL",
+              "SCREENER",
+              "TRANSFERRED",
+              "SYSTEM_ERROR",
+              "BUSY",
+              "NO_ANSWER",
+              "REJECTED",
+              "BLOCKED",
+              "INVALID_NUMBER",
+              "NETWORK_ERROR",
+              "CANCELED",
+              "NOT_CONNECTED",
+              "UNKNOWN",
+              null
+            ],
+            "description": "Why the call ended, in one vocabulary that reads the same on every carrier. `null` while the call is still live (non-terminal status). On a terminal event this usually reflects the carrier half only — the carrier's completion callback arrives before the bot's own end-of-call report is persisted — so `session.completed` is the authoritative source. Supersedes the deprecated `hangup_cause` / `hangup_source`."
+          },
           "hangup_cause": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Raw normalized carrier hangup cause when available."
+            "description": "Raw normalized carrier hangup cause when available. **Deprecated — removed in the next release; use `end_call_reason`.**",
+            "deprecated": true
           },
           "hangup_source": {
             "type": [
@@ -20467,7 +20567,8 @@
               "unknown",
               null
             ],
-            "description": "Best-known party or system that ended the call."
+            "description": "Best-known party or system that ended the call. **Deprecated — removed in the next release; use `end_call_reason`.**",
+            "deprecated": true
           },
           "bill_duration_seconds": {
             "type": [

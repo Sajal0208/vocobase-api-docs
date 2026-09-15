@@ -172,6 +172,7 @@ Sent whenever Vocobase learns that a telephony call moved to a new meaningful ca
     "status": "ringing",
     "disposition": null,
     "answered_by": null,
+    "end_call_reason": null,
     "hangup_cause": null,
     "hangup_source": null,
     "previous_status": "pending",
@@ -207,8 +208,9 @@ Sent whenever Vocobase learns that a telephony call moved to a new meaningful ca
 | `data.status` | string | Normalized Vocobase call status. See [Call status values](#call-status-values). |
 | `data.disposition` | string or null | Final call outcome when known: `completed`, `voicemail`, `user_hangup_no_speech`, `no_answer`, `busy`, `canceled`, `blocked`, `failed`, or `transferred`. Usually `null` on non-terminal updates. |
 | `data.answered_by` | string or null | Best-known answer classification: `human`, `machine`, `unknown`, or `not_answered`. `machine` indicates an answering machine or voicemail. |
-| `data.hangup_cause` | string or null | Raw normalized carrier hangup cause when available |
-| `data.hangup_source` | string or null | Best-known party or system that ended the call: `caller`, `callee`, `system`, `api`, `carrier`, `error`, or `unknown` |
+| `data.end_call_reason` | string or null | Why the call ended, in one vocabulary that reads the same on every carrier. `null` while the call is still live — see [End call reason](#end-call-reason). On a terminal update this usually carries the **carrier half only**; `session.completed` is authoritative. |
+| `data.hangup_cause` | string or null | **Deprecated — removed in the next release.** Use `end_call_reason`. Raw normalized carrier hangup cause when available |
+| `data.hangup_source` | string or null | **Deprecated — removed in the next release.** Use `end_call_reason`. Best-known party or system that ended the call: `caller`, `callee`, `system`, `api`, `carrier`, `error`, or `unknown` |
 | `data.previous_status` | string or null | Previous normalized status, when known |
 | `data.terminal` | boolean | `true` when this status is final for the carrier call leg |
 | `data.concurrency_released` | boolean | `true` when accounts can start the next call in their own queue |
@@ -222,9 +224,10 @@ Sent whenever Vocobase learns that a telephony call moved to a new meaningful ca
   **Do not build a call record from `call.status.updated` alone.** This event is
   enqueued from the carrier's callback, which can arrive several seconds before
   we have written the call's final row. On a terminal update that means
-  `hangup_cause` and `hangup_source` are frequently still `null`, and there is
-  no end timestamp on this event at all — `occurred_at` marks the moment of the
-  *state transition*, not the end of the call.
+  `hangup_cause` and `hangup_source` are frequently still `null`,
+  `end_call_reason` usually carries only what the carrier said (not what our bot
+  saw), and there is no end timestamp on this event at all — `occurred_at` marks
+  the moment of the *state transition*, not the end of the call.
 
   Use `call.status.updated` for real-time dialer and concurrency orchestration.
   Use `session.completed` for the final record: it is built after the call row
@@ -356,6 +359,7 @@ Sent when a Vocobase session has reached final post-call processing. For telepho
       "started_at": "2026-03-15T14:30:01.000Z",
       "answered_at": "2026-03-15T14:30:09.400Z",
       "ended_at": "2026-03-15T14:32:05.200Z",
+      "end_call_reason": "CUSTOMER_HUNG_UP",
       "hangup_cause": "NORMAL_CLEARING",
       "hangup_source": "callee",
       "transferred": false,
@@ -401,8 +405,9 @@ Sent when a Vocobase session has reached final post-call processing. For telepho
 | `call.started_at` | string (ISO 8601) | When the call leg was created — the moment Vocobase handed the dial to the carrier. Always present. |
 | `call.answered_at` | string (ISO 8601) or null | When the callee picked up. `null` for calls that were never answered (`no_answer`, `busy`, `canceled`) — there was no media path, so there is no answer time. |
 | `call.ended_at` | string (ISO 8601) or null | When the call leg was torn down. `null` only if the leg was never closed out (a stuck call the reaper has not yet finalized). **This is the authoritative end-of-call timestamp** — see the note below. |
-| `call.hangup_cause` | string or null | Raw normalized carrier hangup cause when available. Same value and same key as on `call.status.updated`. |
-| `call.hangup_source` | string or null | Best-known party or system that ended the call: `caller`, `callee`, `system`, `api`, `carrier`, `error`, or `unknown`. Same value and same key as on `call.status.updated`. **Not reported by every carrier** — see [Hangup attribution coverage](#hangup-attribution-coverage) below. |
+| `call.end_call_reason` | string | Why the call ended. **Never `null` on this event** — every terminal call resolves to a value, including `UNKNOWN` and `NOT_CONNECTED`. Same key and same vocabulary as `call.status.updated` and `GET /calls/{call_id}`. See [End call reason](#end-call-reason) below. |
+| `call.hangup_cause` | string or null | **Deprecated — removed in the next release.** Use `end_call_reason`. Raw normalized carrier hangup cause when available. Same value and same key as on `call.status.updated`. |
+| `call.hangup_source` | string or null | **Deprecated — removed in the next release.** Use `end_call_reason`. Best-known party or system that ended the call: `caller`, `callee`, `system`, `api`, `carrier`, `error`, or `unknown`. Same value and same key as on `call.status.updated`. **Not reported by every carrier.** |
 | `call.transferred` | boolean | `true` if the bot handed the call off to a human via the cold-transfer flow. See [Transferred calls](#transferred-calls) below. |
 | `call.transferred_at` | string (ISO 8601) or null | When the bot left the room and the carrier began bridging the caller to the human. `null` for non-transferred calls. |
 | `call.transfer_target` | string or null | E.164 destination the caller was bridged to. `null` for non-transferred calls. |
@@ -421,15 +426,82 @@ Each entry in the `transcript` array has:
   `recording_url` is a presigned URL valid for 7 days from the moment the webhook fires. Download and persist the recording on your side if you need long-term retention. If the URL expires before you can download it, call `GET /calls/{call_id}/recording-url` to mint a fresh one with another 7-day window.
 </Note>
 
-### Hangup attribution coverage
+### End call reason
 
-`hangup_source` and `hangup_cause` come from the carrier's Call Detail Record, which we fetch after the hangup callback. **Not every carrier exposes one.** On carriers that do not, both fields are `null` on every call — including calls that ended perfectly normally.
+`end_call_reason` answers one question — *why did this call end?* — with one
+vocabulary that reads the same on every carrier, including MCube and Exotel,
+which report no carrier hangup cause at all.
 
-Treat `null` as *"this carrier does not report it,"* never as *"nobody hung up"* and never as an error. In particular, do not infer an abandoned or failed call from a null `hangup_source`; use `call.disposition` for outcome logic and `hangup_source` only as supporting detail when present.
+It is **never `null` on `session.completed`**. `UNKNOWN` and `NOT_CONNECTED` are
+values, not absence: they say what we honestly know, rather than implying a
+conversation that nothing witnessed.
 
-`"unknown"` is distinct from `null`: it means the carrier answered the question and did not know. Both are non-actionable, but only `null` means the signal was never available.
+| Value | Resolved from | Meaning |
+|---|---|---|
+| `COMPLETED` | our bot | The bot ended the call — it said goodbye, the customer went quiet through the idle prompts, or the duration cap was reached. On the terminal `call.status.updated` event only, also used when the carrier says the call connected and ended normally but our bot has not reported yet. |
+| `CUSTOMER_HUNG_UP` | our bot | The remote leg disconnected first. |
+| `VOICEMAIL` | carrier AMD or our bot | A machine answered. Agrees with `disposition: "voicemail"`. |
+| `SCREENER` | our bot | A call screener answered. Takes precedence over carrier machine detection, so a screener never reads as `VOICEMAIL`. |
+| `TRANSFERRED` | Vocobase | A transfer to a human was **initiated**. See the caveats below. |
+| `SYSTEM_ERROR` | either | Infrastructure tore the call down mid-conversation, a connected call ended `failed` with no report from the bot, or the carrier reported a platform fault before connect. |
+| `BUSY` | carrier or status | The line was busy. |
+| `NO_ANSWER` | carrier or status | Rang out with no answer. |
+| `REJECTED` | carrier | Declined by the callee **or by their network** — a DND scrub or a barred caller id reaches us identically to a human pressing decline (SIP 403 maps to Q.850 21). Do **not** read this as "a person said no". |
+| `BLOCKED` | carrier | The carrier refused to place the call at all. |
+| `INVALID_NUMBER` | carrier | The number is unallocated or malformed. |
+| `NETWORK_ERROR` | carrier | Congestion, circuit failure, or a network-side refusal. |
+| `CANCELED` | status | The call was canceled before it completed. |
+| `NOT_CONNECTED` | status | The call never connected and the carrier reported no reason. Common on MCube and Exotel, which report nothing: busy, no answer, wrong number and rejected all collapse into this one state and are genuinely not distinguishable. |
+| `UNKNOWN` | status | The call is marked complete, but nothing witnessed a conversation: our bot never reported on it (for example, the bot process died mid-call and the session was reconciled from the carrier's callback alone). The carrier cause is not consulted here. On `session.completed` and the `GET /calls` routes, a connected call with no bot report is `UNKNOWN`, never `COMPLETED`. |
 
-If your account needs teardown attribution and you are seeing `null` across the board, contact support — the coverage gap is per-carrier, and switching the number's provider is usually what changes it.
+#### How it relates to `disposition`
+
+They answer different questions and are both correct at once.
+
+- `disposition` is the coarse **outcome bucket** that drives campaign retry logic.
+- `end_call_reason` is **why the call ended**.
+
+So these pairs are normal, not contradictions:
+
+| `end_call_reason` | `disposition` | |
+|---|---|---|
+| `CUSTOMER_HUNG_UP` | `completed` | the most common pair on answered calls |
+| `SYSTEM_ERROR` | `completed` | the conversation happened; our process was torn down during teardown |
+| `REJECTED` | `blocked` | on Plivo and Vobiz |
+| `REJECTED` | `failed` | on VoiceLink |
+
+Use `disposition` for retry logic. Use `end_call_reason` for reporting and for
+explaining an outcome to a human.
+
+#### Caveats worth reading once
+
+- **On `call.status.updated`, `end_call_reason` is `null` while the call is live.**
+  A reason for ending does not exist until the call ends.
+- **On the terminal `call.status.updated`, it usually reflects the carrier half
+  only.** The carrier's completion callback reaches us before our bot's own
+  end-of-call report is persisted, so an answered call typically reads
+  `COMPLETED` on that event and, say, `CUSTOMER_HUNG_UP` on `session.completed`.
+  **`session.completed` is the authoritative one.**
+- **`TRANSFERRED` means the transfer was *initiated*,** not that the human picked
+  up: a busy transfer destination still reads `TRANSFERRED`.
+- **`TRANSFERRED` is not reported on VoiceLink or MCube.** Those carriers bridge
+  the transfer in-band, so we never see it happen; a transferred call on them
+  reads `CUSTOMER_HUNG_UP`. This is a known gap.
+- **`GET /calls` and `GET /calls/{call_id}` can disagree on a call whose session
+  failed but whose carrier leg completed.** The single-call route reports the
+  session's status (`failed`, and so typically `SYSTEM_ERROR`); the list reports the
+  carrier's (`completed`, and so whatever the bot reported, or `UNKNOWN`). This is a pre-existing difference
+  in how the two routes report `status`, which `end_call_reason` now follows.
+  `GET /calls/{call_id}` is the more complete of the two.
+- **`GET /calls/{call_id}` can report a transient `failed` / `SYSTEM_ERROR`** in
+  the short window after the carrier has ended a call but before our bot's
+  end-of-call report has been persisted (typically seconds; longer if the report
+  is being retried). Once the report lands, the same call reads the bot's reason.
+  If you poll immediately after `call.status.updated`, prefer to wait for
+  `session.completed` instead.
+- `hangup_cause` and `hangup_source` remain on every payload this release and are
+  **deprecated**; they are removed in the next release. `end_call_reason`
+  replaces both.
 
 ### Final call status on `session.completed`
 
