@@ -487,6 +487,12 @@ explaining an outcome to a human.
 - **`TRANSFERRED` is not reported on VoiceLink or MCube.** Those carriers bridge
   the transfer in-band, so we never see it happen; a transferred call on them
   reads `CUSTOMER_HUNG_UP`. This is a known gap.
+- **`GET /calls` and `GET /calls/{call_id}` can disagree on a call whose session
+  failed but whose carrier leg completed.** The single-call route reports the
+  session's status (`failed`, and so `SYSTEM_ERROR`); the list reports the
+  carrier's (`completed`, and so `COMPLETED`). This is a pre-existing difference
+  in how the two routes report `status`, which `end_call_reason` now follows.
+  `GET /calls/{call_id}` is the more complete of the two.
 - `hangup_cause` and `hangup_source` remain on every payload this release and are
   **deprecated**; they are removed in the next release. `end_call_reason`
   replaces both.
