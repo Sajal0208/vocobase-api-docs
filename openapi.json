@@ -15800,7 +15800,7 @@
         "tags": [
           "Agent Documents"
         ],
-        "description": "Per-document indexing state for one agent, plus a summary count by status. An agent cannot use a document during a call until its `sync_status` is `synced`.\n\n`providers` shows which search backends have finished indexing that document — useful when one backend lags behind the others.",
+        "description": "Per-document indexing state for one agent, plus a summary count by status. An agent cannot use a document during a call until its `sync_status` is `synced`.\n\nIf a document ends up `failed`, unlink it (`DELETE /agent/{id}/documents/{document_id}`) and link it again. If it keeps failing, contact support with the document ID.",
         "parameters": [
           {
             "name": "id",
@@ -15901,10 +15901,6 @@
                                   "deleted"
                                 ]
                               },
-                              "sync_error": {
-                                "type": "string",
-                                "nullable": true
-                              },
                               "synced_at": {
                                 "type": "string",
                                 "format": "date-time",
@@ -15913,23 +15909,6 @@
                               "linked_at": {
                                 "type": "string",
                                 "format": "date-time"
-                              },
-                              "providers": {
-                                "type": "object",
-                                "properties": {
-                                  "supermemory": {
-                                    "type": "boolean"
-                                  },
-                                  "gemini": {
-                                    "type": "boolean"
-                                  },
-                                  "vertex": {
-                                    "type": "boolean"
-                                  },
-                                  "azure": {
-                                    "type": "boolean"
-                                  }
-                                }
                               }
                             }
                           }
@@ -15956,30 +15935,16 @@
                         "name": "Product FAQ.pdf",
                         "type": "file",
                         "sync_status": "synced",
-                        "sync_error": null,
                         "synced_at": "2026-08-26T12:01:14.000Z",
-                        "linked_at": "2026-08-26T12:00:58.000Z",
-                        "providers": {
-                          "supermemory": true,
-                          "gemini": true,
-                          "vertex": true,
-                          "azure": false
-                        }
+                        "linked_at": "2026-08-26T12:00:58.000Z"
                       },
                       {
                         "document_id": "d3456789-abcd-1234-abcd-123456789012",
                         "name": "Refund policy",
                         "type": "paragraph",
                         "sync_status": "syncing",
-                        "sync_error": null,
                         "synced_at": null,
-                        "linked_at": "2026-08-26T12:02:03.000Z",
-                        "providers": {
-                          "supermemory": true,
-                          "gemini": false,
-                          "vertex": false,
-                          "azure": false
-                        }
+                        "linked_at": "2026-08-26T12:02:03.000Z"
                       }
                     ]
                   }
