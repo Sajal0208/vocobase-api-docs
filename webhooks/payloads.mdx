@@ -347,6 +347,13 @@ Sent when a Vocobase session has reached final post-call processing. For telepho
       "latencyMs": 1840,
       "attempts": 1
     },
+    "hold": {
+      "detected": false,
+      "events": [],
+      "total_secs": 0,
+      "ended_on_hold": false,
+      "kinds": []
+    },
     "call": {
       "call_id": "c1234567-abcd-1234-abcd-123456789012",
       "client_reference_id": "lead-9821",
@@ -393,6 +400,7 @@ Sent when a Vocobase session has reached final post-call processing. For telepho
 | `recording_url` | string or null | Presigned URL for the call recording. `null` if recording was not enabled. URL is valid for 7 days. If it expires, mint a fresh one with `GET /calls/{call_id}/recording-url`. |
 | `variables` | object | Pre-call variable values that were substituted into the agent's prompt and greeting. Empty object `{}` when no variables were supplied. Echoed for your own audit. |
 | `extraction` | object or absent | Post-call extraction result, present only when the agent has a Custom Analysis config defined. Status is `success`, `failed`, or `skipped` (no transcript). Values are typed per the agent's config; missing keys are emitted as `null`. See [Post-call Extraction](#post-call-extraction) below. |
+| `hold` | object or null | Holds detected on the call: the phone network's hold message, an automated receptionist, or the person asking to wait. `null` when hold detection did not run for this call; `{"detected": false, ...}` when it ran and found none. See [Call holds](#call-holds) below. |
 | `call` | object or absent | Call metadata. Present only for telephony sessions started via `POST /calls/start`. **Omitted entirely** for browser WebRTC sessions started via `POST /sessions/webrtc` (no associated phone call). |
 | `call.call_id` | string (UUID) | Unique call identifier |
 | `call.client_reference_id` | string or null | Client-supplied correlation key from `POST /calls/start`, when provided. Same key and value as on `call.status.updated`. |
@@ -438,7 +446,7 @@ conversation that nothing witnessed.
 
 | Value | Resolved from | Meaning |
 |---|---|---|
-| `COMPLETED` | our bot | The bot ended the call — it said goodbye, the customer went quiet through the idle prompts, or the duration cap was reached. On the terminal `call.status.updated` event only, also used when the carrier says the call connected and ended normally but our bot has not reported yet. |
+| `COMPLETED` | our bot | The bot ended the call — it said goodbye, the customer went quiet through the idle prompts, the duration cap was reached, or the call was left on hold for over a minute (then `hold.ended_on_hold` is `true` — see [Call holds](#call-holds)). On the terminal `call.status.updated` event only, also used when the carrier says the call connected and ended normally but our bot has not reported yet. |
 | `CUSTOMER_HUNG_UP` | our bot | The remote leg disconnected first. |
 | `VOICEMAIL` | carrier AMD or our bot | A machine answered. Agrees with `disposition: "voicemail"`. |
 | `SCREENER` | our bot | A call screener answered. Takes precedence over carrier machine detection, so a screener never reads as `VOICEMAIL`. |
@@ -502,6 +510,80 @@ explaining an outcome to a human.
 - `hangup_cause` and `hangup_source` remain on every payload this release and are
   **deprecated**; they are removed in the next release. `end_call_reason`
   replaces both.
+
+### Call holds
+
+Vocobase notices when a call is put on hold and reports every hold in `hold`.
+
+| `kind` | What it is | Example |
+|---|---|---|
+| `carrier_hold` | The phone network's hold message | "The person you're speaking with has put your call on hold" |
+| `ivr_screen` | An automated receptionist screening the call | "Please stay on the line", "Say your name and reason for calling" |
+| `human_hold` | The person asks you to wait, then goes quiet | "One minute", "ek minute, hold karo", "hold on" |
+
+English, Hindi and Hinglish are recognised, plus common Punjabi and Marathi hold messages.
+
+```json
+"hold": {
+  "detected": true,
+  "events": [
+    {
+      "kind": "carrier_hold",
+      "started_at": "2026-03-15T14:30:40.500Z",
+      "ended_at": "2026-03-15T14:31:46.300Z",
+      "duration_secs": 65.8,
+      "recovered": false
+    }
+  ],
+  "total_secs": 65.8,
+  "ended_on_hold": true,
+  "kinds": ["carrier_hold"]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `hold.detected` | boolean | `true` if at least one hold was found |
+| `hold.events` | array | One entry per hold, in call order |
+| `hold.events[].kind` | string | `carrier_hold`, `ivr_screen` or `human_hold` |
+| `hold.events[].started_at` | string (ISO 8601) | When the hold began |
+| `hold.events[].ended_at` | string (ISO 8601) | When the hold ended, or when the call ended if it was still on hold |
+| `hold.events[].duration_secs` | number | Length of this hold in seconds |
+| `hold.events[].recovered` | boolean | `true` if the person came back and the conversation carried on |
+| `hold.total_secs` | number | Sum of all hold durations |
+| `hold.ended_on_hold` | boolean | `true` if the call ended while still on hold |
+| `hold.kinds` | array of string | Distinct kinds seen, in first-seen order |
+
+**`null` is not the same as "no hold".** `null` means hold detection did not run
+for this call (it was off for the agent, or the call predates the feature).
+`{"detected": false, ...}` means it ran and found no hold.
+
+**Long holds end the call.** If a single hold lasts more than a minute, the agent
+says a short goodbye and hangs up, so a call parked on hold does not keep
+running. The call then reports `end_call_reason: "COMPLETED"` with
+`hold.ended_on_hold: true`. For a person asking to wait, only their silence
+counts toward the minute, not the agent's own speech.
+
+**Short waits are not holds.** A person asking to wait is reported only if they
+stay quiet for at least 15 seconds; "one second" followed by more talking is
+ordinary conversation. A question ("one minute, who is this?") is never a hold,
+and talking *about* a hold ("my loan is on hold") is not one either.
+
+**Holds inform extraction.** When a hold is found, your [post-call
+extraction](#post-call-extraction) is told about it, so an outcome such as
+"customer asked us to wait" is not missed just because the call carried on
+afterwards.
+
+<Note>
+  A hold message played by the phone network appears in `transcript` as a
+  `user` turn, because it is heard on the customer's side of the line. Use
+  `hold` rather than the transcript to tell the two apart.
+</Note>
+
+<Note>
+  Hold detection is switched on per agent. Contact support to turn it off for
+  an agent.
+</Note>
 
 ### Final call status on `session.completed`
 
