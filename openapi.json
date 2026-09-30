@@ -6106,21 +6106,16 @@
                         "id": "b49e0d0f-2219-4425-a765-1efd32beb509",
                         "display_name": "Sheetal",
                         "description": "Warm, conversational Hindi narrator.",
-                        "provider": "cartesia",
-                        "model_name": "sonic-3.5",
+                        "provider": "vocobase",
+                        "model_name": "vocobase-managed",
                         "tier": "va-1",
-                        "provider_voice_id": "a0e99841-438c-4a64-b679-ae501e7d6091",
+                        "provider_voice_id": "b49e0d0f-2219-4425-a765-1efd32beb509",
                         "speed": 1.0,
                         "volume": 1.0,
-                        "temperature": null,
                         "language": "hi",
                         "gender": "female",
-                        "gemini_location": null,
                         "preview_text": "Hello, this is a short preview of my voice.",
                         "status": "active",
-                        "last_validated_at": "2026-06-01T10:00:00.000Z",
-                        "validation_error": null,
-                        "metadata": {},
                         "created_at": "2026-06-01T09:00:00.000Z",
                         "updated_at": "2026-06-01T10:00:00.000Z"
                       }
@@ -15567,11 +15562,17 @@
                                 "nullable": true
                               },
                               "provider": {
-                                "type": "string"
+                                "type": "string",
+                                "enum": [
+                                  "vocobase"
+                                ],
+                                "description": "Always `vocobase`. Opaque; do not branch on it.",
+                                "example": "vocobase"
                               },
                               "model_name": {
                                 "type": "string",
-                                "nullable": true
+                                "description": "Always `vocobase-managed`. Opaque; do not branch on it.",
+                                "example": "vocobase-managed"
                               },
                               "tier": {
                                 "type": "string",
@@ -15579,7 +15580,9 @@
                                 "description": "Tier slug for a tier-exclusive voice, otherwise the general tier."
                               },
                               "provider_voice_id": {
-                                "type": "string"
+                                "type": "string",
+                                "description": "Same value as `id`. Kept for compatibility; use `id`.",
+                                "example": "vc_abc123"
                               },
                               "speed": {
                                 "type": "number",
@@ -15589,19 +15592,11 @@
                                 "type": "number",
                                 "nullable": true
                               },
-                              "temperature": {
-                                "type": "number",
-                                "nullable": true
-                              },
                               "language": {
                                 "type": "string",
                                 "nullable": true
                               },
                               "gender": {
-                                "type": "string",
-                                "nullable": true
-                              },
-                              "gemini_location": {
                                 "type": "string",
                                 "nullable": true
                               },
@@ -15614,20 +15609,6 @@
                                 "enum": [
                                   "active"
                                 ]
-                              },
-                              "last_validated_at": {
-                                "type": "string",
-                                "format": "date-time",
-                                "nullable": true
-                              },
-                              "validation_error": {
-                                "type": "string",
-                                "nullable": true
-                              },
-                              "metadata": {
-                                "type": "object",
-                                "nullable": true,
-                                "additionalProperties": true
                               },
                               "created_at": {
                                 "type": "string",
@@ -15652,21 +15633,16 @@
                         "id": "vc_708192a3-b4c5-d6e7-f809-122334455667",
                         "display_name": "Aditi — Warm",
                         "description": "Conversational Hindi/English",
-                        "provider": "cartesia",
-                        "model_name": "sonic-2",
+                        "provider": "vocobase",
+                        "model_name": "vocobase-managed",
                         "tier": "va-1-pro",
-                        "provider_voice_id": "a1f3...",
+                        "provider_voice_id": "vc_708192a3-b4c5-d6e7-f809-122334455667",
                         "speed": 1.0,
                         "volume": 1.0,
-                        "temperature": 0.7,
                         "language": "en",
                         "gender": "female",
-                        "gemini_location": null,
                         "preview_text": "Hello, how can I help you today?",
                         "status": "active",
-                        "last_validated_at": "2026-08-20T08:00:00.000Z",
-                        "validation_error": null,
-                        "metadata": null,
                         "created_at": "2026-05-02T10:00:00.000Z",
                         "updated_at": "2026-08-20T08:00:00.000Z"
                       }
@@ -20183,13 +20159,15 @@
           "provider": {
             "type": "string",
             "enum": [
-              "cartesia",
-              "inworld",
-              "gemini"
-            ]
+              "vocobase"
+            ],
+            "description": "Always `vocobase`. Opaque; do not branch on it.",
+            "example": "vocobase"
           },
           "model_name": {
-            "type": "string"
+            "type": "string",
+            "description": "Always `vocobase-managed`. Opaque; do not branch on it.",
+            "example": "vocobase-managed"
           },
           "tier": {
             "type": "string",
@@ -20201,7 +20179,8 @@
           },
           "provider_voice_id": {
             "type": "string",
-            "description": "Provider-native voice id or voice name. Use `id`, not this field, when creating agents or previewing audio."
+            "description": "Same value as `id`. Kept for compatibility; use `id`.",
+            "example": "vc_abc123"
           },
           "speed": {
             "type": "number"
@@ -20212,22 +20191,10 @@
               "null"
             ]
           },
-          "temperature": {
-            "type": [
-              "number",
-              "null"
-            ]
-          },
           "language": {
             "type": "string"
           },
           "gender": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "gemini_location": {
             "type": [
               "string",
               "null"
@@ -20245,24 +20212,6 @@
             "enum": [
               "active"
             ]
-          },
-          "last_validated_at": {
-            "type": [
-              "string",
-              "null"
-            ],
-            "format": "date-time"
-          },
-          "validation_error": {
-            "type": [
-              "string",
-              "null"
-            ]
-          },
-          "metadata": {
-            "type": "object",
-            "description": "Provider-specific metadata for the voice configuration.",
-            "additionalProperties": true
           },
           "created_at": {
             "type": "string",
