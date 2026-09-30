@@ -8890,6 +8890,17 @@
                           "type": "object",
                           "description": "Post-call extraction result. Present only when the agent has an `extraction_config` defined."
                         },
+                        "hold": {
+                          "oneOf": [
+                            {
+                              "type": "null"
+                            },
+                            {
+                              "$ref": "#/components/schemas/HoldSummary"
+                            }
+                          ],
+                          "description": "Holds detected on the call. `null` when hold detection did not run for this call (off for the agent, or the call predates the feature); `{\"detected\": false, ...}` when it ran and found none."
+                        },
                         "call": {
                           "type": "object",
                           "description": "Call metadata. Present only for telephony sessions started via `POST /calls/start`. Omitted for browser WebRTC sessions.",
@@ -19417,6 +19428,17 @@
                   }
                 ]
               },
+              "hold": {
+                "oneOf": [
+                  {
+                    "type": "null"
+                  },
+                  {
+                    "$ref": "#/components/schemas/HoldSummary"
+                  }
+                ],
+                "description": "Holds detected on the call. `null` when hold detection did not run for this call (off for the agent, or the call predates the feature); `{\"detected\": false, ...}` when it ran and found none."
+              },
               "call": {
                 "type": [
                   "object",
@@ -20626,6 +20648,17 @@
               }
             ],
             "description": "Post-call extraction result. `null` until extraction runs after the call ends. Always `null` when the agent has no `extraction_config`."
+          },
+          "hold": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "$ref": "#/components/schemas/HoldSummary"
+              }
+            ],
+            "description": "Holds detected on the call. `null` when hold detection did not run for this call (off for the agent, or the call predates the feature); `{\"detected\": false, ...}` when it ran and found none."
           },
           "status": {
             "type": "string"
@@ -22983,6 +23016,103 @@
             "type": "string",
             "format": "date-time"
           }
+        }
+      },
+      "HoldSummary": {
+        "type": "object",
+        "description": "Holds detected on the call: the phone network's hold message (`carrier_hold`), an automated receptionist (`ivr_screen`), or the person asking to wait (`human_hold`). See the `session.completed` webhook docs, section \"Call holds\".",
+        "required": [
+          "detected",
+          "events",
+          "total_secs",
+          "ended_on_hold",
+          "kinds"
+        ],
+        "properties": {
+          "detected": {
+            "type": "boolean",
+            "description": "`true` if at least one hold was found."
+          },
+          "events": {
+            "type": "array",
+            "description": "One entry per hold, in call order.",
+            "items": {
+              "type": "object",
+              "required": [
+                "kind",
+                "started_at",
+                "ended_at",
+                "duration_secs",
+                "recovered"
+              ],
+              "properties": {
+                "kind": {
+                  "type": "string",
+                  "enum": [
+                    "carrier_hold",
+                    "ivr_screen",
+                    "human_hold"
+                  ],
+                  "description": "What kind of hold it was."
+                },
+                "started_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "When the hold began."
+                },
+                "ended_at": {
+                  "type": "string",
+                  "format": "date-time",
+                  "description": "When the hold ended, or when the call ended if it was still on hold."
+                },
+                "duration_secs": {
+                  "type": "number",
+                  "description": "Length of this hold in seconds."
+                },
+                "recovered": {
+                  "type": "boolean",
+                  "description": "`true` if the person came back and the conversation carried on."
+                }
+              }
+            }
+          },
+          "total_secs": {
+            "type": "number",
+            "description": "Sum of all hold durations in seconds."
+          },
+          "ended_on_hold": {
+            "type": "boolean",
+            "description": "`true` if the call ended while still on hold. A single hold longer than a minute ends the call; it then reports `end_call_reason: \"COMPLETED\"` with this set to `true`."
+          },
+          "kinds": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "enum": [
+                "carrier_hold",
+                "ivr_screen",
+                "human_hold"
+              ]
+            },
+            "description": "Distinct kinds seen, in first-seen order."
+          }
+        },
+        "example": {
+          "detected": true,
+          "events": [
+            {
+              "kind": "carrier_hold",
+              "started_at": "2026-03-15T14:30:40.500Z",
+              "ended_at": "2026-03-15T14:31:46.300Z",
+              "duration_secs": 65.8,
+              "recovered": false
+            }
+          ],
+          "total_secs": 65.8,
+          "ended_on_hold": true,
+          "kinds": [
+            "carrier_hold"
+          ]
         }
       }
     },
