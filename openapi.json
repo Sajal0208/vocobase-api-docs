@@ -2916,7 +2916,7 @@
       "post": {
         "operationId": "syncVoiceLinkState",
         "summary": "Sync VoiceLink state and readiness",
-        "description": "Fetches remote VoiceLink clients, DIDs, available DIDs, bots, and routing, then compares them with Vocobase local PhoneNumber rows. By default, remote DIDs are imported into Vocobase local inventory; pass `import_dids: false` for a read-only readiness check. Sync does not silently delete local data.",
+        "description": "Fetches remote VoiceLink clients, DIDs, available DIDs, bots, and routing, then compares them with Vocobase local PhoneNumber rows. By default, remote DIDs are imported into Vocobase local inventory; pass `import_dids: false` for a read-only readiness check. Sync does not silently delete local data. Pass `exclude_unusable: true` to leave released and deleted DIDs out of the response.",
         "tags": [
           "VoiceLink Management"
         ],
@@ -21405,6 +21405,11 @@
             "type": "boolean",
             "default": true,
             "description": "When true or omitted, remote purchased DIDs are upserted into Vocobase local PhoneNumber inventory. Set false for a read-only readiness check."
+          },
+          "exclude_unusable": {
+            "type": "boolean",
+            "default": false,
+            "description": "When true, DIDs that VoiceLink has released (`REMOTE_DID_RELEASED`) or no longer returns (`REMOTE_DID_DELETED`) are left out of `dids`, `routing`, `local_phone_numbers`, `readiness`, and `drift`. Expired DIDs are kept because they can be renewed. Also accepted as the `exclude_unusable=true` query parameter. Does not change what the sync imports."
           }
         }
       },
