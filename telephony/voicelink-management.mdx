@@ -237,7 +237,7 @@ curl -X POST https://api.vocobase.com/api/v2/voicelink/sync \
 
 Set `import_dids: false` for a read-only readiness check. When omitted, `import_dids` defaults to `true`.
 
-Set `exclude_unusable: true` to get only numbers you can still use. DIDs that VoiceLink has released (`REMOTE_DID_RELEASED`) or no longer returns (`REMOTE_DID_DELETED`) are then left out of `dids`, `routing`, `local_phone_numbers`, `readiness`, and `drift`. Expired DIDs stay, because they can be renewed. It defaults to `false`, and it only filters the response: the sync itself runs the same way. You can also pass it as the query parameter `?exclude_unusable=true`.
+Set `exclude_unusable: true` to leave out numbers that are permanently gone. DIDs that VoiceLink has released (`REMOTE_DID_RELEASED`) or no longer returns (`REMOTE_DID_DELETED`) are then left out of `dids`, `routing`, `local_phone_numbers`, `readiness`, and `drift`. Expired DIDs stay, because they can be renewed. It defaults to `false`, and it only filters the response: the sync itself runs the same way. You can also pass it as the query parameter `?exclude_unusable=true`. A deleted DID's local number stays active until you stop using it, so check `drift` without the flag before you clean up. `REMOTE_DID_DELETED` is only reported when the full DID list was fetched, so with a `TRUNCATED` or `FETCH_FAILED` warning those numbers stay in the response.
 
 ```json
 {
