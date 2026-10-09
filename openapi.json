@@ -19232,7 +19232,7 @@
               "string",
               "null"
             ],
-            "description": "`null` on a normal call. `prefetch_failed`: a Fetch block that runs before dialing failed, so the number was never dialed. `max_steps` / `max_duration`: the call hit a safety limit and was ended."
+            "description": "`null` on a normal call. `prefetch_failed`: a Fetch block that runs before dialing failed, so the number was never dialed. `max_steps` / `max_duration`: the call hit a safety limit and was ended. `dead_end`: the flow reached an exit with no arrow. `runner_error`: the call was ended because of an error on our side."
           },
           "keys": {
             "type": "array",

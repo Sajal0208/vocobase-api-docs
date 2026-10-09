@@ -668,7 +668,7 @@ Calls placed with [`POST /ivr-flows/{flowId}/calls`](/ivr-flows) (and test calls
 | `ivr.flow_version` | integer or null | Version of the flow the call ran. |
 | `ivr.is_test` | boolean | `true` for a test call placed from the dashboard on the unpublished draft. |
 | `ivr.outcome` | string or null | Outcome code of the End block the call reached. `null` when the call ended before an End block: the caller hung up, the call failed, or a safety limit ended it. |
-| `ivr.failure` | string or null | `null` on a normal call. `prefetch_failed`: a Fetch block that runs before dialing failed, so the number was never dialed. `max_steps` or `max_duration`: the call hit a safety limit and was ended. |
+| `ivr.failure` | string or null | `null` on a normal call. `prefetch_failed`: a Fetch block that runs before dialing failed, so the number was never dialed. `max_steps` or `max_duration`: the call hit a safety limit and was ended. `dead_end`: the flow reached an exit with no arrow, so the call was ended. `runner_error`: the call was ended because of an error on our side. |
 | `ivr.keys` | array | Keys pressed, in order. Each entry has `block` (the Menu block ID), `key` (`0`-`9`, `*`, `#`, or the digits entered on a collect menu) and `at` (integer, milliseconds from the start of the flow). On a menu marked masked, every digit is reported as `•`. |
 | `ivr.path` | array of strings | Block IDs the call visited, in order. |
 | `ivr.fetches` | array | One entry per Fetch block that ran: `block`, `status` (HTTP status, or `null` when no response arrived), `latency_ms`, `ok`, and `error` when `ok` is `false`. |
