@@ -8689,6 +8689,7 @@
                       "id": "f1234567-abcd-1234-abcd-123456789012",
                       "name": "EMI reminder",
                       "language": "hi",
+                      "voice_model": "premium",
                       "published_version": 3
                     }
                   ]
@@ -8767,6 +8768,7 @@
                     "id": "f1234567-abcd-1234-abcd-123456789012",
                     "name": "EMI reminder",
                     "language": "hi",
+                    "voice_model": "premium",
                     "published_version": 3,
                     "fields": [
                       {
@@ -18949,7 +18951,8 @@
           "id",
           "name",
           "language",
-          "published_version"
+          "published_version",
+          "voice_model"
         ],
         "properties": {
           "id": {
@@ -18962,6 +18965,14 @@
           "language": {
             "type": "string",
             "description": "Language code of the flow, e.g. `en` or `hi`."
+          },
+          "voice_model": {
+            "type": "string",
+            "enum": [
+              "standard",
+              "premium"
+            ],
+            "description": "Voice model the flow speaks with, chosen in the dashboard. The model sets the per-pulse price of the flow's calls."
           },
           "published_version": {
             "type": [
