@@ -419,6 +419,7 @@ Sent when a Vocobase session has reached final post-call processing. For telepho
 | `call.transferred` | boolean | `true` if the bot handed the call off to a human via the cold-transfer flow. See [Transferred calls](#transferred-calls) below. |
 | `call.transferred_at` | string (ISO 8601) or null | When the bot left the room and the carrier began bridging the caller to the human. `null` for non-transferred calls. |
 | `call.transfer_target` | string or null | E.164 destination the caller was bridged to. `null` for non-transferred calls. |
+| `ivr` | object or absent | What the IVR flow did. Present only for calls placed on an [IVR flow](/ivr-flows); absent on every other session. See [IVR Flows calls](#ivr-flows-calls) below. |
 
 ### Transcript entry format
 
@@ -643,6 +644,40 @@ Use `call.transferred` as the cheap discriminator if your downstream automation 
   }
 }
 ```
+
+### IVR Flows calls
+
+Calls placed with [`POST /ivr-flows/{flowId}/calls`](/ivr-flows) (and test calls from the IVR editor) carry an extra `ivr` block on `session.completed`. Every other field is unchanged. The lead you pushed is echoed as `variables`. `agent_id` and `agent_name` identify an internal agent that backs the flow; key your integration on `ivr.flow_id`.
+
+```json
+"ivr": {
+  "flow_id": "f1234567-abcd-1234-abcd-123456789012",
+  "flow_version": 3,
+  "is_test": false,
+  "outcome": "info_wrong",
+  "failure": null,
+  "keys": [ { "block": "confirm_menu", "key": "5", "at": 14200 } ],
+  "path": [ "start", "fetch_loan", "intro", "confirm_menu", "end_wrong" ],
+  "fetches": [ { "block": "fetch_loan", "status": 200, "latency_ms": 412, "ok": true } ]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `ivr.flow_id` | string (UUID) | The IVR flow the call ran. |
+| `ivr.flow_version` | integer or null | Version of the flow the call ran. |
+| `ivr.is_test` | boolean | `true` for a test call placed from the dashboard on the unpublished draft. |
+| `ivr.outcome` | string or null | Outcome code of the End block the call reached. `null` when the call ended before an End block: the caller hung up, the call failed, or a safety limit ended it. |
+| `ivr.failure` | string or null | `null` on a normal call. `prefetch_failed`: a Fetch block that runs before dialing failed, so the number was never dialed. `max_steps` or `max_duration`: the call hit a safety limit and was ended. |
+| `ivr.keys` | array | Keys pressed, in order. Each entry has `block` (the Menu block ID), `key` (`0`-`9`, `*`, `#`, or the digits entered on a collect menu) and `at` (integer, milliseconds from the start of the flow). On a menu marked masked, every digit is reported as `•`. |
+| `ivr.path` | array of strings | Block IDs the call visited, in order. |
+| `ivr.fetches` | array | One entry per Fetch block that ran: `block`, `status` (HTTP status, or `null` when no response arrived), `latency_ms`, `ok`, and `error` when `ok` is `false`. |
+
+`ivr.fetches[].error` is one of `timeout`, `connect_error`, `url_blocked`, `too_large`, `bad_json`, `render_error`, `http_<status>` (your API answered with a non-2xx status), `missing_<field>` (a required field was not in the response) or `type_<field>` (a field could not be read as its type).
+
+The `ivr` block never carries Fetch URLs, headers, request bodies or the values your API returned.
+
+**Pre-dial failures.** When a pre-dial Fetch fails, the number is never dialed. The call ends the way any [failed session](#how-a-failed-session-surfaces) does: `call.status` is `failed`, `call.end_call_reason` is `NOT_CONNECTED`, `duration_seconds` and `credits_used` are `0`, and `transcript` is `null`. `ivr.failure` is `prefetch_failed`, `ivr.path` ends at the Fetch that failed, and `ivr.fetches` shows why.
 
 ## Event: `call.transferred`
 

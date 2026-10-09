@@ -1,0 +1,246 @@
+---
+title: "IVR Flows"
+description: "Build a keypad IVR in the dashboard, push leads to it over the API, and read what each caller pressed"
+---
+
+# IVR Flows
+
+An IVR flow is a scripted phone call driven by the keypad. You draw it once in the dashboard: what to say, which keys the caller can press and where each key leads, and which of your APIs to call along the way. Then you push leads to it over the API, one call per lead. When a call ends, the `session.completed` webhook tells you which path the caller took, every key they pressed and the outcome the call reached.
+
+<Info>
+  IVR Flows is enabled per account. Until it is, every endpoint below returns `403 IVR_FLOWS_DISABLED`. Contact Vocobase to turn it on; your IVR price is set at the same time.
+</Info>
+
+```
+Your system                          Vocobase                               Caller
+    │                                    │                                     │
+    │  POST /ivr-flows/{flowId}/calls    │                                     │
+    │  { to, data: { loan_id, ... } }    │                                     │
+    │ ─────────────────────────────────► │                                     │
+    │ ◄──── 202 { call_id, pending } ─── │                                     │
+    │                                    │  pre-dial Fetch (optional)          │
+    │ ◄──── GET your API ─────────────── │                                     │
+    │                                    │  dial, play blocks, read keys  ───► │
+    │                                    │ ◄───────────────────── presses 1 ── │
+    │ ◄── call.status.updated ────────── │                                     │
+    │ ◄── session.completed { ivr } ──── │                                     │
+```
+
+---
+
+## Build the flow
+
+Flows are built and published in the dashboard under **IVR Flows**. A flow is a graph of blocks joined by exits:
+
+| Block | What it does | Exits |
+|---|---|---|
+| **Start** | Declares the lead fields a call needs (name, type, required). Every pushed lead is checked against them. | `next` |
+| **Say** | Speaks a line or plays an uploaded recording. Lines can insert lead or Fetch values with `{{lead.loan_id}}`-style placeholders. | `next` |
+| **Menu** | Speaks a prompt and waits for keys. A *single* menu takes one key and follows the exit wired to it; a *collect* menu takes several digits (for example a date of birth or a PIN) and can be marked masked. | each key wired, or `done`; plus `no_input` and `invalid` |
+| **Fetch** | Calls your HTTPS API (`GET` or `POST`) and reads typed fields from the JSON response, for use in later blocks. | `success`, `failed` |
+| **End** | Optionally speaks a closing line, then hangs up with an outcome code you choose (for example `paid`, `info_wrong`). | none |
+
+A few rules worth knowing before you design:
+
+- **Lead field types** decide how each value is spoken. A `money` value is read as an amount, a `date` as a day and month, `digits` one digit at a time.
+- **Fetch URLs** must be `https://` with a fixed host. Placeholders are allowed only in the path and query string, never in the scheme, host or port.
+- **Pre-dial Fetch.** Fetch blocks that follow Start directly run *before* the number is dialed. If one fails, the number is never dialed and the call ends as failed (see [Read the result](#read-the-result)), so a caller never hears a half-filled script.
+- **Publishing** freezes the current draft as a new numbered version. Pushed calls always run the latest published version; editing the draft does not affect them until you publish again.
+- Use **Test call** in the editor to ring your own phone on the unpublished draft. Test calls are billed like any IVR call and are marked `is_test: true` in the webhook.
+
+---
+
+## Push a lead
+
+### 1. Find the flow and its fields
+
+```bash
+curl https://api.vocobase.com/api/v2/ivr-flows \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "success": true,
+  "data": [
+    { "id": "f1234567-abcd-1234-abcd-123456789012", "name": "EMI reminder", "language": "hi", "published_version": 3 }
+  ]
+}
+```
+
+Only flows with a published version are listed. Read one flow to see the lead fields its published version expects:
+
+```bash
+curl https://api.vocobase.com/api/v2/ivr-flows/f1234567-abcd-1234-abcd-123456789012 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012"
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "f1234567-abcd-1234-abcd-123456789012",
+    "name": "EMI reminder",
+    "language": "hi",
+    "published_version": 3,
+    "fields": [
+      { "name": "loan_id", "type": "text", "required": true },
+      { "name": "amount_due", "type": "money", "required": true },
+      { "name": "due_date", "type": "date", "required": false }
+    ]
+  }
+}
+```
+
+### 2. Send the lead
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/ivr-flows/f1234567-abcd-1234-abcd-123456789012/calls \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "+919876543210",
+    "data": { "loan_id": "L-88231", "amount_due": 30000, "due_date": "2026-06-04" },
+    "client_reference_id": "lead-88231-attempt-1"
+  }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "call_id": "c1234567-abcd-1234-abcd-123456789012",
+    "session_id": "s1234567-abcd-1234-abcd-123456789012",
+    "status": "pending",
+    "from_number": "+917969008446",
+    "to_number": "+919876543210",
+    "flow_id": "f1234567-abcd-1234-abcd-123456789012",
+    "flow_version": 3,
+    "client_reference_id": "lead-88231-attempt-1"
+  }
+}
+```
+
+A `202` means the call was accepted and queued, not that it was answered. Track it with [`call.status.updated`](/webhooks/payloads) or `GET /calls/{call_id}`.
+
+### Request fields
+
+| Field | Type | Description |
+|---|---|---|
+| `to` | `string` | **Required.** Destination number in E.164 format. |
+| `from` | `string` | Caller ID in E.164 format. Must be an active number on the VoiceLink connection used; an unknown number returns `400`. Defaults to the connection's default number. |
+| `connection_id` | `string` | VoiceLink connection to use. Required only when the account has more than one active VoiceLink connection. |
+| `data` | `object` | Lead values keyed by the flow's field names. |
+| `client_reference_id` | `string` (≤128 chars) | Your idempotency key. See [Retries and idempotency](#retries-and-idempotency). |
+
+IVR calls are placed on your [VoiceLink](/telephony/voicelink-setup) connection.
+
+### How to send each field type
+
+| Type | Send as | Accepted |
+|---|---|---|
+| `text` | string | Up to 500 characters. Numbers and booleans are converted to strings. |
+| `number` | JSON number | A numeric string is also accepted. Absolute value up to 1e12. |
+| `money` | JSON number | Same as `number`. `30000`, not `"₹30,000"`. |
+| `date` | string | `YYYY-MM-DD`, and a real calendar date (`2026-02-31` is refused). |
+| `digits` | string | Digits only, up to 32. Send as a string to keep leading zeros. |
+| `phone` | string | 8 to 15 digits with an optional leading `+`. |
+
+A required field that is absent, `null` or `""` is missing. Keys the flow does not declare are refused, so a typo never silently drops a value. Every problem is listed at once:
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "data does not match the fields of the flow",
+    "fields": [
+      { "name": "amount_due", "problem": "wrong_type" },
+      { "name": "loan_id", "problem": "missing" },
+      { "name": "loanid", "problem": "unknown" }
+    ]
+  }
+}
+```
+
+`problem` is one of `missing`, `wrong_type` or `unknown`. The lead values you sent are echoed back as `variables` on `session.completed`.
+
+### Retries and idempotency
+
+Send a `client_reference_id` with every lead and reuse it when you retry. If the key was used before, the API returns `200` with the original call and `idempotent_replay: true`, and places no new call:
+
+```json
+{
+  "success": true,
+  "data": {
+    "call_id": "c1234567-abcd-1234-abcd-123456789012",
+    "session_id": "s1234567-abcd-1234-abcd-123456789012",
+    "status": "completed",
+    "from_number": "+917969008446",
+    "to_number": "+919876543210",
+    "flow_id": "f1234567-abcd-1234-abcd-123456789012",
+    "client_reference_id": "lead-88231-attempt-1",
+    "idempotent_replay": true
+  }
+}
+```
+
+The key space is shared with [`POST /calls/start`](/api-reference) on the same account. If the key belongs to a call that was not placed on this flow, `flow_id` is `null`. To call the same lead again on purpose, use a new key.
+
+### Limits and billing
+
+- Pushes share the per-minute call quota of `POST /calls/start` (`429 RATE_LIMITED`, with a `Retry-After` header) and the account's concurrent call limit (`429 LIMIT_REACHED`). Back off and retry both.
+- IVR calls are billed per pulse of answered time at your account's IVR rate. Unanswered calls and pre-dial failures cost nothing. To start, a call needs enough balance for one minute at that rate; otherwise it returns `403 FORBIDDEN`.
+
+---
+
+## Read the result
+
+Every IVR call ends with the normal [`session.completed`](/webhooks/payloads) webhook, with one extra `ivr` block:
+
+```json
+"ivr": {
+  "flow_id": "f1234567-abcd-1234-abcd-123456789012",
+  "flow_version": 3,
+  "is_test": false,
+  "outcome": "info_wrong",
+  "failure": null,
+  "keys": [ { "block": "confirm_menu", "key": "5", "at": 14200 } ],
+  "path": [ "start", "fetch_loan", "intro", "confirm_menu", "end_wrong" ],
+  "fetches": [ { "block": "fetch_loan", "status": 200, "latency_ms": 412, "ok": true } ]
+}
+```
+
+| Field | Description |
+|---|---|
+| `outcome` | Outcome code of the End block the call reached. `null` if the caller hung up first or the call failed. |
+| `failure` | `null` on a normal call. `prefetch_failed`: a pre-dial Fetch failed and the number was never dialed. `max_steps` or `max_duration`: the call hit a safety limit and was ended. |
+| `keys` | Keys pressed, in order: the Menu block, the key (or the digits entered on a collect menu) and `at`, in milliseconds from the start of the flow. On a masked menu every digit is reported as `•`. |
+| `path` | Block IDs the call visited, in order. |
+| `fetches` | One entry per Fetch that ran: HTTP `status` (`null` if no response), `latency_ms`, `ok`, and an `error` code when it failed. URLs, headers, bodies and fetched values are never included. |
+
+**Pre-dial failures.** When a pre-dial Fetch fails, the call ends without dialing: `call.status` is `failed`, `call.end_call_reason` is `NOT_CONNECTED`, `duration_seconds` and `credits_used` are `0`, and `ivr.failure` is `prefetch_failed`. `ivr.fetches` shows which Fetch failed and why.
+
+`agent_id` and `agent_name` on an IVR call's webhook identify an internal agent that backs the flow. Key your integration on `ivr.flow_id` instead. Full field reference: [Webhook payloads → IVR Flows calls](/webhooks/payloads#ivr-flows-calls).
+
+---
+
+## Error codes
+
+| HTTP Status | Code | Description |
+|---|---|---|
+| `400` | `VALIDATION_ERROR` | Bad `to`, `from`, `connection_id` or `client_reference_id`, or `data` does not match the flow (then with a `fields` list). Fix the request; do not retry as is. |
+| `400` | `CONNECTION_AMBIGUOUS` | The account has several active VoiceLink connections. Pass `connection_id`. |
+| `400` | `PROVIDER_NOT_CONFIGURED` | No active VoiceLink connection, or it has no default phone number. |
+| `401` | `UNAUTHORIZED` | Missing or invalid API key. |
+| `402` | `TELEPHONY_CREDIT_EXHAUSTED` | The telephony account is out of balance. Retry once it is topped up. |
+| `403` | `IVR_FLOWS_DISABLED` | IVR Flows is not enabled on this account. Contact Vocobase. |
+| `403` | `FORBIDDEN` | Not enough balance to start the call. |
+| `404` | `NOT_FOUND` | No flow with this ID on your account. |
+| `404` | `CONNECTION_NOT_FOUND` | The `connection_id` is not an active VoiceLink connection on your account. |
+| `409` | `FLOW_NOT_PUBLISHED` | The flow has no published version. Publish it in the dashboard. |
+| `422` | `IVR_PRICING_NOT_CONFIGURED` | No IVR price is set on the account. Contact Vocobase. |
+| `429` | `RATE_LIMITED` | Per-minute call quota reached. Retry after `Retry-After` seconds. |
+| `429` | `LIMIT_REACHED` | Concurrent call limit reached. Retry after a short backoff. |
+| `502` | `INTERNAL_ERROR` | The telephony provider refused the dial. Retry after a minute or two. |
+| `503` | `SERVICE_UNAVAILABLE` | The call could not be queued and nothing was dialed. Retry. |
