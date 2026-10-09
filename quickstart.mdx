@@ -153,9 +153,9 @@ Get up and running with the Vocobase V2 API. By the end of this guide, you will 
 
     ### Agent languages
 
-    By default an agent speaks the language of the voice you picked. To let it
-    understand and reply in more than one language, pass `spoken_languages` on
-    create or update:
+    The languages an agent hears and replies in are its `spoken_languages`. A
+    voice's `language` only describes the voice; it does not configure the
+    agent. Pass `spoken_languages` on create or update:
 
     ```json
     { "spoken_languages": ["en", "hi"] }
@@ -183,7 +183,7 @@ Get up and running with the Vocobase V2 API. By the end of this guide, you will 
 
     An invalid combination returns `400` with a `VALIDATION_ERROR`. Omit the
     field to leave it unchanged on update, or send `[]` to clear it back to the
-    voice's own language.
+    platform default.
   </Step>
 
   <Step title="Make your first call">
