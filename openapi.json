@@ -42,6 +42,10 @@
       "description": "Initiate outbound calls and view call history."
     },
     {
+      "name": "IVR Flows",
+      "description": "Keypad (DTMF) IVR flows built in the dashboard. List published flows, read the lead fields a flow expects, and push one lead to place one call on the published version."
+    },
+    {
       "name": "Phone Numbers",
       "description": "Import DIDs, assign agents for inbound routing, and re-sync carrier Application bindings."
     },
@@ -8646,6 +8650,584 @@
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
+          }
+        }
+      }
+    },
+    "/ivr-flows": {
+      "get": {
+        "operationId": "listIvrFlows",
+        "summary": "List published IVR flows",
+        "description": "Returns the IVR flows on your account that have a published version, newest first (at most 200). Flows that were never published are not listed. Requires IVR Flows to be enabled on the account.",
+        "tags": [
+          "IVR Flows"
+        ],
+        "responses": {
+          "200": {
+            "description": "Published flows.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "type": "array",
+                      "items": {
+                        "$ref": "#/components/schemas/IvrFlowSummary"
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": [
+                    {
+                      "id": "f1234567-abcd-1234-abcd-123456789012",
+                      "name": "EMI reminder",
+                      "language": "hi",
+                      "published_version": 3
+                    }
+                  ]
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "IVR Flows is not enabled on the account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "disabled": {
+                    "summary": "IVR Flows not enabled on the account",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "IVR_FLOWS_DISABLED",
+                        "message": "IVR Flows is not enabled on this account. Contact Vocobase to enable it."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ivr-flows/{flowId}": {
+      "get": {
+        "operationId": "getIvrFlow",
+        "summary": "Get an IVR flow and its lead fields",
+        "description": "Returns one flow and the lead fields its published version expects in `data` when you push a call. Use `fields` to build your request. Unpublished flows are returned with `published_version: null` and an empty `fields` list.",
+        "tags": [
+          "IVR Flows"
+        ],
+        "parameters": [
+          {
+            "name": "flowId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "IVR flow ID, from `GET /ivr-flows` or the flow page in the dashboard."
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "The flow.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/IvrFlow"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "id": "f1234567-abcd-1234-abcd-123456789012",
+                    "name": "EMI reminder",
+                    "language": "hi",
+                    "published_version": 3,
+                    "fields": [
+                      {
+                        "name": "loan_id",
+                        "type": "text",
+                        "required": true
+                      },
+                      {
+                        "name": "amount_due",
+                        "type": "money",
+                        "required": true
+                      },
+                      {
+                        "name": "due_date",
+                        "type": "date",
+                        "required": false
+                      }
+                    ]
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "403": {
+            "description": "IVR Flows is not enabled on the account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "disabled": {
+                    "summary": "IVR Flows not enabled on the account",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "IVR_FLOWS_DISABLED",
+                        "message": "IVR Flows is not enabled on this account. Contact Vocobase to enable it."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No flow with this ID on your account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "not_found": {
+                    "summary": "Flow not found",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "Flow not found"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/ivr-flows/{flowId}/calls": {
+      "post": {
+        "operationId": "startIvrCall",
+        "summary": "Push a lead (place an IVR call)",
+        "description": "Places one outbound call that runs the published version of the flow, with `data` as the lead. Calls go out on your VoiceLink connection. The call is placed asynchronously: a 202 means it was accepted, not that it was answered. When the flow has Fetch blocks right after Start, they run before dialing; if one fails the number is never dialed and the call ends as `failed` with `ivr.failure = \"prefetch_failed\"` on `session.completed`. Track the call with `call.status.updated` webhooks or `GET /calls/{id}`, and read the result from the `ivr` block of `session.completed`.\n\nRate limited per account with the same per-minute call quota as `POST /calls/start`, and counted against the same concurrent call limit. A call needs enough balance for one minute at your IVR rate to start; it is billed per pulse of answered time.",
+        "tags": [
+          "IVR Flows"
+        ],
+        "parameters": [
+          {
+            "name": "flowId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "IVR flow ID, from `GET /ivr-flows` or the flow page in the dashboard."
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/IvrCallRequest"
+              },
+              "example": {
+                "to": "+919876543210",
+                "data": {
+                  "loan_id": "L-88231",
+                  "amount_due": 30000,
+                  "due_date": "2026-06-04"
+                },
+                "client_reference_id": "lead-88231-attempt-1"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Replay: this `client_reference_id` was used before. The original call is returned and no new call is placed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/IvrCallReplay"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "call_id": "c1234567-abcd-1234-abcd-123456789012",
+                    "session_id": "s1234567-abcd-1234-abcd-123456789012",
+                    "status": "completed",
+                    "from_number": "+917969008446",
+                    "to_number": "+919876543210",
+                    "flow_id": "f1234567-abcd-1234-abcd-123456789012",
+                    "client_reference_id": "lead-88231-attempt-1",
+                    "idempotent_replay": true
+                  }
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Accepted. The call is queued for dialing.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": true
+                    },
+                    "data": {
+                      "$ref": "#/components/schemas/IvrCallAccepted"
+                    }
+                  }
+                },
+                "example": {
+                  "success": true,
+                  "data": {
+                    "call_id": "c1234567-abcd-1234-abcd-123456789012",
+                    "session_id": "s1234567-abcd-1234-abcd-123456789012",
+                    "status": "pending",
+                    "from_number": "+917969008446",
+                    "to_number": "+919876543210",
+                    "flow_id": "f1234567-abcd-1234-abcd-123456789012",
+                    "flow_version": 3,
+                    "client_reference_id": "lead-88231-attempt-1"
+                  }
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid request, lead data that does not match the flow, or VoiceLink not set up. Lead problems carry a `fields` list.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/IvrLeadErrorResponse"
+                    },
+                    {
+                      "$ref": "#/components/schemas/ErrorResponse"
+                    }
+                  ]
+                },
+                "examples": {
+                  "lead_fields": {
+                    "summary": "data does not match the flow fields",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "data does not match the fields of the flow",
+                        "fields": [
+                          {
+                            "name": "amount_due",
+                            "problem": "wrong_type"
+                          },
+                          {
+                            "name": "loan_id",
+                            "problem": "missing"
+                          },
+                          {
+                            "name": "loanid",
+                            "problem": "unknown"
+                          }
+                        ]
+                      }
+                    }
+                  },
+                  "to": {
+                    "summary": "Invalid destination number",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "to must be in E.164 format (e.g., +919876543210)"
+                      }
+                    }
+                  },
+                  "from_not_owned": {
+                    "summary": "Caller ID not on the connection",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "from +917969008446 is not an active phone number on the selected VoiceLink connection"
+                      }
+                    }
+                  },
+                  "connection_ambiguous": {
+                    "summary": "Several VoiceLink connections",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "CONNECTION_AMBIGUOUS",
+                        "message": "connection_id is required because this partner has multiple active voicelink connections."
+                      }
+                    }
+                  },
+                  "provider_not_configured": {
+                    "summary": "VoiceLink not configured",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "PROVIDER_NOT_CONFIGURED",
+                        "message": "VoiceLink telephony is not configured for this account, or the connection has no default phone number."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "401": {
+            "$ref": "#/components/responses/Unauthorized"
+          },
+          "402": {
+            "description": "The telephony account is out of balance. Retrying will not help until it is topped up.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "telephony_credit": {
+                    "summary": "Telephony balance exhausted",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "TELEPHONY_CREDIT_EXHAUSTED",
+                        "message": "The telephony account is out of balance, so no call can be placed. Retry once it is topped up."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "403": {
+            "description": "IVR Flows is not enabled on the account, or the balance is too low to start a call.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "disabled": {
+                    "summary": "IVR Flows not enabled on the account",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "IVR_FLOWS_DISABLED",
+                        "message": "IVR Flows is not enabled on this account. Contact Vocobase to enable it."
+                      }
+                    }
+                  },
+                  "credits": {
+                    "summary": "Insufficient balance",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "FORBIDDEN",
+                        "message": "Insufficient credits"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "404": {
+            "description": "No flow with this ID on your account, or the `connection_id` was not found.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "not_found": {
+                    "summary": "Flow not found",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "NOT_FOUND",
+                        "message": "Flow not found"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The flow has no published version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "not_published": {
+                    "summary": "Flow not published",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "FLOW_NOT_PUBLISHED",
+                        "message": "Publish the flow before placing calls"
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "IVR pricing is not set on the account. Contact Vocobase.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "pricing": {
+                    "summary": "IVR pricing missing",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "IVR_PRICING_NOT_CONFIGURED",
+                        "message": "IVR pricing is not configured for this account. Contact Vocobase."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "429": {
+            "description": "Per-minute call quota or concurrent call limit reached. Retry after a short backoff (`Retry-After` is set on `RATE_LIMITED`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "rate_limited": {
+                    "summary": "Per-minute call quota",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "RATE_LIMITED",
+                        "message": "Call rate limit exceeded. Maximum 50 calls per minute."
+                      }
+                    }
+                  },
+                  "concurrency": {
+                    "summary": "Concurrent call limit",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "LIMIT_REACHED",
+                        "message": "Maximum 3 concurrent calls allowed. 3 calls currently active."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
+          "502": {
+            "description": "The telephony provider refused the dial.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "provider": {
+                    "summary": "Dial failed",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "INTERNAL_ERROR",
+                        "message": "Failed to initiate call. Please try again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "The call could not be queued. Nothing was dialed; retry.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "queue": {
+                    "summary": "Could not queue",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "SERVICE_UNAVAILABLE",
+                        "message": "Could not queue the call. Please try again."
+                      }
+                    }
+                  }
+                }
+              }
+            }
           }
         }
       }
@@ -18329,6 +18911,401 @@
       }
     },
     "schemas": {
+      "IvrLeadField": {
+        "type": "object",
+        "description": "One lead field declared on the Start block of the published version.",
+        "required": [
+          "name",
+          "type",
+          "required"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Key to send in `data`.",
+            "example": "loan_id"
+          },
+          "type": {
+            "type": "string",
+            "enum": [
+              "text",
+              "number",
+              "money",
+              "date",
+              "digits",
+              "phone"
+            ],
+            "description": "How the value must be sent. `number`, `money`: a JSON number (a numeric string is also accepted), absolute value at most 1e12. `date`: a string `YYYY-MM-DD` that is a real calendar date. `digits`: a string of digits only, at most 32. `phone`: a string of 8 to 15 digits with an optional leading `+`. `text`: a string of at most 500 characters (numbers and booleans are converted to strings)."
+          },
+          "required": {
+            "type": "boolean",
+            "description": "When `true`, the field must be present and non-empty."
+          }
+        }
+      },
+      "IvrFlowSummary": {
+        "type": "object",
+        "required": [
+          "id",
+          "name",
+          "language",
+          "published_version"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string"
+          },
+          "language": {
+            "type": "string",
+            "description": "Language code of the flow, e.g. `en` or `hi`."
+          },
+          "published_version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Number of the version calls are placed on. Increments on every publish."
+          }
+        }
+      },
+      "IvrFlow": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/IvrFlowSummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "fields"
+            ],
+            "properties": {
+              "fields": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/IvrLeadField"
+                },
+                "description": "Lead fields of the published version. Empty when the flow has no published version or declares no fields."
+              }
+            }
+          }
+        ]
+      },
+      "IvrCallRequest": {
+        "type": "object",
+        "required": [
+          "to"
+        ],
+        "properties": {
+          "to": {
+            "type": "string",
+            "description": "Destination phone number in E.164 format.",
+            "example": "+919876543210"
+          },
+          "from": {
+            "type": "string",
+            "description": "Optional caller ID in E.164 format. Must be an active phone number on the selected VoiceLink connection; an unknown number returns 400 `VALIDATION_ERROR`. When omitted, the connection default is used.",
+            "example": "+917969008446"
+          },
+          "connection_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "VoiceLink connection to place the call on. Required when the account has more than one active VoiceLink connection."
+          },
+          "data": {
+            "type": "object",
+            "additionalProperties": true,
+            "description": "Lead values, keyed by the field names from `GET /ivr-flows/{flowId}`. Every required field must be present and non-empty; keys the flow does not declare are refused. See `IvrLeadField.type` for how each type must be sent.",
+            "example": {
+              "loan_id": "L-88231",
+              "amount_due": 30000,
+              "due_date": "2026-06-04"
+            }
+          },
+          "client_reference_id": {
+            "type": "string",
+            "maxLength": 128,
+            "description": "Your idempotency key, at most 128 characters. A repeat returns the original call with `idempotent_replay: true` and places no new call. The key space is shared with `POST /calls/start` on the same account.",
+            "example": "lead-88231-attempt-1"
+          }
+        }
+      },
+      "IvrCallAccepted": {
+        "type": "object",
+        "required": [
+          "call_id",
+          "session_id",
+          "status",
+          "from_number",
+          "to_number",
+          "flow_id",
+          "flow_version",
+          "client_reference_id"
+        ],
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "session_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "const": "pending"
+          },
+          "from_number": {
+            "type": "string",
+            "description": "Resolved caller ID."
+          },
+          "to_number": {
+            "type": "string"
+          },
+          "flow_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "flow_version": {
+            "type": "integer",
+            "description": "Published version the call runs."
+          },
+          "client_reference_id": {
+            "type": [
+              "string",
+              "null"
+            ]
+          }
+        }
+      },
+      "IvrCallReplay": {
+        "type": "object",
+        "description": "The call originally created with this `client_reference_id`.",
+        "required": [
+          "call_id",
+          "session_id",
+          "status",
+          "from_number",
+          "to_number",
+          "flow_id",
+          "client_reference_id",
+          "idempotent_replay"
+        ],
+        "properties": {
+          "call_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "session_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid"
+          },
+          "status": {
+            "type": "string",
+            "description": "Current call status, lowercased (e.g. `pending`, `ringing`, `in_progress`, `completed`, `failed`)."
+          },
+          "from_number": {
+            "type": "string"
+          },
+          "to_number": {
+            "type": "string"
+          },
+          "flow_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "`null` when the earlier call was not placed on this flow (for example a `POST /calls/start` call that used the same key)."
+          },
+          "client_reference_id": {
+            "type": "string"
+          },
+          "idempotent_replay": {
+            "type": "boolean",
+            "const": true
+          }
+        }
+      },
+      "IvrLeadProblem": {
+        "type": "object",
+        "required": [
+          "name",
+          "problem"
+        ],
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Field name (or the unknown key you sent, cut to 64 characters)."
+          },
+          "problem": {
+            "type": "string",
+            "enum": [
+              "missing",
+              "wrong_type",
+              "unknown"
+            ],
+            "description": "`missing`: a required field is absent, `null` or `\"\"`. `wrong_type`: the value cannot be read as the field type. `unknown`: the flow declares no such field (at most 20 are reported)."
+          }
+        }
+      },
+      "IvrLeadErrorResponse": {
+        "type": "object",
+        "required": [
+          "success",
+          "error"
+        ],
+        "properties": {
+          "success": {
+            "type": "boolean",
+            "const": false
+          },
+          "error": {
+            "type": "object",
+            "required": [
+              "code",
+              "message",
+              "fields"
+            ],
+            "properties": {
+              "code": {
+                "type": "string",
+                "const": "VALIDATION_ERROR"
+              },
+              "message": {
+                "type": "string"
+              },
+              "fields": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/IvrLeadProblem"
+                }
+              }
+            }
+          }
+        }
+      },
+      "IvrWebhookBlock": {
+        "type": "object",
+        "description": "What an IVR flow did on the call. Present on `session.completed` only for calls placed on an IVR flow. Values your Fetch blocks received are never included.",
+        "required": [
+          "flow_id",
+          "flow_version",
+          "is_test",
+          "outcome",
+          "failure",
+          "keys",
+          "path",
+          "fetches"
+        ],
+        "properties": {
+          "flow_id": {
+            "type": "string",
+            "format": "uuid"
+          },
+          "flow_version": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "description": "Version the call ran."
+          },
+          "is_test": {
+            "type": "boolean",
+            "description": "`true` for test calls placed from the dashboard on the unpublished draft."
+          },
+          "outcome": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Outcome code of the End block the call reached. `null` when the call ended before reaching an End block (caller hung up, pre-dial failure, safety limit)."
+          },
+          "failure": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`null` on a normal call. `prefetch_failed`: a Fetch block that runs before dialing failed, so the number was never dialed. `max_steps` / `max_duration`: the call hit a safety limit and was ended. `dead_end`: the flow reached an exit with no arrow. `runner_error`: the call was ended because of an error on our side."
+          },
+          "keys": {
+            "type": "array",
+            "description": "Keys pressed, in order.",
+            "items": {
+              "type": "object",
+              "required": [
+                "block",
+                "key",
+                "at"
+              ],
+              "properties": {
+                "block": {
+                  "type": "string",
+                  "description": "ID of the Menu block that took the key."
+                },
+                "key": {
+                  "type": "string",
+                  "description": "The key (`0`-`9`, `*`, `#`), or the digits entered on a collect menu. On a menu marked masked, every digit is replaced by `•`."
+                },
+                "at": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "description": "When the key was pressed, in milliseconds from the start of the flow."
+                }
+              }
+            }
+          },
+          "path": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "IDs of the blocks the call visited, in order."
+          },
+          "fetches": {
+            "type": "array",
+            "description": "One entry per Fetch block that ran. Never carries the URL, headers, body or response values.",
+            "items": {
+              "type": "object",
+              "required": [
+                "block",
+                "status",
+                "latency_ms",
+                "ok"
+              ],
+              "properties": {
+                "block": {
+                  "type": "string"
+                },
+                "status": {
+                  "type": [
+                    "integer",
+                    "null"
+                  ],
+                  "description": "HTTP status your API answered with. `null` when no response arrived."
+                },
+                "latency_ms": {
+                  "type": "integer",
+                  "minimum": 0
+                },
+                "ok": {
+                  "type": "boolean"
+                },
+                "error": {
+                  "type": "string",
+                  "description": "Present when `ok` is `false`: `timeout`, `connect_error`, `url_blocked`, `too_large`, `bad_json`, `render_error`, `http_<status>`, `missing_<field>` (a required field was not in the response) or `type_<field>` (a field could not be read as its type)."
+                }
+              }
+            }
+          }
+        }
+      },
       "Project": {
         "type": "object",
         "properties": {
@@ -19428,6 +20405,14 @@
                     "$ref": "#/components/schemas/ExtractionResult"
                   }
                 ]
+              },
+              "ivr": {
+                "oneOf": [
+                  {
+                    "$ref": "#/components/schemas/IvrWebhookBlock"
+                  }
+                ],
+                "description": "Present only for calls placed on an IVR flow. See the IVR Flows guide."
               },
               "hold": {
                 "oneOf": [
