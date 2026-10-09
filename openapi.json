@@ -15605,6 +15605,7 @@
                               },
                               "language": {
                                 "type": "string",
+                                "description": "The voice's language, for display. It does not configure the agent.",
                                 "nullable": true
                               },
                               "gender": {
@@ -19869,7 +19870,8 @@
             ]
           },
           "language": {
-            "type": "string"
+            "type": "string",
+            "description": "Deprecated. Always `en` for new agents; ignored."
           },
           "spoken_languages": {
             "type": "array",
@@ -20214,7 +20216,8 @@
             ]
           },
           "language": {
-            "type": "string"
+            "type": "string",
+            "description": "The voice's language, for display. It does not configure the agent."
           },
           "gender": {
             "type": [
