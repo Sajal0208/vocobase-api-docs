@@ -8,7 +8,7 @@ description: "Build a keypad IVR in the dashboard, push leads to it over the API
 An IVR flow is a scripted phone call driven by the keypad. You draw it once in the dashboard: what to say, which keys the caller can press and where each key leads, and which of your APIs to call along the way. Then you push leads to it over the API, one call per lead. When a call ends, the `session.completed` webhook tells you which path the caller took, every key they pressed and the outcome the call reached.
 
 <Info>
-  IVR Flows is enabled per account. Until it is, every endpoint below returns `403 IVR_FLOWS_DISABLED`. Contact Vocobase to turn it on; your IVR price is set at the same time.
+  IVR Flows is enabled per account. Until it is, every endpoint below returns `403 IVR_FLOWS_DISABLED`. Contact Vocobase to turn it on; your IVR prices are set at the same time, one per voice model (Standard and Premium).
 </Info>
 
 ```
@@ -40,7 +40,7 @@ Flows are built and published in the dashboard under **IVR Flows**. A flow is a 
 | **Fetch** | Calls your HTTPS API (`GET` or `POST`) and reads typed fields from the JSON response, for use in later blocks. | `success`, `failed` |
 | **End** | Optionally speaks a closing line, then hangs up with an outcome code you choose (for example `paid`, `info_wrong`). | none |
 
-Each flow speaks with one of two voice models, **Standard** or **Premium**, chosen in the dashboard when you build it. The model sets the per-pulse price of the flow's calls, and the API returns it as `voice_model`.
+Each flow speaks with one of two voice models, **Standard** or **Premium**, chosen in the dashboard when you build it. The model sets the per-pulse price of the flow's calls, and the API returns it as `voice_model`: the model of the flow's published version, which is what calls speak with and are billed at. A draft you are still editing may use a different model; it takes effect when you publish it.
 
 A few rules worth knowing before you design:
 
@@ -193,7 +193,7 @@ The key space is shared with [`POST /calls/start`](/api-reference) on the same a
 ### Limits and billing
 
 - Pushes share the per-minute call quota of `POST /calls/start` (`429 RATE_LIMITED`, with a `Retry-After` header) and the account's concurrent call limit (`429 LIMIT_REACHED`). Back off and retry both.
-- IVR calls are billed per pulse of answered time at your account's IVR rate. Unanswered calls and pre-dial failures cost nothing. To start, a call needs enough balance for one minute at that rate; otherwise it returns `403 FORBIDDEN`.
+- IVR calls are billed per pulse of answered time at your account's price for the voice model of the flow's published version (Standard or Premium). Unanswered calls and pre-dial failures cost nothing. To start, a call needs enough balance for one minute at that price; otherwise it returns `403 FORBIDDEN`.
 
 ---
 
@@ -242,7 +242,7 @@ Every IVR call ends with the normal [`session.completed`](/webhooks/payloads) we
 | `404` | `NOT_FOUND` | No flow with this ID on your account. |
 | `404` | `CONNECTION_NOT_FOUND` | The `connection_id` is not an active VoiceLink connection on your account. |
 | `409` | `FLOW_NOT_PUBLISHED` | The flow has no published version. Publish it in the dashboard. |
-| `422` | `IVR_PRICING_NOT_CONFIGURED` | No IVR price is set on the account. Contact Vocobase. |
+| `422` | `IVR_PRICING_NOT_CONFIGURED` | The account has no IVR price for the voice model of the flow's published version. Contact Vocobase. |
 | `429` | `RATE_LIMITED` | Per-minute call quota reached. Retry after `Retry-After` seconds. |
 | `429` | `LIMIT_REACHED` | Concurrent call limit reached. Retry after a short backoff. |
 | `502` | `INTERNAL_ERROR` | The telephony provider refused the dial. Retry after a minute or two. |

@@ -8846,7 +8846,7 @@
       "post": {
         "operationId": "startIvrCall",
         "summary": "Push a lead (place an IVR call)",
-        "description": "Places one outbound call that runs the published version of the flow, with `data` as the lead. Calls go out on your VoiceLink connection. The call is placed asynchronously: a 202 means it was accepted, not that it was answered. When the flow has Fetch blocks right after Start, they run before dialing; if one fails the number is never dialed and the call ends as `failed` with `ivr.failure = \"prefetch_failed\"` on `session.completed`. Track the call with `call.status.updated` webhooks or `GET /calls/{id}`, and read the result from the `ivr` block of `session.completed`.\n\nRate limited per account with the same per-minute call quota as `POST /calls/start`, and counted against the same concurrent call limit. A call needs enough balance for one minute at your IVR rate to start; it is billed per pulse of answered time.",
+        "description": "Places one outbound call that runs the published version of the flow, with `data` as the lead. Calls go out on your VoiceLink connection. The call is placed asynchronously: a 202 means it was accepted, not that it was answered. When the flow has Fetch blocks right after Start, they run before dialing; if one fails the number is never dialed and the call ends as `failed` with `ivr.failure = \"prefetch_failed\"` on `session.completed`. Track the call with `call.status.updated` webhooks or `GET /calls/{id}`, and read the result from the `ivr` block of `session.completed`.\n\nRate limited per account with the same per-minute call quota as `POST /calls/start`, and counted against the same concurrent call limit. A call needs enough balance for one minute at your IVR price for the voice model of the flow's published version (Standard or Premium) to start; it is billed per pulse of answered time at that price.",
         "tags": [
           "IVR Flows"
         ],
@@ -9131,7 +9131,7 @@
             }
           },
           "422": {
-            "description": "IVR pricing is not set on the account. Contact Vocobase.",
+            "description": "The account has no IVR price for the voice model of the flow's published version. Contact Vocobase.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9144,7 +9144,7 @@
                       "success": false,
                       "error": {
                         "code": "IVR_PRICING_NOT_CONFIGURED",
-                        "message": "IVR pricing is not configured for this account. Contact Vocobase."
+                        "message": "IVR pricing is not configured for this voice model on this account. Contact Vocobase."
                       }
                     }
                   }
@@ -18972,7 +18972,7 @@
               "standard",
               "premium"
             ],
-            "description": "Voice model the flow speaks with, chosen in the dashboard. The model sets the per-pulse price of the flow's calls."
+            "description": "Voice model of the flow's published version, which is what calls speak with and are billed at (one per-pulse price per model). The draft you are editing in the dashboard may use a different model until you publish it. For a flow that has never been published, this is the draft's model."
           },
           "published_version": {
             "type": [
