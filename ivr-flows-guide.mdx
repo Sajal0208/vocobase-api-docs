@@ -1,0 +1,434 @@
+---
+title: "IVR Flows: a simple guide"
+description: "What IVR flows are, how to build one in the dashboard, how to test and publish it, and how to read the results"
+---
+
+# IVR Flows: a simple guide
+
+This page explains IVR flows in plain words. You do not need to be a developer to follow it.
+
+If you are a developer and want the API details, go to [IVR Flows](/ivr-flows).
+
+<Info>
+  Everyone sees **IVR Flows** in the dashboard menu. But Vocobase must switch it on for your account, and set your price, before you can build a flow or place calls. Until then the IVR Flows page says "IVR Flows is not enabled on your account". Ask us, and we switch it on and set your price.
+</Info>
+
+---
+
+## What is an IVR flow?
+
+An IVR flow is a phone call that follows a script. IVR means "interactive voice response": the call speaks to the person, and the person answers by pressing keys on their phone keypad.
+
+You draw the call once, as boxes joined by arrows. Each box is a **block**. Then Vocobase can place that call to as many people as you like. Every person hears the same script, filled in with their own details.
+
+A very small flow looks like this:
+
+```
+Start ──► Say ──► Menu ──(press 1)──► End  "paid"
+          "Your bill        └─(press 2)──► End  "call_back"
+           is due"
+```
+
+1. **Start**: the call begins.
+2. **Say**: the call speaks a line, like "Hello Asha, your bill of 1,250 rupees is due on seventeenth October."
+3. **Menu**: the call asks a question and waits for a key. "Press 1 if you have paid. Press 2 if you want us to call you back."
+4. **End**: the call says goodbye and hangs up. It records an **outcome**, a short label like `paid` that tells you how the call ended.
+
+---
+
+## What you can do with it
+
+- **Payment reminders.** Say the amount and due date, then ask the person to press 1 to confirm.
+- **Order status.** Look up the order in your own system and read the status out loud.
+- **Appointment confirmation.** Press 1 to confirm, 2 to cancel.
+- **Collect a number.** Ask for a PIN, a date of birth or a customer number, typed on the keypad. You can hide what they type from the call records.
+- **Look up your data.** Ask your own system for fresh data before the phone rings, or during the call.
+- **Send data back.** Tell your system what the person chose, during the call, for example "book the morning slot".
+- **Track how each call ended.** Give every ending its own outcome (`paid`, `wrong_number`, `slot_booked`), then count them.
+- **Play your own recordings.** Any line can be a WAV recording you upload instead of text.
+
+<Note>
+  An IVR flow only understands keypad presses. It does not listen to speech, and it cannot transfer the person to a human agent. To offer a human, end with an outcome like `call_back` and have your team call them.
+</Note>
+
+---
+
+## The 5 blocks
+
+A flow is built from five kinds of block. Each block has **exits**. An exit is a small dot on the right edge of the block, with a label. You drag an arrow from an exit to the block that should come next.
+
+| Block | What it does | Example | Its exits |
+|---|---|---|---|
+| **Start** | Where every call begins. It lists the details you send for each person (the **lead fields**). Every flow has exactly one. You cannot delete it. | Fields `name`, `amount`, `due_date` | **next**: go on to the first block |
+| **Say** | Speaks one line, or plays a recording. | `Hello {{lead.name}}.` | **next**: when the line is done |
+| **Menu** | Speaks a question and waits for keys. | "Press 1 to confirm, press 2 to cancel." | One exit per key you switch on (0–9, \*, #). **no input**: nothing was pressed. **invalid**: a key that is not on the menu was pressed |
+| **Fetch** | Asks your own system (your API) for data, or sends data to it. | Look up an order by its number | **success**: your system answered well. **failed**: it did not |
+| **End** | Says an optional goodbye line, then hangs up with an outcome. | Outcome `paid`, line "Thank you. Goodbye." | None. The call is over |
+
+A Menu has two modes:
+
+- **Single key**: the person presses one key and the call follows that key's arrow.
+- **Collect digits**: the person types several digits, like a PIN. They finish by pressing #, by typing the most digits allowed, or by pausing. Then the call takes the **done** exit. If they type too few digits, it takes **invalid**. Pressing \* clears what they typed and asks again. This uses up one retry.
+
+If you set **Retries**, the Menu asks again before it takes **no input** or **invalid**.
+
+### Fill-ins
+
+A **fill-in** is a gap in a line that is filled with each person's own value. The editor calls them **variables**. A fill-in is written with two curly brackets:
+
+```
+Hello {{lead.name}}, your bill of {{lead.amount}} is due on {{lead.due_date}}.
+```
+
+You don't have to type them. In any line, type **@** and pick one from the list.
+
+Fill-ins come from three places:
+
+| Where the value comes from | How you write it | Example |
+|---|---|---|
+| A lead field from the Start block | `{{lead.<field>}}` | `{{lead.name}}` |
+| A field read by a Fetch block (its name, then the field) | `{{<fetch name>.<field>}}` | `{{order.status}}` |
+| Digits typed into a Collect digits menu | `{{<menu name>.digits}}` | `{{pin.digits}}` |
+
+You can use a fill-in only if **every** path to that line passes the block that makes it. For example, `{{order.status}}` works only after the `order` Fetch block's **success** exit. If one path could reach the line without it, the editor shows the problem. On a Say block you can add a **Fallback line**. It plays instead when a fill-in in the line has no value on that call.
+
+<Tip>
+  If you paste a DLT template (the message text you registered with your telecom operator) with placeholders like `{#Name#}`, the editor asks which fill-in to use for each one.
+</Tip>
+
+### Field types and how they are spoken
+
+Every lead field and every Fetch field has a **type**. The type decides how the value is read out loud.
+
+| Type | What you send | How it is spoken (English) |
+|---|---|---|
+| `text` | Any words, up to 500 characters | As written |
+| `number` | A number, like `3` | As a number |
+| `money` | A plain number, like `125000` or `1250.50`. No ₹ sign, no commas | "1,25,000 rupees", "1,250.50 rupees" |
+| `date` | `YYYY-MM-DD`, like `2026-10-17` | Day and month: "seventeenth October". The year is not spoken |
+| `digits` | Only digits, up to 32, like `4512` | One digit at a time: "4 5 1 2" |
+| `phone` | 8 to 15 digits, may start with `+` | Digit by digit. A 10-digit Indian number is split in two groups of five: "9 8 7 6 5, 4 3 2 1 0" |
+
+In Hindi, money is read with "रुपये" and dates as "सत्रह अक्टूबर".
+
+---
+
+## Make your first flow
+
+<Steps>
+  <Step title="Open IVR Flows">
+    In the dashboard, click **IVR Flows** in the left menu.
+  </Step>
+  <Step title="Create the flow">
+    Click **New flow** and fill in:
+
+    - **Name**: anything you like, for example "EMI reminder". Each flow on your account needs its own name.
+    - **Model**: the voice model, **Standard** or **Premium**. Next to each one you see your price, for example "Premium · 0.20 credits / 30 s". Only the models priced on your account appear.
+    - **Language**: English or Hindi. See [Which languages can I use?](#common-questions).
+    - **Voice**: the voice that will speak.
+
+    Click **Create**. The editor opens. You can change all four later from the bar at the top.
+  </Step>
+  <Step title="Get to know the editor">
+    The editor has three parts:
+
+    - **Left**: the blocks you can add: **Say** (Speak a line), **Menu** (Wait for keys), **Fetch** (Call your API) and **End** (Hang up with an outcome).
+    - **Middle**: the canvas, where you draw the call. A new flow already has a Start block joined to one End block. Change that End, or delete it once you have your own.
+    - **Right**: the settings of the block you clicked.
+
+    There is no Save button. The editor saves as you go and shows **All changes saved** at the top.
+  </Step>
+  <Step title="Add your lead fields">
+    Click the **Start** block. Click **Add field** for each detail you will send per person. Give it a name (lowercase letters, digits and `_`, like `due_date`), pick a type, and tick **Required** if every call needs it.
+  </Step>
+  <Step title="Add blocks">
+    Drag a block from the left onto the canvas, or just click it.
+  </Step>
+  <Step title="Connect the blocks">
+    Each block has dots on its right edge, one per exit. Drag from a dot to the block that should come next. Dragging again from the same dot replaces the old arrow.
+
+    For a Menu, first switch on the keys you want in its settings. Each key then gets its own dot. A key with no arrow counts as invalid.
+  </Step>
+  <Step title="Fill in each block">
+    Click a block to edit it on the right. Give it a name (lowercase, like `intro` or `confirm_menu`). Type its line, or switch to **Recording** and upload a WAV file. Type **@** to insert a fill-in.
+  </Step>
+  <Step title="Remove what you don't need">
+    Click a block or an arrow and press the **Delete** key. You can also use **Delete** at the top of the block's settings.
+  </Step>
+  <Step title="Fix the problems">
+    Above the canvas, the editor shows how many problems are left before you can publish. A block with a problem gets a red ring. Click it to read the problem at the top of its settings, like "Connect the "next" exit". Or click **Show the first one** to jump to it. See [Problems the editor shows](#problems-the-editor-shows).
+  </Step>
+  <Step title="Listen to a line">
+    Click a block that speaks, then click **Preview**. Type sample values for its fill-ins and click **Play**. You hear the line the way people will hear it.
+  </Step>
+  <Step title="Make a test call">
+    Click **Test call** and fill in:
+
+    - **Call from**: the number the call comes from. These are your numbers on [VoiceLink](/telephony/voicelink-setup), your telephony provider.
+    - **Your phone number**: in international format, like `+919876543210`.
+    - **Lead data**: sample values for the Start fields. Fields marked \* are required.
+
+    Click **Call me**. Your phone rings with the current draft. You don't need to publish first. When the call ends, its timeline opens.
+  </Step>
+  <Step title="Publish">
+    Click **Publish**. This saves a frozen copy of the flow as a numbered version: v1, then v2, and so on. The label at the top changes from **Draft** to **Published v1**.
+  </Step>
+</Steps>
+
+<Warning>
+  A test call is a real call. It is billed like any other IVR call.
+</Warning>
+
+### What Publish means
+
+- Calls started from your system **always use the latest published version**. A flow that was never published cannot be called from your system.
+- After you publish, you can keep editing. Your edits are a draft. They do not change live calls until you click **Publish** again.
+- Calls already running keep the version they started with.
+- Publishing can take a moment, because it prepares the audio for every line.
+
+### Problems the editor shows
+
+| The editor says | What to do |
+|---|---|
+| Connect the "next" exit (or "success", "failed", "no_input", "invalid", "done") | Drag an arrow from that dot to a block. Every exit needs somewhere to go |
+| Connect at least one key | Switch on a key in the Menu settings and draw its arrow |
+| No path from here reaches an End | Make sure every path ends in an End block |
+| This block can never be reached | Connect an arrow into it, or delete it |
+| A loop must pass through a Menu, or the caller can never leave it | A path that goes back to an earlier block must pass a Menu |
+| `{{x}}` is not available on every path into this block | The fill-in is made by a block that some paths skip. Move the line, or add a Fallback line |
+| Two blocks are named "x" | Give each block its own name |
+| Names are lowercase letters, digits and _ (max 32) | Rename the block, like `confirm_menu` |
+| Fetch URLs must start with https:// | Use an `https://` address |
+| Variables can go in the path or query, not in the address | Keep the site name fixed. Put fill-ins only after it |
+| Declare at least one response field | Add a field the Fetch reads from the answer |
+| Outcome must be a slug like confirmed or info_wrong | Use lowercase letters, digits and `_` |
+
+---
+
+## Fetch blocks made simple
+
+A Fetch block lets the call talk to your own system while it runs. Your system needs a web address (an **API**) that answers in JSON, the common data format for web services. Ask your developer if you are not sure.
+
+A Fetch block needs:
+
+| Setting | What to put |
+|---|---|
+| **Method** | **GET** to read data. **POST** to send data. For POST you also write a **JSON body**; put fill-ins inside quotes, like `{ "order": "{{lead.order_id}}" }` |
+| **URL** | Your address. It must start with `https://`. Fill-ins can go in the path or after `?`, never in the site name. Example: `https://api.yourshop.com/orders/{{lead.order_id}}` |
+| **Headers** | Secret keys your system needs, like `Authorization`. They are stored encrypted and never shown again |
+| **Timeout (s)** | How long to wait for an answer, 1 to 10 seconds. After that, the call takes the **failed** exit |
+| **Hold line** | Optional. Played if the answer takes longer than a second, like "One moment please." |
+| **Response fields** | The values you want from the answer. Each one has a name, a **path** (where it sits in the answer) and a type |
+
+The **path** is the route to a value, with dots between the steps. Say your system answers:
+
+```json
+{ "data": { "amount": 1250.5, "due": "2026-10-17" }, "items": [ { "name": "Blue shirt" } ] }
+```
+
+Then `data.amount` gives `1250.5`, and `items.0.name` gives `Blue shirt` (`0` means the first item in a list).
+
+Values from your system follow the same rules as [the field types](#field-types-and-how-they-are-spoken): a `date` must look like `2026-10-17`, `money` must be a plain number. A value that does not fit its type makes the Fetch fail.
+
+<Tip>
+  You don't have to write paths by hand. In the Fetch settings, click **Test API**. Vocobase calls your address with sample values and shows the answer. Click any value in it to add it as a response field.
+</Tip>
+
+**When does a Fetch fail?** When your system takes longer than the timeout, answers with an error, does not answer in JSON, or leaves out a field you marked as required. The call then takes the **failed** exit. Always connect **failed** to something sensible, like a "Sorry, please try later" line and an End.
+
+### Fetches that run before dialing
+
+A Fetch placed right after Start (or a chain of them) runs **before the phone rings**. The editor marks it with a **runs before dialing** tag.
+
+If it fails, the number is **not dialed** and **nothing is charged**. Nobody hears half a script with missing values. On the flow's Calls page, the call shows as `failed: prefetch failed`.
+
+### Testing with a server on your own computer
+
+Your system must be reachable on the public internet over `https://`. While you are still building, you can put a test server on your own computer online with a tunnel tool like [ngrok](https://ngrok.com), and use the address it gives you in the Fetch URL.
+
+---
+
+## Starting calls from your system
+
+Once the flow is published, your system starts calls by sending one request per person. **One person = one request = one call.**
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/ivr-flows/YOUR_FLOW_ID/calls \
+  -H "Authorization: Bearer YOUR_API_KEY" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "to": "+919876543210",
+    "data": { "name": "Asha", "amount": 1250.5, "due_date": "2026-10-17" },
+    "client_reference_id": "reminder-88231"
+  }'
+```
+
+- `to` is the number to call. `data` holds the lead fields from your Start block. Send only those fields: a field the flow does not have is refused.
+- `from` is optional. It is the number the call comes from. Leave it out to use your default number.
+- `client_reference_id` is your own label for the call. If you send the same request twice by mistake, only one call is placed.
+- If you get a `429` answer, you are sending too fast. Wait a little and try again.
+
+<Tip>
+  Click the **Start** block in the editor. Its settings show a **Sample push request** for your flow, with its real ID and fields, ready to copy.
+</Tip>
+
+All the details, field formats and error codes are in [IVR Flows](/ivr-flows).
+
+---
+
+## Seeing what happened
+
+### The Calls page
+
+Each flow has its own list of calls. Open it with **Calls**, either from the IVR Flows list or from the top of the editor. Newest calls come first. Test calls are marked `test`.
+
+| Column | What it shows |
+|---|---|
+| **Started** | When the call began |
+| **To** | The number called |
+| **Outcome** | The outcome of the End block it reached. `failed: ...` when it failed. `in progress` while it runs |
+| **Keys** | How many keys were pressed |
+| **Duration** | How long the call lasted |
+| **Recording** | Whether there is a recording |
+
+Click a call to open its **Call timeline**:
+
+- **Outcome**, **To**, **Duration**, and **Version**: the published version it used, or **Test call**.
+- **Lead**: the values you sent for this person.
+- **Path**: every block the call went through, in order. Under each Menu you see the keys pressed. Under each Fetch you see how your system answered and how long it took.
+- **Transcript**: what was said and pressed.
+- **Recording**: listen to the call.
+
+On a Collect digits menu with **Mask (PINs)** switched on, the digits are hidden everywhere: shown as `••••` in the records and `[pressed ****]` in the transcript.
+
+### Outcomes
+
+The outcome is the label you typed on the End block. Pick clear ones, because you will count them: `paid`, `promised_to_pay`, `wrong_number`, `slot_booked`.
+
+If a call has no outcome, the person hung up before an End, or the call failed.
+
+### Getting results in your own system
+
+When each call ends, Vocobase can send your system a message (a **webhook**) called `session.completed`. It carries the outcome, every key pressed, the path and the lead values. See [Webhook payloads → IVR Flows calls](/webhooks/payloads#ivr-flows-calls).
+
+---
+
+## Three complete examples
+
+### 1. Payment reminder
+
+**Start fields:** `name` (text), `amount` (money), `due_date` (date)
+
+1. **Say** `intro`: `Hello {{lead.name}}. This is a reminder that your payment of {{lead.amount}} is due on {{lead.due_date}}.`
+2. **Menu** `confirm_menu` (Single key): "Press 1 if you will pay by the due date. Press 2 if you want us to call you back." Retries: 2.
+   - **1** → **End** `end_paying`, outcome `will_pay`: "Thank you. Goodbye."
+   - **2** → **End** `end_callback`, outcome `call_back`: "Our team will call you soon. Goodbye."
+   - **no input** → **End** `end_silent`, outcome `no_answer`
+   - **invalid** → **End** `end_invalid`, outcome `no_choice`
+
+Your team then calls everyone whose outcome is `call_back`.
+
+### 2. Order status, then book a delivery slot
+
+**Start fields:** `order_id` (text)
+
+1. **Fetch** `order` (GET, runs before dialing): `https://api.yourshop.com/orders/{{lead.order_id}}`
+   Response fields: `status` (text, path `data.status`), `eta` (date, path `data.eta`)
+   - **failed** → **End** `end_lookup_failed`, outcome `lookup_failed`. Every exit must be connected, so this arrow is needed. But because this Fetch runs before dialing, a failed lookup never reaches the End: the phone never rings, nothing is charged, and the Calls page shows `failed: prefetch failed`.
+   - **success** → next block
+2. **Say** `status_line`: `Your order {{lead.order_id}} is {{order.status}}. It should reach you on {{order.eta}}.`
+3. **Menu** `slot_menu` (Single key): "To book a morning delivery slot, press 1. If you don't need a slot, press 2."
+   - **1** → **Fetch** `book` (POST): `https://api.yourshop.com/orders/{{lead.order_id}}/slot`, body `{ "slot": "morning" }`, response field `slot_label` (text, path `data.label`), hold line "One moment please."
+     - **success** → **End** `end_booked`, outcome `slot_booked`: `Done. Your slot is {{book.slot_label}}. Goodbye.`
+     - **failed** → **End** `end_book_failed`, outcome `slot_failed`: "Sorry, we could not book it. We will call you back."
+   - **2** → **End** `end_no_slot`, outcome `no_slot`: "Thank you. Goodbye."
+   - **no input** and **invalid** → **End** `end_no_choice`, outcome `no_choice`
+
+### 3. Collect a 6-digit PIN
+
+**Start fields:** `name` (text), `customer_id` (text)
+
+1. **Say** `hello`: `Hello {{lead.name}}.`
+2. **Menu** `pin` (Collect digits, Min digits 6, Max digits 6, **Mask (PINs)** on): "Please enter your 6-digit PIN." Retries: 2.
+   - **done** → next block
+   - **no input** → **End** `end_no_pin`, outcome `no_pin`
+   - **invalid** → **End** `end_bad_pin`, outcome `pin_incomplete`
+3. **Fetch** `verify` (POST): `https://api.yourbank.com/verify-pin`, body `{ "customer": "{{lead.customer_id}}", "pin": "{{pin.digits}}" }`, response field `ok` (text, path `result`)
+   - **success** → **End** `end_verified`, outcome `verified`: "Thank you, you are verified."
+   - **failed** → **End** `end_not_verified`, outcome `not_verified`: "Sorry, we could not verify you."
+
+A Fetch has only two exits, so let your system answer with an error (for example `401`) when the PIN is wrong. The call then takes **failed**. Because the menu is masked, the PIN never shows in your call records.
+
+---
+
+## Tips for good calls
+
+- Keep lines short. People on the phone forget long sentences.
+- Say the choice before the key: "To pay now, press 1", not "Press 1 to pay now".
+- Offer 4 or 5 keys at most.
+- Always handle **no input** and **invalid**. Use **Retries** and the **No input line** / **Invalid line** to ask again before giving up.
+- Give every path an End with its own outcome, so you can count how calls ended.
+- People can press a key while a Menu is still talking. The menu stops and takes the key. Keys pressed during a Say don't cut it short, but the next Menu uses them.
+- Keep your system fast. A Fetch that answers in under a second needs no hold line.
+- Listen with **Preview** and make a **Test call** before you publish.
+
+---
+
+## Limits
+
+| What | Limit |
+|---|---|
+| Blocks in a flow | 200 |
+| Arrows in a flow | 1,000 |
+| Fields per block (Start or Fetch) | 30 (200 in the whole flow) |
+| Length of one line | 2,000 characters |
+| Lead `text` value | 500 characters |
+| Flow name | 100 characters |
+| Block names, field names, outcomes | 32 characters: lowercase letters, digits and `_`, starting with a letter |
+| Length of a call | 5 minutes. Contact Vocobase to raise it, up to 30 minutes |
+| Blocks one call can pass through | 200 |
+| Menu: wait for a key | 1 to 30 seconds |
+| Menu: retries | 0 to 5 |
+| Collect digits | 1 to 32 digits |
+| Collect digits: gap between digits | 1 to 10 seconds |
+| Fetch timeout | 1 to 10 seconds |
+| Headers per Fetch | 20 |
+| Uploaded recording | WAV only, up to 5 MB, no fill-ins |
+| Test calls | 5 per minute |
+
+If a call reaches the call length limit or the block limit, it hangs up with no outcome.
+
+---
+
+## Common questions
+
+### Why didn't my phone ring?
+
+- **The Call from number is not set up with your telephony provider.** The editor says "This number isn't set up with your telephony provider. Pick another number." Pick another number in **Call from**.
+- **There is no number to call from.** The test call window says "Add a number in Telephony first." Add a VoiceLink number in **Telephony**.
+- **A Fetch that runs before dialing failed.** The number is not dialed. Open **Calls** and click the call to see which Fetch failed and why.
+- **Your telephony account is out of balance.** Top it up with your provider, then try again.
+- **Your Vocobase balance is too low.** A call needs enough credits for one minute at your IVR price before it starts.
+- **For calls from your system: the flow is not published.** Click **Publish** first.
+
+### Why are Test call, Preview and Publish greyed out?
+
+The editor tells you why, in a line under the top bar. For example: "Pick a Premium voice first", or "Publishing in Hindi isn't available yet for Standard. You can build the draft now."
+
+### Which languages can I use?
+
+Today, **English** and **Hindi** work with the **Premium** model. With **Standard** they show as "coming soon": you can build a draft, but you can't preview, test or publish it yet.
+
+### How am I billed?
+
+You pay per **pulse**: a block of seconds of answered call time, for example 30 seconds. Each pulse costs a set number of credits. The pulse and price depend on the model (Standard or Premium) and are set for your account. You see them next to the model when you pick it. Time is rounded up to whole pulses.
+
+Calls that are not answered cost nothing. Calls stopped by a failed Fetch before dialing cost nothing. Test calls are billed like any other call.
+
+### Can I change a flow while calls are running?
+
+Yes. Edit as much as you like. Live calls, and new calls from your system, keep using the published version until you click **Publish** again.
+
+### What happens if I delete a flow?
+
+Calls from your system to that flow stop working at once. Past calls stay in your call history.
