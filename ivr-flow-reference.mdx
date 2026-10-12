@@ -19,7 +19,7 @@ A flow is a graph of blocks (`nodes`) joined by arrows (`edges`). Each arrow lea
 }
 ```
 
-`version` is always `1`. Every block has an `id` that is unique in the flow; arrows refer to blocks by `id`. Every block except Start also has a `name`, shown as **Name** in the editor (see [Names and limits](#names-and-limits)).
+`version` is always `1`. Every block has an `id` that is unique in the flow; arrows refer to blocks by `id`. An `id` is non-empty text of up to 64 characters. Use letters, digits, `_` and `-`: the editor creates ids that way, and Build with AI only accepts ids made of them. Every block except Start also has a `name`, shown as **Name** in the editor (see [Names and limits](#names-and-limits)).
 
 <Info>
   **Build with AI.** The editor's Build with AI assistant can draft a whole flow or change one for you from a plain description. You review its change on the canvas and click **Apply** to keep it. A few things are always added by hand: secret API headers on Fetch blocks and recorded audio. The flow's language and voice are picked in the editor toolbar.
@@ -82,7 +82,7 @@ Speaks a prompt and waits for keys. A menu has two modes.
 | `name` | Name | A [slug](#names-and-limits). |
 | `prompt` | **Prompt** | What to say before waiting. See [Content and variables](#content-and-variables). |
 | `mode` | **Mode**: Single key / Collect digits | `"single"` or `"collect"`. |
-| `timeoutMs` | **Wait for a key (s)** | How long to wait for a key. Any whole number of milliseconds; 5000 to 8000 works well (6000 = 6 seconds, shown as 6 in the editor). |
+| `timeoutMs` | **Wait for a key (s)** | How long to wait for a key, in whole milliseconds. Use 1000 to 30000 (1 to 30 seconds): the editor and Build with AI only set values in that range, though saving and publishing don't check it. 5000 to 8000 works well (6000 = 6 seconds, shown as 6 in the editor). |
 | `retries` | **Retries** | 0 to 5. How many times to ask again before leaving through `no_input` or `invalid`. |
 | `noInputLine` | **No input line** | Optional. Said before each re-ask after the caller pressed nothing. |
 | `invalidLine` | **Invalid line** | Optional. Said before each re-ask after a key that isn't an option. |
@@ -95,7 +95,7 @@ Speaks a prompt and waits for keys. A menu has two modes.
 | `collect` field | In the editor | Allowed values |
 |---|---|---|
 | `minLen`, `maxLen` | **Min digits**, **Max digits** | Whole numbers with 1 ≤ `minLen` ≤ `maxLen` ≤ 32. |
-| `interDigitMs` | **Gap between digits (s)** | The pause that ends input. Any whole number of milliseconds; 2000 to 3000 works well (3000 = 3 seconds, shown as 3 in the editor). |
+| `interDigitMs` | **Gap between digits (s)** | The pause that ends input, in whole milliseconds. Use 1000 to 10000 (1 to 10 seconds): the editor and Build with AI only set values in that range, though saving and publishing don't check it. 2000 to 3000 works well (3000 = 3 seconds, shown as 3 in the editor). |
 | `mask` | **Mask (PINs)** | `true` hides the digits in transcripts. Use it for PINs and card numbers. |
 
 Exits `done`, `no_input` and `invalid` are all required. After `done`, the digits are available as the variable `{{<menu name>.digits}}`. Keys are only allowed on single menus.
@@ -133,7 +133,7 @@ Calls your HTTPS API and reads fields from its JSON answer.
 | `holdLine` | **Hold line** | Optional. Said while waiting for your API. |
 | `fields` | **Response fields** | At least one and up to 30 response fields, each `{ name, path, type, required }`. |
 | `fields[].name` | Name | A [slug](#names-and-limits). |
-| `fields[].path` | Path | Dot path into the JSON answer; array items by index. For example `data.loan.amount` or `items.0.name`. |
+| `fields[].path` | Path | Dot path into the JSON answer, up to 256 characters; array items by index. For example `data.loan.amount` or `items.0.name`. |
 | `fields[].type` | Type | One of the [field types](#field-types-and-how-theyre-spoken). |
 | `fields[].required` | req | `true` or `false`. A required field that is missing from the answer makes the block fail. |
 
@@ -204,6 +204,7 @@ A **slug** is lowercase letters, digits and `_`, starting with a letter, up to 3
 - Block names (every block except Start) are slugs and unique in the flow.
 - Fetch and collect-menu names become variable groups, so they can't be `lead`.
 - Lead field names, Fetch field names and End outcomes are slugs too.
+- Outcomes don't have to be unique: several End blocks can report the same outcome, for example two ends that both report `no_response`.
 
 | Limit | Value |
 |---|---|
@@ -213,7 +214,7 @@ A **slug** is lowercase letters, digits and `_`, starting with a letter, up to 3
 | Fields in the whole flow | 200 |
 | Headers per Fetch block | 20 |
 | Text line | 2000 characters |
-| Call time limit | Default 300 seconds (5 minutes), at most 1800. This is a flow setting, not a field of the flow JSON. To change it, ask Build with AI. |
+| Call time limit | 30 to 1800 seconds (30 minutes); default 300 (5 minutes). This is a flow setting, not a field of the flow JSON, and the editor has no field for it. To change it, use Build with AI if it's available on your account, or contact Vocobase. |
 
 ---
 
@@ -228,6 +229,7 @@ The editor checks these as you build and lists every problem on the block it bel
 - Every required exit is connected, and no exit is connected twice.
 - Keys are only connected on single menus, and a single menu has at least one key.
 - Any loop passes through a Menu.
+- Every Fetch block has at least one response field.
 - Every variable is available on every path into the block that uses it.
 - Names, fields and outcomes follow [Names and limits](#names-and-limits); Fetch URLs and timeouts follow [Fetch](#fetch).
 
