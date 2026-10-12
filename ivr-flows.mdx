@@ -5,6 +5,8 @@ description: "Build a keypad IVR in the dashboard, push leads to it over the API
 
 # IVR Flows
 
+<Tip>New to IVR flows, or not a developer? Start with [IVR Flows: a simple guide](/ivr-flows-guide).</Tip>
+
 An IVR flow is a scripted phone call driven by the keypad. You draw it once in the dashboard: what to say, which keys the caller can press and where each key leads, and which of your APIs to call along the way. Then you push leads to it over the API, one call per lead. When a call ends, the `session.completed` webhook tells you which path the caller took, every key they pressed and the outcome the call reached.
 
 <Info>
