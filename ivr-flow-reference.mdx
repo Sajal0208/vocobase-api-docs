@@ -193,7 +193,7 @@ Lead fields and Fetch response fields both have a `type`. The type decides how t
 | `money` | A number. | An amount with the currency: `1,250.50 rupees`. |
 | `date` | `YYYY-MM-DD`, a real calendar date. | A day and month: `seventeenth October`. |
 | `digits` | Digits only. | One by one: `4 2 4 5`. |
-| `phone` | 8 to 15 digits, optional leading `+`. | In groups: a 10-digit number as two groups of five. |
+| `phone` | 8 to 15 digits, optional leading `+`. | A 10-digit number (after a leading `91` is dropped from a 12-digit one) is read as two groups of five; any other length is read digit by digit. |
 
 ---
 
@@ -213,7 +213,7 @@ A **slug** is lowercase letters, digits and `_`, starting with a letter, up to 3
 | Fields in the whole flow | 200 |
 | Headers per Fetch block | 20 |
 | Text line | 2000 characters |
-| Call time limit | 30 to 1800 seconds, set in the editor. Default 300. |
+| Call time limit | 30 to 1800 seconds. Default 300. Build with AI can change it for you. |
 
 ---
 
