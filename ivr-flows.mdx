@@ -7,7 +7,7 @@ description: "Build a keypad IVR in the dashboard, push leads to it over the API
 
 An IVR flow is a scripted phone call driven by the keypad. You draw it once in the dashboard: what to say, which keys the caller can press and where each key leads, and which of your APIs to call along the way. Then you push leads to it over the API, one call per lead. When a call ends, the `session.completed` webhook tells you which path the caller took, every key they pressed and the outcome the call reached.
 
-Every field of the flow JSON: [IVR flow JSON reference](/ivr-flow-reference)
+For every field of the flow JSON, see [IVR Flow JSON Reference](/ivr-flow-reference).
 
 <Info>
   IVR Flows is enabled per account. Until it is, every endpoint below returns `403 IVR_FLOWS_DISABLED`. Contact Vocobase to turn it on; your IVR prices are set at the same time, one per voice model (Standard and Premium).
