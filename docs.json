@@ -38,6 +38,7 @@
           "custom-functions",
           "lifecycle-hooks",
           "call-duration-and-background-audio",
+          "ivr-flows-guide",
           "ivr-flows"
         ]
       },
