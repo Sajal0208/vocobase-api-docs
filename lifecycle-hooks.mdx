@@ -101,7 +101,7 @@ Rules:
 - **Pre-call only.** The hook must have `stage: "PRE_CALL"` and an `exposeAs`. A `PATCH` that clears
   `exposeAs` while rows remain is rejected.
 - **Not on `lookup_row`.** A Google Sheets lookup already maps its columns in `input.columns`.
-- **At most 50 rows.**
+- **At most 200 rows.**
 - **`path`** is a dot path into the response. It is 1–200 characters with no empty segment (`a..b`).
   List items are read by index, e.g. `items.0.sku`.
 - **`variable`** matches `^[a-z_][a-z0-9_]*$` and appears once per hook.
