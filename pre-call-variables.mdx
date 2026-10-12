@@ -70,6 +70,7 @@ The `session.completed` webhook echoes the same `variables` map for your own aud
 - **Type coercion is automatic.** Non-string values in the request body (`{ age: 25 }`, `{ active: true }`) are stringified before substitution.
 - **Inbound calls** receive no `variables` field by default; placeholders in the prompt render empty.
 - **Custom functions can read variables.** Values supplied at call start are available to your configured custom functions, so handlers such as CRM lookup or calendar booking can use fields like `customer_id` directly.
+- **Pre-call hooks can fill variables too.** A hook's [`responseMap`](/lifecycle-hooks#response-mapping) publishes fields from its response under bare names, so `{{business_name}}` works just like a variable you passed in. When both have a non-blank value, the hook's value wins.
 
 ## Next steps
 

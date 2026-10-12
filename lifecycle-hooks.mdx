@@ -56,6 +56,64 @@ earlier in the same stage. So a second hook can consume the first one's result.
 `{{lead.Company}}`, and so on inside the agent's prompt. It is pre-call only — a post-call hook has
 no prompt left to feed — and must be unique among that agent's pre-call hooks.
 
+### Response mapping
+
+`exposeAs` keeps the whole response under one name, so a deep field needs a long path in the prompt:
+`{{account.data.var_business_name}}`. `responseMap` lifts chosen fields out to top-level variables
+instead, so the prompt can say `{{business_name}}`.
+
+Each row names a `path` in the hook's response and the `variable` it is published as:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/agents/AGENT_ID/lifecycle-hooks \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "stage": "PRE_CALL",
+    "name": "Get account details",
+    "functionId": "FUNCTION_ID",
+    "input": { "phone": "{{caller_phone}}" },
+    "exposeAs": "account",
+    "responseMap": [
+      { "path": "data.var_business_name", "variable": "business_name" },
+      { "path": "data.var_lookup_status", "variable": "lookup_status" }
+    ]
+  }'
+```
+
+If the account lookup answers:
+
+```json
+{ "data": { "var_business_name": "Sunrise Bakery", "var_lookup_status": "active" } }
+```
+
+then this prompt line:
+
+```text
+Business: {{business_name}} ({{lookup_status}})
+```
+
+renders as `Business: Sunrise Bakery (active)`. The long form, `{{account.data.var_business_name}}`,
+keeps working too.
+
+Rules:
+
+- **Pre-call only.** The hook must have `stage: "PRE_CALL"` and an `exposeAs`. A `PATCH` that clears
+  `exposeAs` while rows remain is rejected.
+- **Not on `lookup_row`.** A Google Sheets lookup already maps its columns in `input.columns`.
+- **At most 50 rows.**
+- **`path`** is a dot path into the response. It is 1–200 characters with no empty segment (`a..b`).
+  List items are read by index, e.g. `items.0.sku`.
+- **`variable`** matches `^[a-z_][a-z0-9_]*$` and appears once per hook.
+- **Blank values never override.** If a path comes back `""`, `null` or missing, the variable is left
+  as it was. `0` and `false` do count.
+- **A mapped name beats a per-call variable of the same name.** If you pass
+  `variables: { "business_name": "…" }` at call start and the hook maps `business_name` with a value,
+  the hook's value wins. When two hooks map the same name, the later one wins.
+- If the hook fails, nothing is mapped. The variables keep their per-call values, if they had any.
+
+`PATCH` with `"responseMap": null` or `[]` removes every row.
+
 ### Failure handling
 
 | Field | Effect |

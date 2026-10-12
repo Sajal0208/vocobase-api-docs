@@ -14510,6 +14510,30 @@
                     "description": "Pre-call only.",
                     "pattern": "^[a-z_][a-z0-9_]*$"
                   },
+                  "responseMap": {
+                    "type": "array",
+                    "maxItems": 50,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "path",
+                        "variable"
+                      ],
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "maxLength": 200,
+                          "description": "Dot path into the hook's response, e.g. `data.var_business_name`. Non-empty segments; array items by index (`items.0.sku`)."
+                        },
+                        "variable": {
+                          "type": "string",
+                          "pattern": "^[a-z_][a-z0-9_]*$",
+                          "description": "Top-level prompt variable the value is published as, read as `{{business_name}}`. Unique within the hook."
+                        }
+                      }
+                    },
+                    "description": "Lift values out of the hook's response into top-level prompt variables. Pre-call hooks only; requires `exposeAs`; not accepted on `lookup_row`. Blank values (`\"\"`, `null`, missing) never override. See [Response mapping](/lifecycle-hooks#response-mapping)."
+                  },
                   "required": {
                     "type": "boolean",
                     "default": false
@@ -14715,6 +14739,31 @@
                     "type": "string",
                     "nullable": true,
                     "description": "Send `null` to stop exposing the result."
+                  },
+                  "responseMap": {
+                    "type": "array",
+                    "nullable": true,
+                    "maxItems": 50,
+                    "items": {
+                      "type": "object",
+                      "required": [
+                        "path",
+                        "variable"
+                      ],
+                      "properties": {
+                        "path": {
+                          "type": "string",
+                          "maxLength": 200,
+                          "description": "Dot path into the hook's response, e.g. `data.var_business_name`. Non-empty segments; array items by index (`items.0.sku`)."
+                        },
+                        "variable": {
+                          "type": "string",
+                          "pattern": "^[a-z_][a-z0-9_]*$",
+                          "description": "Top-level prompt variable the value is published as, read as `{{business_name}}`. Unique within the hook."
+                        }
+                      }
+                    },
+                    "description": "Lift values out of the hook's response into top-level prompt variables. Pre-call hooks only; requires `exposeAs`; not accepted on `lookup_row`. Blank values (`\"\"`, `null`, missing) never override. See [Response mapping](/lifecycle-hooks#response-mapping). Send `null` or `[]` to clear."
                   },
                   "required": {
                     "type": "boolean",
@@ -23808,6 +23857,30 @@
             "nullable": true,
             "description": "Name the result is published under in the variables map, so the prompt can read `{{lead.FirstName}}`. Pre-call only, and unique per agent within the stage.",
             "pattern": "^[a-z_][a-z0-9_]*$"
+          },
+          "responseMap": {
+            "type": "array",
+            "maxItems": 50,
+            "items": {
+              "type": "object",
+              "required": [
+                "path",
+                "variable"
+              ],
+              "properties": {
+                "path": {
+                  "type": "string",
+                  "maxLength": 200,
+                  "description": "Dot path into the hook's response, e.g. `data.var_business_name`. Non-empty segments; array items by index (`items.0.sku`)."
+                },
+                "variable": {
+                  "type": "string",
+                  "pattern": "^[a-z_][a-z0-9_]*$",
+                  "description": "Top-level prompt variable the value is published as, read as `{{business_name}}`. Unique within the hook."
+                }
+              }
+            },
+            "description": "Lift values out of the hook's response into top-level prompt variables. Pre-call hooks only; requires `exposeAs`; not accepted on `lookup_row`. Blank values (`\"\"`, `null`, missing) never override. See [Response mapping](/lifecycle-hooks#response-mapping). Empty array when unused."
           },
           "required": {
             "type": "boolean",
