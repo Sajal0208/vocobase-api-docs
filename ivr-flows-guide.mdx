@@ -10,7 +10,7 @@ This page explains IVR flows in plain words. You do not need to be a developer t
 If you are a developer and want the API details, go to [IVR Flows](/ivr-flows).
 
 <Info>
-  IVR Flows is switched on per account. If the dashboard says **IVR Flows is not enabled on your account**, contact Vocobase. Your prices are set at the same time.
+  Everyone sees **IVR Flows** in the dashboard menu. But Vocobase must switch it on for your account, and set your price, before you can build a flow or place calls. Until then the page says: "IVR Flows is not enabled on this account. Contact Vocobase to enable it."
 </Info>
 
 ---
@@ -68,7 +68,9 @@ A flow is built from five kinds of block. Each block has **exits**. An exit is a
 A Menu has two modes:
 
 - **Single key**: the person presses one key and the call follows that key's arrow.
-- **Collect digits**: the person types several digits, like a PIN. When they finish, the call takes the **done** exit. If they type too few digits, it takes **invalid**.
+- **Collect digits**: the person types several digits, like a PIN. They finish by pressing #, by typing the most digits allowed, or by pausing. Then the call takes the **done** exit. If they type too few digits, it takes **invalid**. Pressing \* clears what they typed and asks again. This uses up one retry.
+
+If you set **Retries**, the Menu asks again before it takes **no input** or **invalid**.
 
 ### Fill-ins
 
@@ -88,10 +90,10 @@ Fill-ins come from three places:
 | A field read by a Fetch block (its name, then the field) | `{{<fetch name>.<field>}}` | `{{order.status}}` |
 | Digits typed into a Collect digits menu | `{{<menu name>.digits}}` | `{{pin.digits}}` |
 
-A fill-in can only be used **after** the block that makes it, on every path into the block. For example, `{{order.status}}` works only after the `order` Fetch block's **success** exit. If one path could reach the line without it, the editor shows the problem. On a Say block you can add a **Fallback line**. It plays instead when a fill-in in the line has no value on that call.
+You can use a fill-in only if **every** path to that line passes the block that makes it. For example, `{{order.status}}` works only after the `order` Fetch block's **success** exit. If one path could reach the line without it, the editor shows the problem. On a Say block you can add a **Fallback line**. It plays instead when a fill-in in the line has no value on that call.
 
 <Tip>
-  If you paste a DLT template with placeholders like `{#Name#}`, the editor asks which fill-in to use for each one.
+  If you paste a DLT template (the message text you registered with your telecom operator) with placeholders like `{#Name#}`, the editor asks which fill-in to use for each one.
 </Tip>
 
 ### Field types and how they are spoken
@@ -131,7 +133,7 @@ In Hindi, money is read with "रुपये" and dates as "सत्रह अ
     The editor has three parts:
 
     - **Left**: the blocks you can add: **Say** (Speak a line), **Menu** (Wait for keys), **Fetch** (Call your API) and **End** (Hang up with an outcome).
-    - **Middle**: the canvas, where you draw the call. The Start block is already there.
+    - **Middle**: the canvas, where you draw the call. A new flow already has a Start block joined to one End block. Change that End, or delete it once you have your own.
     - **Right**: the settings of the block you clicked.
 
     There is no Save button. The editor saves as you go and shows **All changes saved** at the top.
@@ -154,7 +156,7 @@ In Hindi, money is read with "रुपये" and dates as "सत्रह अ
     Click a block or an arrow and press the **Delete** key. You can also use **Delete** at the top of the block's settings.
   </Step>
   <Step title="Fix the problems">
-    Above the canvas, the editor lists the problems to fix before you can publish, like "Connect the "next" exit". Blocks with a problem get a red ring. Click **Show the first one** to jump to it. See [Problems the editor shows](#problems-the-editor-shows).
+    Above the canvas, the editor shows how many problems are left before you can publish. A block with a problem gets a red ring. Click it to read the problem at the top of its settings, like "Connect the "next" exit". Or click **Show the first one** to jump to it. See [Problems the editor shows](#problems-the-editor-shows).
   </Step>
   <Step title="Listen to a line">
     Click a block that speaks, then click **Preview**. Type sample values for its fill-ins and click **Play**. You hear the line the way people will hear it.
@@ -195,7 +197,9 @@ In Hindi, money is read with "रुपये" and dates as "सत्रह अ
 | A loop must pass through a Menu, or the caller can never leave it | A path that goes back to an earlier block must pass a Menu |
 | `{{x}}` is not available on every path into this block | The fill-in is made by a block that some paths skip. Move the line, or add a Fallback line |
 | Two blocks are named "x" | Give each block its own name |
+| Names are lowercase letters, digits and _ (max 32) | Rename the block, like `confirm_menu` |
 | Fetch URLs must start with https:// | Use an `https://` address |
+| Variables can go in the path or query, not in the address | Keep the site name fixed. Put fill-ins only after it |
 | Declare at least one response field | Add a field the Fetch reads from the answer |
 | Outcome must be a slug like confirmed or info_wrong | Use lowercase letters, digits and `_` |
 
@@ -259,7 +263,7 @@ curl -X POST https://api.vocobase.com/api/v2/ivr-flows/YOUR_FLOW_ID/calls \
   }'
 ```
 
-- `to` is the number to call. `data` holds the lead fields from your Start block.
+- `to` is the number to call. `data` holds the lead fields from your Start block. Send only those fields: a field the flow does not have is refused.
 - `from` is optional. It is the number the call comes from. Leave it out to use your default number.
 - `client_reference_id` is your own label for the call. If you send the same request twice by mistake, only one call is placed.
 - If you get a `429` answer, you are sending too fast. Wait a little and try again.
@@ -330,7 +334,7 @@ Your team then calls everyone whose outcome is `call_back`.
 
 1. **Fetch** `order` (GET, runs before dialing): `https://api.yourshop.com/orders/{{lead.order_id}}`
    Response fields: `status` (text, path `data.status`), `eta` (date, path `data.eta`)
-   - **failed** → **End** `end_lookup_failed`, outcome `lookup_failed`. The phone never rings, and nothing is charged.
+   - **failed** → **End** `end_lookup_failed`, outcome `lookup_failed`. Every exit must be connected, so this arrow is needed. But because this Fetch runs before dialing, a failed lookup never reaches the End: the phone never rings, nothing is charged, and the Calls page shows `failed: prefetch failed`.
    - **success** → next block
 2. **Say** `status_line`: `Your order {{lead.order_id}} is {{order.status}}. It should reach you on {{order.eta}}.`
 3. **Menu** `slot_menu` (Single key): "To book a morning delivery slot, press 1. If you don't need a slot, press 2."
@@ -364,7 +368,7 @@ A Fetch has only two exits, so let your system answer with an error (for example
 - Offer 4 or 5 keys at most.
 - Always handle **no input** and **invalid**. Use **Retries** and the **No input line** / **Invalid line** to ask again before giving up.
 - Give every path an End with its own outcome, so you can count how calls ended.
-- People can press a key while a Menu is still talking. The menu stops and takes the key. Keys pressed during a Say don't cut it short.
+- People can press a key while a Menu is still talking. The menu stops and takes the key. Keys pressed during a Say don't cut it short, but the next Menu uses them.
 - Keep your system fast. A Fetch that answers in under a second needs no hold line.
 - Listen with **Preview** and make a **Test call** before you publish.
 
