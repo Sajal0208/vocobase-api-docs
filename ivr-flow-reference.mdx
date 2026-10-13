@@ -124,7 +124,7 @@ Calls your HTTPS API and reads fields from its JSON answer.
 
 | Field | In the editor | Allowed values |
 |---|---|---|
-| `name` | Name | A [slug](#names-and-limits), not `lead`. It becomes the variable group for the block's fields. |
+| `name` | Name | A [slug](#names-and-limits), not `lead` or `call`. It becomes the variable group for the block's fields. |
 | `method` | **Method** | `"GET"` or `"POST"`. |
 | `url` | **URL** | Must start with `https://`, up to 2000 characters. Variables may go in the path or query only, never in the scheme, host or port. Private and internal addresses are refused. |
 | `body` | **JSON body** | Optional, `POST` only. JSON as a string, up to 8000 characters. Variables are allowed; their values are JSON-escaped for you. |
@@ -174,6 +174,8 @@ Text lines, Fetch URLs and Fetch bodies can carry **variables**, written `{{grou
 
 | Variable | Comes from |
 |---|---|
+| `{{call.from}}`, `{{call.to}}` | The number the call comes from and the number being called (E.164, type `phone`). Built in, available from Start on. |
+| `{{call.session_id}}`, `{{call.call_id}}` | The call's `session_id` and `call_id`, the same ids your webhooks carry (type `text`). Built in, available from Start on. |
 | `{{lead.<field>}}` | A lead field declared on Start. |
 | `{{<fetch name>.<field>}}` | A response field of a Fetch block, after its `success` exit. |
 | `{{<menu name>.digits}}` | The digits typed into a collect menu, after its `done` exit. |
@@ -202,7 +204,7 @@ Lead fields and Fetch response fields both have a `type`. The type decides how t
 A **slug** is lowercase letters, digits and `_`, starting with a letter, up to 32 characters (for example `pay_menu`, `due_date`).
 
 - Block names (every block except Start) are slugs and unique in the flow.
-- Fetch and collect-menu names become variable groups, so they can't be `lead`.
+- Fetch and collect-menu names become variable groups, so they can't be `lead` or `call`.
 - Lead field names, Fetch field names and End outcomes are slugs too.
 - Outcomes don't have to be unique: several End blocks can report the same outcome, for example two ends that both report `no_response`.
 

@@ -82,13 +82,25 @@ Hello {{lead.name}}, your bill of {{lead.amount}} is due on {{lead.due_date}}.
 
 You don't have to type them. In any line, type **@** and pick one from the list.
 
-Fill-ins come from three places:
+Fill-ins come from four places:
 
 | Where the value comes from | How you write it | Example |
 |---|---|---|
+| The call itself (built in, nothing to send) | `{{call.<field>}}` | `{{call.to}}` |
 | A lead field from the Start block | `{{lead.<field>}}` | `{{lead.name}}` |
 | A field read by a Fetch block (its name, then the field) | `{{<fetch name>.<field>}}` | `{{order.status}}` |
 | Digits typed into a Collect digits menu | `{{<menu name>.digits}}` | `{{pin.digits}}` |
+
+The call fill-ins work in every block, including Fetch URLs and bodies, so your API can tell which call is asking:
+
+| Fill-in | Value | Example |
+|---|---|---|
+| `{{call.from}}` | The number the call comes from (your caller ID) | `+919800000000` |
+| `{{call.to}}` | The number being called | `+919876543210` |
+| `{{call.session_id}}` | The call's `session_id`, as in your webhooks | `5f0c…` |
+| `{{call.call_id}}` | The call's `call_id`, as in your webhooks | `3a9e…` |
+
+In a spoken line, `{{call.from}}` and `{{call.to}}` are read out digit by digit, like any phone number. In **Preview** and **Test API** you can leave them empty; sample values are used.
 
 You can use a fill-in only if **every** path to that line passes the block that makes it. For example, `{{order.status}}` works only after the `order` Fetch block's **success** exit. If one path could reach the line without it, the editor shows the problem. On a Say block you can add a **Fallback line**. It plays instead when a fill-in in the line has no value on that call.
 
