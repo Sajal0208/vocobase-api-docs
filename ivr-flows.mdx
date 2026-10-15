@@ -247,7 +247,10 @@ Every IVR call ends with the normal [`session.completed`](/webhooks/payloads) we
 | `404` | `CONNECTION_NOT_FOUND` | The `connection_id` is not an active VoiceLink connection on your account. |
 | `409` | `FLOW_NOT_PUBLISHED` | The flow has no published version. Publish it in the dashboard. |
 | `422` | `IVR_PRICING_NOT_CONFIGURED` | The account has no IVR price for the voice model of the flow's published version. Contact Vocobase. |
+| `422` | `FROM_NUMBER_NOT_ASSIGNED` | VoiceLink will not dial from the caller ID, because the number is not assigned to your VoiceLink account. Retrying with the same number fails the same way. Pass another `from`, or set another default number on the connection. |
 | `429` | `RATE_LIMITED` | Per-minute call quota reached. Retry after `Retry-After` seconds. |
 | `429` | `LIMIT_REACHED` | Concurrent call limit reached. Retry after a short backoff. |
 | `502` | `INTERNAL_ERROR` | The telephony provider refused the dial. Retry after a minute or two. |
 | `503` | `SERVICE_UNAVAILABLE` | The call could not be queued and nothing was dialed. Retry. |
+
+`402 TELEPHONY_CREDIT_EXHAUSTED`, `422 FROM_NUMBER_NOT_ASSIGNED` and `502 INTERNAL_ERROR` are VoiceLink refusing the dial. When the flow has pre-dial Fetch blocks, the push returns `202` before the number is dialed, so these refusals never reach the response. The call ends as `failed` instead.

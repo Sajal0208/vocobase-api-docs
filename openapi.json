@@ -7987,6 +7987,28 @@
           "404": {
             "$ref": "#/components/responses/NotFound"
           },
+          "422": {
+            "description": "VoiceLink will not dial from the caller ID, because the number is not assigned to your VoiceLink account. Retrying with the same number will not help: pass another `from_number` or `connection_id`. The call is marked `failed`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "from_number_not_assigned": {
+                    "summary": "Caller ID not assigned at the provider",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "FROM_NUMBER_NOT_ASSIGNED",
+                        "message": "This number isn't set up with your telephony provider. Pick another number."
+                      }
+                    }
+                  }
+                }
+              }
+            }
+          },
           "429": {
             "description": "Concurrent call limit reached.",
             "content": {
@@ -9131,7 +9153,7 @@
             }
           },
           "422": {
-            "description": "The account has no IVR price for the voice model of the flow's published version. Contact Vocobase.",
+            "description": "`IVR_PRICING_NOT_CONFIGURED`: the account has no IVR price for the voice model of the flow's published version. Contact Vocobase. `FROM_NUMBER_NOT_ASSIGNED`: VoiceLink will not dial from the caller ID, because the number is not assigned to your VoiceLink account. Retrying with the same number will not help: pass another `from`. A flow with pre-dial Fetch blocks returns `202` before dialing, so it never returns `FROM_NUMBER_NOT_ASSIGNED`; the call ends as `failed` instead.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9145,6 +9167,16 @@
                       "error": {
                         "code": "IVR_PRICING_NOT_CONFIGURED",
                         "message": "IVR pricing is not configured for this voice model on this account. Contact Vocobase."
+                      }
+                    }
+                  },
+                  "from_number_not_assigned": {
+                    "summary": "Caller ID not assigned at the provider",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "FROM_NUMBER_NOT_ASSIGNED",
+                        "message": "This number isn't set up with your telephony provider. Pick another number."
                       }
                     }
                   }

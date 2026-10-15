@@ -175,6 +175,24 @@ For inbound setup, client and DID mapping, sync, and readiness checks, use the [
 - Confirm `"voicelink"` is in `allowed_telephony_providers` from `GET /config`. If it is not, contact your Vocobase account manager.
 - Confirm `username`, `password`, and a `from_number` were saved (`telephony.voicelink.configured: true`).
 
+### 422 `FROM_NUMBER_NOT_ASSIGNED` on `/calls/start`
+
+VoiceLink refused to dial from the caller ID, because the number is not assigned to your VoiceLink account. The call is marked `failed` and nothing is dialed.
+
+```json
+{
+  "success": false,
+  "error": {
+    "code": "FROM_NUMBER_NOT_ASSIGNED",
+    "message": "This number isn't set up with your telephony provider. Pick another number."
+  }
+}
+```
+
+- Retrying with the same number fails the same way. Do not retry as is.
+- Pass another `from_number`, or a `connection_id` whose default number VoiceLink has assigned to you.
+- To keep the number, have it assigned to your account in VoiceLink first.
+
 ### "Invalid VoiceLink username or password"
 
 - Re-check the credentials against the VoiceLink panel sign-in. Re-send `PUT /config/telephony/voicelink` with the correct values.
