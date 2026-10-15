@@ -44,7 +44,7 @@ Flows are built and published in the dashboard under **IVR Flows**. A flow is a 
 | **Fetch** | Calls your HTTPS API (`GET` or `POST`) and reads typed fields from the JSON response, for use in later blocks. | `success`, `failed` |
 | **End** | Optionally speaks a closing line, then hangs up with an outcome code you choose (for example `paid`, `info_wrong`). | none |
 
-Each flow speaks with one of two voice models, **Standard** or **Premium**, chosen in the dashboard when you build it. The model sets the per-pulse price of the flow's calls, and the API returns it as `voice_model`: the model of the flow's published version, which is what calls speak with and are billed at. A draft you are still editing may use a different model; it takes effect when you publish it.
+Each flow speaks with one of two voice models, **Standard** or **Premium**, chosen in the dashboard when you build it. The model sets the per-pulse price of the flow's calls, and the API returns it as `voice_model`: the model of the flow's published version, which is what calls speak with and are billed at. A draft you are still editing may use a different model; it takes effect when you publish it. Flows on the previous Premium voices were moved to Standard, at the same price per call, when Premium moved to its new voices, so `voice_model` reads `standard` for them.
 
 A few rules worth knowing before you design:
 
@@ -69,7 +69,7 @@ curl https://api.vocobase.com/api/v2/ivr-flows \
 {
   "success": true,
   "data": [
-    { "id": "f1234567-abcd-1234-abcd-123456789012", "name": "EMI reminder", "language": "hi", "voice_model": "premium", "published_version": 3 }
+    { "id": "f1234567-abcd-1234-abcd-123456789012", "name": "EMI reminder", "language": "hi", "voice_model": "standard", "published_version": 3 }
   ]
 }
 ```
@@ -88,7 +88,7 @@ curl https://api.vocobase.com/api/v2/ivr-flows/f1234567-abcd-1234-abcd-123456789
     "id": "f1234567-abcd-1234-abcd-123456789012",
     "name": "EMI reminder",
     "language": "hi",
-    "voice_model": "premium",
+    "voice_model": "standard",
     "published_version": 3,
     "fields": [
       { "name": "loan_id", "type": "text", "required": true },
