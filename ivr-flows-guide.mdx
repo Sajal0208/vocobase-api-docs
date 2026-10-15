@@ -121,7 +121,7 @@ Every lead field and every Fetch field has a **type**. The type decides how the 
 | `digits` | Only digits, up to 32, like `4512` | One digit at a time: "4 5 1 2" |
 | `phone` | 8 to 15 digits, may start with `+` | Digit by digit. A 10-digit Indian number is split in two groups of five: "9 8 7 6 5, 4 3 2 1 0" |
 
-In Hindi, money is read with "रुपये" and dates as "सत्रह अक्टूबर".
+In Hindi, money is read with "रुपये" and dates as "सत्रह अक्टूबर". In the other Indian languages, money uses that language's word for rupees (Tamil "ரூபாய்", Odia "ଟଙ୍କା") and a date is the day as a number followed by the month's name, read in the flow's language: "17 அக்டோபர்".
 
 ---
 
@@ -136,7 +136,7 @@ In Hindi, money is read with "रुपये" and dates as "सत्रह अ
 
     - **Name**: anything you like, for example "EMI reminder". Each flow on your account needs its own name.
     - **Model**: the voice model, **Standard** or **Premium**. Next to each one you see your price, for example "Premium · 0.20 credits / 30 s". Only the models priced on your account appear.
-    - **Language**: English or Hindi. See [Which languages can I use?](#common-questions).
+    - **Language**: English, Hindi or one of eleven more Indian languages. See [Which languages can I use?](#common-questions).
     - **Voice**: the voice that will speak.
 
     Click **Create**. The editor opens. You can change all four later from the bar at the top.
@@ -429,7 +429,15 @@ The editor tells you why, in a line under the top bar. For example: "Pick a Prem
 
 ### Which languages can I use?
 
-Today, **English** and **Hindi** work with the **Premium** model. With **Standard** they show as "coming soon": you can build a draft, but you can't preview, test or publish it yet.
+| Language | Premium | Standard |
+|---|---|---|
+| English, Hindi | Yes | Yes |
+| Tamil, Telugu, Kannada, Malayalam, Marathi, Gujarati, Bengali, Punjabi, Odia, Urdu | Yes | Yes |
+| Assamese | Coming soon | Yes |
+
+A language marked "coming soon" for a model lets you build a draft, but not preview, test or publish it.
+
+Premium has voices made for each of these languages. Standard speaks them with its Hindi voices, so try a preview before you publish. If Publish says a language "is not available with this voice", pick another Standard voice.
 
 ### How am I billed?
 
