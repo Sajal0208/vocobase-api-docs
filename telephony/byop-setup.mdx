@@ -148,6 +148,7 @@ See [Inbound Calls](/inbound-calls) for the full DID assignment flow.
 | Provider is not allowed | Ask Vocobase support to enable the provider for your account. |
 | Provider is allowed but not configured | Send the provider's V2 credential setup request again. |
 | `CONNECTION_AMBIGUOUS` from `/calls/start` | Pass the `connection_id` returned by `GET /api/v2/telephony/connections`. |
+| `422 FROM_NUMBER_NOT_ASSIGNED` from `/calls/start` | VoiceLink only. The caller ID is not assigned to your VoiceLink account. Use another `from_number` or connection. See [VoiceLink troubleshooting](/telephony/voicelink-setup#troubleshooting). |
 | Calls fail immediately | Confirm the provider credentials, from-number, and destination number format. |
 | Inbound DID does not route to the expected agent | Re-check the DID assignment with `GET /api/v2/phone-numbers`. |
 
