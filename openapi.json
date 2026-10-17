@@ -8689,7 +8689,7 @@
                       "id": "f1234567-abcd-1234-abcd-123456789012",
                       "name": "EMI reminder",
                       "language": "hi",
-                      "voice_model": "premium",
+                      "voice_model": "standard",
                       "published_version": 3
                     }
                   ]
@@ -8768,7 +8768,7 @@
                     "id": "f1234567-abcd-1234-abcd-123456789012",
                     "name": "EMI reminder",
                     "language": "hi",
-                    "voice_model": "premium",
+                    "voice_model": "standard",
                     "published_version": 3,
                     "fields": [
                       {
