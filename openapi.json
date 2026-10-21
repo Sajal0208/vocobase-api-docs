@@ -5152,10 +5152,15 @@
                       "integer",
                       "null"
                     ],
-                    "minimum": 60,
+                    "minimum": 25,
                     "maximum": 3600,
                     "default": 600,
-                    "description": "Hard cap on call duration in seconds. New agents default to 600 (10 minutes); pass `null` to disable the cap. Range 60-3600. At `(cap - 30s)` the bot speaks a soft \"wrapping up\" warning; at the cap it speaks the agent's farewell and gracefully ends the session through the standard end-of-call path."
+                    "description": "Hard cap on call duration in seconds. New agents default to 600 (10 minutes); `null` falls back to that 600-second default. Range 25-3600. At `(cap - 30s)` the bot speaks a soft \"wrapping up\" warning (when `call_duration_warning_enabled` is true and the cap is 60s or more); at the cap it speaks the agent's farewell and gracefully ends the session through the standard end-of-call path."
+                  },
+                  "call_duration_warning_enabled": {
+                    "type": "boolean",
+                    "default": true,
+                    "description": "Whether the agent speaks a soft warning (\"Just a heads up — we're approaching the call time limit, so let's wrap up shortly.\") 30 seconds before `max_call_duration_secs`. Defaults to true. The warning is only spoken for caps of 60 seconds or more; shorter caps always end with just the farewell. A `null` cap runs at the 600-second platform default, so the warning applies there too."
                   },
                   "background_audio_id": {
                     "type": [
@@ -5528,9 +5533,13 @@
                       "integer",
                       "null"
                     ],
-                    "minimum": 60,
+                    "minimum": 25,
                     "maximum": 3600,
-                    "description": "Update the hard call-duration cap. Range 60-3600. Pass `null` to remove the cap. New agents default to 600 (10 minutes); existing agents created before the default landed may currently hold `null`."
+                    "description": "Update the hard call-duration cap. Range 25-3600. Passing `null` clears the per-agent value; calls then run at the 600-second default. New agents default to 600 (10 minutes); existing agents created before the default landed may currently hold `null` and therefore run at 600s."
+                  },
+                  "call_duration_warning_enabled": {
+                    "type": "boolean",
+                    "description": "Whether the agent speaks a soft warning (\"Just a heads up — we're approaching the call time limit, so let's wrap up shortly.\") 30 seconds before `max_call_duration_secs`. Defaults to true. The warning is only spoken for caps of 60 seconds or more; shorter caps always end with just the farewell. A `null` cap runs at the 600-second platform default, so the warning applies there too."
                   },
                   "background_audio_id": {
                     "type": [
@@ -21099,10 +21108,15 @@
               "integer",
               "null"
             ],
-            "minimum": 60,
+            "minimum": 25,
             "maximum": 3600,
             "default": 600,
-            "description": "Hard cap on call duration in seconds. New agents default to 600 (10 minutes). Set to `null` to disable the cap. Range 60-3600. At `(cap - 30s)` the agent speaks a soft \"wrapping up\" warning; at the cap it speaks the agent's `end_call_message` (or a default farewell) and gracefully ends the session through the standard end-of-call path so transcript, recording, billing and the `session.completed` webhook all fire normally."
+            "description": "Hard cap on call duration in seconds. New agents default to 600 (10 minutes). `null` falls back to that 600-second default. Range 25-3600. At `(cap - 30s)` the agent speaks a soft \"wrapping up\" warning (when `call_duration_warning_enabled` is true and the cap is 60s or more); at the cap it speaks the agent's `end_call_message` (or a default farewell) and gracefully ends the session through the standard end-of-call path so transcript, recording, billing and the `session.completed` webhook all fire normally."
+          },
+          "call_duration_warning_enabled": {
+            "type": "boolean",
+            "default": true,
+            "description": "Whether the agent speaks a soft warning (\"Just a heads up — we're approaching the call time limit, so let's wrap up shortly.\") 30 seconds before `max_call_duration_secs`. Defaults to true. The warning is only spoken for caps of 60 seconds or more; shorter caps always end with just the farewell. A `null` cap runs at the 600-second platform default, so the warning applies there too."
           },
           "background_audio_id": {
             "type": [
