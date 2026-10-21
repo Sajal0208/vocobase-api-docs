@@ -24,10 +24,9 @@ standard end-of-call path so transcript, recording, billing and the
 
 **New agents default to `max_call_duration_secs = 600` (10 minutes).**
 You can override this between **25 and 3600** seconds (25 seconds to 1
-hour) per agent, or set it to `null` to disable the cap entirely.
-
-Existing agents created before this default landed may still hold
-`null`; opt them in by writing `600` via the agent update endpoint.
+hour) per agent. Calls cannot run uncapped: an agent whose cap is `null`
+(including agents created before this default landed) runs at the
+600-second default, and the warning below applies to it too.
 
 ### Behavior at the cap
 
@@ -74,14 +73,8 @@ curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
   -d '{ "max_call_duration_secs": 900 }'
 ```
 
-Set to `null` to disable:
-
-```bash
-curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
-  -H "Authorization: Bearer rg_live_..." \
-  -H "Content-Type: application/json" \
-  -d '{ "max_call_duration_secs": null }'
-```
+Setting it to `null` clears the per-agent value; calls then run at the
+600-second default.
 
 ---
 
