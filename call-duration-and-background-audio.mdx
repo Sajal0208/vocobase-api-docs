@@ -23,7 +23,7 @@ standard end-of-call path so transcript, recording, billing and the
 ### Default
 
 **New agents default to `max_call_duration_secs = 600` (10 minutes).**
-You can override this between **60 and 3600** seconds (1 minute to 1
+You can override this between **25 and 3600** seconds (25 seconds to 1
 hour) per agent, or set it to `null` to disable the cap entirely.
 
 Existing agents created before this default landed may still hold
@@ -35,8 +35,35 @@ The cap fires in two stages so the wind-down sounds natural:
 
 | Time            | What the bot does |
 |-----------------|-------------------|
-| `cap − 30s`     | Speaks a soft warning: *"Just a heads up — we're approaching the call time limit, so let's wrap up shortly."* The conversation can continue. |
-    | `cap`           | Speaks the agent's `endCallMessage` (or a default farewell when none is set), then ends the call through the normal end-of-call path — transcript, recording, billing and the `session.completed` webhook all flow as if it were a normal hangup. |
+| `cap − 30s`     | Speaks a soft warning: *"Just a heads up — we're approaching the call time limit, so let's wrap up shortly."* The conversation can continue. Only when `call_duration_warning_enabled` is `true` **and** the cap is 60 seconds or more (see below). |
+| `cap`           | Speaks the agent's `endCallMessage` (or a default farewell when none is set), then ends the call through the normal end-of-call path — transcript, recording, billing and the `session.completed` webhook all flow as if it were a normal hangup. |
+
+### Turning off the time-limit warning
+
+The `cap − 30s` warning is controlled per agent by
+`call_duration_warning_enabled` (boolean, default `true`). Set it to
+`false` to skip the warning; the bot then stays silent about the limit and
+just speaks the farewell at the cap.
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
+  -H "Authorization: Bearer rg_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{ "call_duration_warning_enabled": false }'
+```
+
+- Omitted on create → `true`. Omitted on update → unchanged.
+- A non-boolean value is rejected with `400 VALIDATION_ERROR`.
+- Returned on every agent read (`GET /agent/{id}`, `GET /agent/all`).
+- Applies to the inbound side independently via
+  `PUT /agent/{id}/inbound/config`.
+
+<Note>
+**Caps under 60 seconds never get the warning**, whatever this flag says.
+On a short call, a warning 30 seconds before the end would land in the first
+half of the conversation, so the bot just ends the call with the farewell at
+the cap. Caps of 60 seconds or more behave exactly as described above.
+</Note>
 
 ### Setting the cap
 
