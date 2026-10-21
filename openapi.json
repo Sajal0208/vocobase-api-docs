@@ -5535,7 +5535,7 @@
                     ],
                     "minimum": 25,
                     "maximum": 3600,
-                    "description": "Update the hard call-duration cap. Range 25-3600. Pass `null` to remove the cap. New agents default to 600 (10 minutes); existing agents created before the default landed may currently hold `null`."
+                    "description": "Update the hard call-duration cap. Range 25-3600. Passing `null` clears the per-agent value; calls then run at the 600-second default. New agents default to 600 (10 minutes); existing agents created before the default landed may currently hold `null` and therefore run at 600s."
                   },
                   "call_duration_warning_enabled": {
                     "type": "boolean",

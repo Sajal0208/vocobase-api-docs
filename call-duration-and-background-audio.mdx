@@ -52,7 +52,9 @@ curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
 ```
 
 - Omitted on create → `true`. Omitted on update → unchanged.
-- A non-boolean value is rejected with `400 VALIDATION_ERROR`.
+- On create, `null` is treated as omitted. On update, `null` leaves the value
+  unchanged; any other non-boolean value is rejected with
+  `400 VALIDATION_ERROR`.
 - Returned on every agent read (`GET /agent/{id}`, `GET /agent/all`).
 - Applies to the inbound side independently via
   `PUT /agent/{id}/inbound/config`.
