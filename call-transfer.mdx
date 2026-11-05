@@ -1,11 +1,13 @@
 ---
 title: "Call Transfer & Behavior"
-description: "Transfer live calls to human agents and configure end-call/transfer triggers"
+description: "Transfer live calls to a human, choose the number per call, and configure end-call behavior"
 ---
 
 # Call Transfer & Behavior
 
-Vocobase agents can transfer live calls to a human agent mid-conversation. When a caller asks to speak to a human, the agent announces the transfer and the caller is bridged to the configured human number. You can also configure the agent to end calls automatically when the conversation goal is reached.
+Vocobase agents can transfer a live call to a human mid-conversation. When the caller asks for a person (or whatever your `transfer_instructions` say), the agent announces the transfer and the caller is bridged to a human number. You decide which number: one fixed number, a number taken from the call's variables, one of a list of named numbers, or a number your own server returns at the moment of transfer.
+
+You can also configure the agent to end calls automatically when the conversation is done.
 
 ---
 
@@ -15,35 +17,28 @@ Vocobase agents can transfer live calls to a human agent mid-conversation. When 
 Caller speaks with your AI agent
         │
         ▼
-Agent detects a transfer trigger (e.g., caller asks for human)
+Agent detects a transfer trigger (e.g., caller asks for a human)
         │
         ▼
 Agent speaks the transfer announcement ("Please hold while I transfer you...")
         │
         ▼
-Vocobase transfers the call to the human's phone number
+Vocobase works out the number (fixed, variable, named list, or your webhook)
         │
         ▼
-Human picks up — caller is now speaking with a human agent
+Vocobase bridges the caller to that number
         │
         ▼
-Webhook fires session.completed for the agent-handled portion
+session.completed fires for the agent-handled portion
 ```
 
-1. The agent detects a trigger condition — e.g., the caller says "let me speak to a manager"
-2. The agent speaks the configured transfer announcement
-3. Vocobase transfers the caller to the configured human phone number
-4. The `session.completed` webhook includes transfer metadata so you can identify the handoff
-
-<Note>
-  The number you transfer to must be in E.164 format (e.g., `+14155551234`).
-</Note>
+Transfers are started by the agent itself during the call. There is no public API to trigger a transfer from outside the call.
 
 ---
 
 ## Enabling call transfer on an agent
 
-Set `transfer_enabled` to `true` when creating or updating an agent. Provide the phone number the caller should be transferred to. The `transfer_instructions` field is plain English guidance for when the agent should transfer:
+Set `transfer_enabled` to `true` and tell the agent where to send the caller. `transfer_instructions` is plain English guidance for *when* to transfer:
 
 ```bash
 curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
@@ -53,38 +48,230 @@ curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
     "transfer_enabled": true,
     "transfer_number": "+14155551234",
     "transfer_message": "Let me connect you with a human agent now.",
-    "transfer_instructions": "If the caller asks to speak to a human, agent, supervisor, manager, or representative, transfer the call. If the caller becomes visibly upset, raises their voice, or repeatedly expresses frustration, transfer the call. If the caller has a billing or refund question that requires account access you do not have, transfer the call."
+    "transfer_instructions": "If the caller asks to speak to a human, agent, supervisor, manager, or representative, transfer the call. If the caller has a billing or refund question that needs account access you do not have, transfer the call."
   }'
+```
+
+---
+
+## Choosing the number
+
+There are four ways to pick the destination. The first three are **static mode** (`transfer_mode: "static"`, the default). The fourth is **webhook mode**.
+
+| Option | Use it when | Fields |
+|--------|-------------|--------|
+| [Fixed number](#fixed-number) | Every transfer goes to the same place | `transfer_number` |
+| [Number from a variable](#number-from-a-variable) | Each lead or caller has their own owner or branch number | `transfer_number` with `{{variable}}`, plus `transfer_number_fallback` |
+| [Named destinations](#named-destinations) | The agent should pick between a few teams (Sales, Support, …) | `transfer_destinations` |
+| [Webhook mode](#webhook-mode) | Your system decides the number live (round-robin, who is free, CRM owner) | `transfer_mode: "webhook"`, `transfer_webhook`, `transfer_number_fallback` |
+
+### Fixed number
+
+Set `transfer_number` to an E.164 number (e.g. `+919876543210`). Spaces are stripped and the number is stored in canonical E.164.
+
+### Number from a variable
+
+`transfer_number` may be a `{{variable}}` template. It is filled in per call from the call's variables: the `variables` you pass when starting a call, campaign CSV or Google Sheets columns, pre-call hook outputs, and built-in call metadata (`caller_phone`, `callee_phone`, `from_number`, `to_number`, `call_direction`, `session_id`).
+
+```json
+{
+  "transfer_enabled": true,
+  "transfer_number": "{{owner_phone}}",
+  "transfer_number_fallback": "+919876543210"
+}
+```
+
+- A value without a country code (e.g. `9109518550`) is read in the country of the Vocobase number on the call.
+- If the variable is missing or is not a valid number, the call goes to `transfer_number_fallback`. Without a fallback, the transfer does not happen and the caller stays with the agent.
+- `transfer_number_fallback` must be a literal E.164 number. It cannot contain a `{{variable}}`.
+
+<Warning>
+  Whoever controls the variable controls where the call goes. Only use variables that come from your own systems (your API calls, your campaign files, your hooks), not from anything the caller can set.
+</Warning>
+
+### Named destinations
+
+`transfer_destinations` is a list of up to 20 named numbers. The agent picks one by name; it never makes up a number.
+
+```json
+{
+  "transfer_enabled": true,
+  "transfer_destinations": [
+    {
+      "key": "sales",
+      "label": "Sales team",
+      "number": "+919876543210",
+      "llmDescription": "Caller wants to buy, upgrade, or asks about pricing"
+    },
+    {
+      "key": "support",
+      "label": "Support team",
+      "number": "{{support_phone}}",
+      "llmDescription": "Caller has a problem with an existing order or account"
+    }
+  ]
+}
+```
+
+| Entry field | Rules |
+|-------------|-------|
+| `key` | Required, unique in the list, up to 40 characters. The value the agent picks. |
+| `label` | Required, up to 100 characters. Shown in the dashboard. |
+| `number` | Required. E.164, or a `{{variable}}` template. |
+| `llmDescription` | Required, up to 500 characters. Tells the agent *when* to pick this one. |
+
+A non-empty list replaces `transfer_number`. Send `null` (or `[]`) to turn the list off.
+
+### Webhook mode
+
+In webhook mode, Vocobase asks **your server** which number to dial at the moment of transfer. This is for routing you decide live: the lead's owner in your CRM, the next free agent, round-robin, business hours, and so on.
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "transfer_enabled": true,
+    "transfer_mode": "webhook",
+    "transfer_webhook": {
+      "url": "https://example.com/vocobase/transfer",
+      "secret": "your-signing-secret",
+      "timeout_ms": 3000
+    },
+    "transfer_number_fallback": "+919876543210"
+  }'
+```
+
+You can also set this in the dashboard: agent → Advanced → Call transfer → Number source → **Webhook**.
+
+In webhook mode the agent's `transfer_number` and `transfer_destinations` are kept but not used. Switch back with `"transfer_mode": "static"`.
+
+#### The request we send
+
+When the agent decides to transfer, Vocobase sends a `POST` to your URL. The caller is on hold while this runs, so answer quickly.
+
+```http
+POST /vocobase/transfer HTTP/1.1
+Content-Type: application/json
+X-Vocobase-Event: call.transfer.resolve
+X-Vocobase-Timestamp: 1762352400000
+X-Vocobase-Signature: v1=5d41402abc4b2a76b9719d911017c592...
+X-Vocobase-Session-Id: 6f1c2a9e-8b3d-4c1e-9a7f-2d5e8b1c4a3f
 ```
 
 ```json
 {
-  "success": true,
-  "data": {
-    "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-    "transfer_enabled": true,
-    "transfer_number": "+14155551234",
-    "transfer_message": "Let me connect you with a human agent now.",
-    "transfer_instructions": "If the caller asks to speak to a human ...",
-    ...
+  "event": "call.transfer.resolve",
+  "version": "2026-10-15",
+  "session_id": "6f1c2a9e-8b3d-4c1e-9a7f-2d5e8b1c4a3f",
+  "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "direction": "outbound",
+  "call": {
+    "provider": "plivo",
+    "provider_call_id": "9c8b7a6d-...",
+    "from_number": "+918035000000",
+    "to_number": "+919812345678"
+  },
+  "reason": "Caller wants to talk to the loan officer about EMI options",
+  "variables": {
+    "lead_id": "L-10293",
+    "owner_phone": "+919876543210",
+    "caller_phone": "+919812345678"
   }
 }
 ```
 
-### Transfer agent fields
+| Field | Description |
+|-------|-------------|
+| `event` | Always `call.transfer.resolve`. |
+| `version` | Payload version, currently `2026-10-15`. |
+| `session_id` | The Vocobase session ID. Trust this one (it is signed), not the `X-Vocobase-Session-Id` header. |
+| `agent_id` | The agent handling the call. |
+| `direction` | `inbound` or `outbound`. |
+| `call` | Provider, the provider's call ID, and the two numbers on the call. |
+| `reason` | Why the agent is transferring, in its own words. |
+| `variables` | All of the call's variables: what you passed at call start, campaign columns, pre-call hook outputs, and call metadata. |
+
+<Note>
+  `variables` contains everything the call knows, including pre-call hook outputs. Make sure your endpoint is one you are happy to receive that data at.
+</Note>
+
+#### What to answer
+
+Reply with HTTP `2xx` and a JSON object:
+
+```json
+{ "to_number": "+919876543210" }
+```
+
+- `to_number` must be E.164 **with** the country code (`+91…`). We do not guess a country here.
+- It must not be one of the two numbers already on the call.
+- Keep the body small (under 16 KB). Redirects (`3xx`) are not followed.
+
+#### When the lookup fails
+
+Vocobase makes **one** attempt with no retries. If your server is too slow, errors, or returns something unusable, the call goes to `transfer_number_fallback`. If there is no fallback, the transfer is skipped and the caller stays with the agent.
+
+| Problem | What happens |
+|---------|--------------|
+| No reply within `timeout_ms` | Fallback |
+| Non-2xx status (including redirects) | Fallback |
+| Body is not a JSON object | Fallback |
+| `to_number` missing or not valid E.164 | Fallback |
+| `to_number` is a number already on the call | Fallback |
+
+Always set `transfer_number_fallback` in webhook mode. Saving a webhook agent without one is allowed, but the API returns a warning.
+
+#### Verifying the signature
+
+When `transfer_webhook.secret` is set, every request carries `X-Vocobase-Signature: v1=<hex>`, where `<hex>` is HMAC-SHA256 with your secret over `<X-Vocobase-Timestamp>.<raw request body>`. This is the same scheme as [inbound routing policies](/inbound-routing-policies).
+
+```javascript
+import crypto from 'node:crypto';
+
+function verifyVocobase(req, rawBody, secret) {
+  const ts = req.headers['x-vocobase-timestamp'];
+  const sig = req.headers['x-vocobase-signature'] || '';
+  // Reject old requests (replays). The timestamp is in milliseconds.
+  if (!ts || Math.abs(Date.now() - Number(ts)) > 5 * 60 * 1000) return false;
+  const expected =
+    'v1=' + crypto.createHmac('sha256', secret).update(`${ts}.${rawBody}`).digest('hex');
+  return (
+    sig.length === expected.length &&
+    crypto.timingSafeEqual(Buffer.from(sig), Buffer.from(expected))
+  );
+}
+```
+
+Compute the HMAC over the raw bytes you received, before any JSON parsing.
+
+#### URL and timeout rules
+
+- `url` must be `https`, up to 2048 characters, and must not point to localhost or a private/internal address.
+- `timeout_ms` is an integer from `500` to `5000`. Default `3000`. It covers the whole lookup, DNS included.
+- `secret` is write-only and up to 1024 characters. Reads only return `has_secret`. Send `"secret": null` (or `""`) to remove it, or leave it out to keep the current one.
+- Send `"transfer_webhook": null` to remove the URL and the secret.
+
+---
+
+## Transfer agent fields
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `transfer_enabled` | `boolean` | Master toggle. Defaults to `false`. |
-| `transfer_number` | `string` | E.164 phone number to transfer to. Max 32 characters. Required when `transfer_enabled` is true. |
-| `transfer_message` | `string` | Announcement spoken right before transferring. Max 500 characters. If empty, the bot uses a platform default. |
-| `transfer_instructions` | `string` (≤2000 chars) | Free-text natural-language instructions for when to transfer. Pass `null` or empty to skip the section. |
+| `transfer_mode` | `"static"` \| `"webhook"` | How the number is chosen. Defaults to `"static"`. |
+| `transfer_number` | `string` | Static mode. E.164 number, or a `{{variable}}` template. |
+| `transfer_number_fallback` | `string` | E.164 number used when a template or the webhook gives no usable number. Cannot contain a `{{variable}}`. |
+| `transfer_destinations` | `array` \| `null` | Static mode. Up to 20 named numbers the agent picks from. Replaces `transfer_number` when non-empty. |
+| `transfer_webhook` | `object` \| `null` | Webhook mode. Write: `{ url, secret, timeout_ms }`. Read: `{ url, timeout_ms, has_secret }`, or `null` when no URL is set. Required (with a `url`) when `transfer_mode` is `"webhook"` and transfer is enabled. |
+| `transfer_message` | `string` | Announcement spoken right before transferring. Max 500 characters. If empty, the agent uses a platform default. |
+| `transfer_instructions` | `string` (≤2000 chars) | Free-text instructions for when to transfer. Pass `null` or empty to skip. |
 
 ---
 
 ## Writing transfer instructions
 
-`transfer_instructions` is plain English. There's no fixed taxonomy — write conditions specific to your use case:
+`transfer_instructions` is plain English. There's no fixed taxonomy. Write conditions specific to your use case:
 
 ```text
 If the caller mentions they're driving and we'll call them back, transfer the call to our voicemail line.
@@ -93,7 +280,7 @@ If the caller mentions a chargeback or dispute, immediately transfer to billing.
 ```
 
 <Note>
-  **Hard cutover** — the prior `transferTriggers: string[]` array of fixed keys (`CALLER_ASKS_HUMAN`, `FRUSTRATED`, etc.) has been removed. If you were posting that field, replace it with `transfer_instructions` containing the equivalent prose. Existing agents were auto-migrated.
+  **Hard cutover:** the prior `transferTriggers: string[]` array of fixed keys (`CALLER_ASKS_HUMAN`, `FRUSTRATED`, etc.) has been removed. If you were posting that field, replace it with `transfer_instructions` containing the equivalent prose. Existing agents were auto-migrated.
 </Note>
 
 ---
@@ -144,60 +331,12 @@ V2 only exposes the boolean toggle. `user_idle_timeout_secs` and `max_idle_retri
 
 ## What happens when a call is transferred
 
-When a transfer happens:
-
 1. The agent speaks the configured `transfer_message`.
-2. Vocobase transfers the caller to `transfer_number`.
-3. The `session.completed` webhook includes `data.call.transferred: true`.
+2. Vocobase works out the number and bridges the caller to it.
+3. A `call.transferred` webhook fires at that moment (Plivo, Vobiz, Tata Smartflo and SIP calls).
+4. The `session.completed` webhook fires when the agent-handled portion ends, with `data.call.transferred: true`. See [`session.completed` payload](/webhooks/payloads#transferred-calls).
 
-The `session.completed` webhook fires when the agent-handled portion ends. Distinguish a transferred call from a normal hangup via `data.call.transferred` on the webhook payload — see [`session.completed` payload](/webhooks/payloads#transferred-calls).
-
-`duration_seconds` reflects only the bot leg. `recording_url`, when present, is the bot-leg recording — the human side is not recorded.
-
----
-
-## Initiating a transfer from the API
-
-You can programmatically transfer an active call to a human number using the transfer endpoint:
-
-```bash
-curl -X POST https://api.vocobase.com/api/v2/calls/{call_id}/transfer \
-  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "to": "+919876543210"
-  }'
-```
-
-```json
-{
-  "success": true,
-  "data": {
-    "message": "Call transferred",
-    "callId": "c1234567-abcd-1234-abcd-123456789012",
-    "sessionId": "s1234567-abcd-1234-abcd-123456789012"
-  }
-}
-```
-
-### Request
-
-| Field | Type | Required | Description |
-|-------|------|----------|-------------|
-| `to` | `string` | No | E.164 number to transfer to. If omitted, the agent's `transfer_number` is used. |
-
-### Response
-
-| Field | Type | Description |
-|-------|------|-------------|
-| `success` | `boolean` | Whether the transfer was queued successfully |
-| `data.message` | `string` | Status message |
-| `data.callId` | `string` | The call identifier |
-| `data.sessionId` | `string` | The Vocobase session ID |
-
-<Warning>
-  The call must be actively in-progress for a transfer to succeed. Transferring an already-completed call returns a 400 error.
-</Warning>
+`duration_seconds` reflects only the bot leg. `recording_url`, when present, is the bot-leg recording. The human side is not recorded.
 
 ---
 
@@ -205,15 +344,19 @@ curl -X POST https://api.vocobase.com/api/v2/calls/{call_id}/transfer \
 
 <Steps>
   <Step title="Enable transfer on your agent">
-    Set `transfer_enabled: true`, a valid E.164 `transfer_number`, and clear `transfer_instructions`.
+    Set `transfer_enabled: true`, a destination (number, template, list or webhook), a `transfer_number_fallback`, and clear `transfer_instructions`.
+  </Step>
+
+  <Step title="Webhook mode: check your endpoint first">
+    Send yourself the sample request above and confirm you answer `{"to_number": "+…"}` within your `timeout_ms`.
   </Step>
 
   <Step title="Place a test call">
-    Make a call to your agent. During the conversation, say something that matches your transfer instructions, like "Can I talk to a real person?"
+    Call your agent and say something that matches your transfer instructions, like "Can I talk to a real person?"
   </Step>
 
   <Step title="Verify in webhook">
-    After the call ends, check your `session.completed` webhook. A transferred call will include the transfer details in the session metadata.
+    After the call, check your `session.completed` webhook for `data.call.transferred: true` and `data.call.transfer_target`.
   </Step>
 </Steps>
 
@@ -223,10 +366,10 @@ curl -X POST https://api.vocobase.com/api/v2/calls/{call_id}/transfer \
 
 <CardGroup cols={2}>
   <Card title="Inbound Calls" icon="phone-incoming" href="/inbound-calls">
-    Set up inbound call handling with Twilio.
+    Set up inbound call handling.
   </Card>
-  <Card title="Custom Functions" icon="code" href="/custom-functions">
-    Create custom LLM-callable API functions for your agents.
+  <Card title="Pre-call variables" icon="brackets-curly" href="/pre-call-variables">
+    Pass the variables a `{{variable}}` transfer number reads.
   </Card>
   <Card title="Webhooks" icon="webhook" href="/webhooks/setup">
     Configure webhook notifications for call events.
