@@ -8525,6 +8525,17 @@
                                 "credits_used": {
                                   "type": "number",
                                   "description": "Credits charged for this leg; only `answered` legs are charged."
+                                },
+                                "full_recording_url": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "nullable": true,
+                                  "description": "Presigned URL of the whole call as recorded by the network (AI part, hand-off and human part in one MP3), valid for 7 days. `null` when it was not kept."
+                                },
+                                "full_recording_expires_at": {
+                                  "type": "string",
+                                  "format": "date-time",
+                                  "nullable": true
                                 }
                               }
                             }
@@ -8575,10 +8586,11 @@
             "schema": {
               "type": "string",
               "enum": [
-                "human"
+                "human",
+                "full"
               ]
             },
-            "description": "`human` returns a fresh URL for the recording of the part after a transfer (the human side) instead of the call recording. Only for calls that carry `human_leg`."
+            "description": "`human` returns a fresh URL for the recording of the part after a transfer (the human side); `full` returns the whole call as recorded by the network (AI part, hand-off, human part). Only for calls that carry `human_leg`."
           }
         ],
         "responses": {
@@ -8619,9 +8631,10 @@
                         "leg": {
                           "type": "string",
                           "enum": [
-                            "human"
+                            "human",
+                            "full"
                           ],
-                          "description": "Present only when `?leg=human` was requested."
+                          "description": "Present only when `?leg=` was requested: `human` or `full`."
                         }
                       }
                     }
