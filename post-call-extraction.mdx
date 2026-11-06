@@ -131,7 +131,39 @@ Content-Type: application/json
 
 `dry_run: true` returns the values without persisting and without re-firing the account webhook (useful for prompt iteration). The replay always uses the agent's **current** `extraction_config`, not the config at original-call time. Returns 400 when the agent has no `extraction_config` defined.
 
-## 5. Auto-export every extraction to Google Sheets
+## 5. Per-call extraction sets
+
+When `GET /api/v2/config` returns `capabilities.per_call_extraction_sets: true`, you can attach
+[extraction sets](/api-reference/extraction-sets/list-extraction-sets) to a single call instead of to the agent:
+
+```bash
+POST /api/v2/calls/start
+Authorization: Bearer rg_live_...
+Content-Type: application/json
+
+{
+  "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+  "to_number": "+919876543210",
+  "provider": "voicelink",
+  "extraction_set_ids": ["<extraction-set-id>"]
+}
+```
+
+The sets' keys are merged after the agent's own keys, its attached sets and any campaign sets,
+and the values land in `session.extraction` on `GET /calls/{id}` and in the `session.completed`
+webhook, exactly like any other key. `GET /calls/{id}` echoes `session.extraction_set_ids`
+(an empty array when none were passed) so you can see what a call was dialled with.
+
+Rules:
+
+- At most 10 distinct ids per call; duplicates are ignored. A malformed list or more than 10 ids is `400 VALIDATION_ERROR`.
+- Every id must be one of your sets, or the request is `404 NOT_FOUND` (`Extraction set not found: <id>`).
+- A key name already defined by the agent, an attached set or an earlier set in the list, or a call that would exceed 50 keys, is `409 EXTRACTION_KEY_CLASH`.
+- In every error case the call is **not placed**.
+- `limits` on `GET /api/v2/config` carries the enforced caps: `max_keys_per_call` (50), `max_key_description_chars` (3000) and `max_key_name_chars` (128).
+- Only `POST /calls/start` takes per-call sets. They are not available on web sessions, inbound calls, the dashboard sandbox, or Vocobase campaigns.
+
+## 6. Auto-export every extraction to Google Sheets
 
 Instead of (or alongside) handling the webhook, you can have Vocobase append each completed call's extraction to a Google Sheet automatically — via a **post-call lifecycle hook**, with no endpoint to host.
 

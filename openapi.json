@@ -8018,6 +8018,15 @@
                       "callee_name": "Sajal",
                       "mobile_number": "+919876543210"
                     }
+                  },
+                  "extraction_set_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string",
+                      "format": "uuid"
+                    },
+                    "maxItems": 10,
+                    "description": "Optional. Extraction sets (see `/extraction-sets`) to apply to this call only, on top of the agent's own keys and attached sets. Keys are merged in this order (agent inline keys, agent-attached sets, campaign sets, then these) and appear in `session.extraction` like any other key. Max 10 distinct ids; duplicates are ignored. 404 `NOT_FOUND` if an id is not one of your sets; 409 `EXTRACTION_KEY_CLASH` if a key name is already defined by the agent or another set, or the call would exceed 50 keys. In every error case the call is not placed. Not available on web sessions or inbound calls. Check that `GET /config` reports `capabilities.per_call_extraction_sets: true` before relying on this field."
                   }
                 }
               },
@@ -8114,7 +8123,7 @@
             }
           },
           "400": {
-            "description": "Validation error or ambiguous connection selection.",
+            "description": "Validation error (including a malformed `extraction_set_ids` or more than 10 ids) or ambiguous connection selection.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8166,7 +8175,38 @@
             }
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "Agent, connection or extraction set not found. An id in `extraction_set_ids` that is not one of your sets returns this and the call is not placed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "Extraction set not found: 3f6c2a10-8d4e-4b7a-9c1f-2e5d7a9b0c11"
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "A key from `extraction_set_ids` clashes with a key already defined for this call (agent inline keys, an attached set, or an earlier id in the list); the message names the key and both sets. Going over 50 extraction keys on the call also returns `EXTRACTION_KEY_CLASH` (\"Key name clash: This call would have 51 extraction keys; the maximum is 50\"). The call is not placed.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "EXTRACTION_KEY_CLASH",
+                    "message": "Key name clash: key 'will_renew' from set 'Renewals' is already defined by set 'Sales basics'"
+                  }
+                }
+              }
+            }
           },
           "429": {
             "description": "Concurrent call limit reached.",
@@ -21095,6 +21135,35 @@
           "created_at": {
             "type": "string",
             "format": "date-time"
+          },
+          "capabilities": {
+            "type": "object",
+            "description": "Present only when the account can use optional features. Absent keys mean 'not available'.",
+            "properties": {
+              "per_call_extraction_sets": {
+                "type": "boolean",
+                "const": true,
+                "description": "`POST /calls/start` accepts `extraction_set_ids`."
+              }
+            }
+          },
+          "limits": {
+            "type": "object",
+            "description": "Present with `capabilities`. The enforced caps for extraction keys.",
+            "properties": {
+              "max_keys_per_call": {
+                "type": "integer",
+                "example": 50
+              },
+              "max_key_description_chars": {
+                "type": "integer",
+                "example": 3000
+              },
+              "max_key_name_chars": {
+                "type": "integer",
+                "example": 128
+              }
+            }
           }
         }
       },
@@ -21976,7 +22045,15 @@
                 "$ref": "#/components/schemas/ExtractionResult"
               }
             ],
-            "description": "Post-call extraction result. `null` until extraction runs after the call ends. Always `null` when the agent has no `extraction_config`."
+            "description": "Post-call extraction result. `null` until extraction runs after the call ends. Always `null` when the call has no extraction keys (no agent `extraction_config`, no attached or campaign sets, and no per-call `extraction_set_ids`)."
+          },
+          "extraction_set_ids": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "Extraction sets passed in `extraction_set_ids` when the call was started (de-duplicated, in request order). Empty array when none were passed."
           },
           "hold": {
             "oneOf": [
@@ -22054,7 +22131,8 @@
               "properties": {
                 "name": {
                   "type": "string",
-                  "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$"
+                  "pattern": "^[a-zA-Z_][a-zA-Z0-9_]*$",
+                  "maxLength": 128
                 },
                 "type": {
                   "type": "string",
@@ -22070,7 +22148,7 @@
                 },
                 "description": {
                   "type": "string",
-                  "maxLength": 500
+                  "maxLength": 3000
                 }
               }
             }
@@ -24035,7 +24113,8 @@
         "properties": {
           "name": {
             "type": "string",
-            "description": "Field name in the extraction result."
+            "description": "Field name in the extraction result.",
+            "maxLength": 128
           },
           "type": {
             "type": "string",
@@ -24051,7 +24130,8 @@
           },
           "description": {
             "type": "string",
-            "description": "Tells the model what to look for."
+            "description": "Tells the model what to look for.",
+            "maxLength": 3000
           }
         }
       },
