@@ -28,6 +28,7 @@ endpoint's `events` allowlist — see
 | `session.completed` | A session finished and the post-call pipeline is done |
 | `call.status.updated` | Telephony call status changed |
 | `call.transferred` | The call was handed to a human or another number |
+| `call.transfer.completed` | The human side of a transferred call ended: whether it was picked up, with the recording and transcript of that part. Opt-in per account — see [below](#event-calltransfercompleted) |
 | `whatsapp.message.sent` | An outbound WhatsApp message was accepted by the provider |
 | `whatsapp.message.failed` | An outbound WhatsApp message could not be sent |
 | `whatsapp.message.status_updated` | Delivery or read receipt for a WhatsApp message |
@@ -623,7 +624,7 @@ When an agent transfers a live call to a human:
 The `session.completed` webhook fires once the bot leg ends, not when the caller eventually hangs up with the human. This means:
 
 - `duration_seconds` reflects only the bot leg (caller-on-with-bot time).
-- `recording_url`, when present, is the bot-leg recording. The human side is not recorded.
+- `recording_url`, when present, is the bot-leg recording. The human side is reported separately, by [`call.transfer.completed`](#event-calltransfercompleted), once that part of the call has ended.
 - `call.transferred` is `true`; `call.transferred_at` is the redirect moment; `call.transfer_target` is the destination E.164.
 
 Use `call.transferred` as the cheap discriminator if your downstream automation needs to distinguish a transferred call from a normal hangup.
@@ -734,7 +735,138 @@ Emitted for phone calls only. Browser WebRTC sessions cannot be transferred.
   `call.transferred` does not replace `session.completed`. A transferred call
   still emits `session.completed` when the bot leg ends, with
   `call.transferred: true`. Use `call.transferred` when you need to react at
-  hand-off time; use `session.completed` for the final record.
+  hand-off time; use `session.completed` for the final record of the bot leg,
+  and `call.transfer.completed` for what happened after the hand-off.
+</Note>
+
+## Event: `call.transfer.completed`
+
+Fired **once per transferred call**, when the human side of the call has ended
+and Vocobase knows how it went: whether the person the caller was transferred
+to actually picked up, and — when they did — the recording and transcript of
+that conversation.
+
+This event is **opt-in per account**. It is not emitted, and does not appear in
+`available_events`, until Vocobase enables it for you. Ask your account contact.
+Once enabled it reaches every endpoint whose allowlist is empty, and any endpoint
+that lists it explicitly.
+
+Emitted for phone calls transferred by a webhook-mode lookup (see
+[Call transfer → Webhook mode](/call-transfer#webhook-mode)). Transfers to a
+fixed number configured on the agent are not tracked yet.
+
+### How the outcome is decided
+
+Vocobase looks at the network's end-of-call report first. A busy tone, a
+no-answer, or a failed bridge decides the leg within seconds of the call ending,
+without any audio. When the signals do not settle it, the recording of the part
+after the hand-off is transcribed and read: two people talking means
+`answered`; a voicemail greeting, a network announcement, or silence means
+`no_answer`. Anything that still is not clear is reported as `unknown` rather
+than guessed — show those to a person.
+
+### Payload structure
+
+```json
+{
+  "event": "call.transfer.completed",
+  "timestamp": "2026-05-06T14:41:02.000Z",
+  "data": {
+    "session_id": "s1234567-abcd-1234-abcd-123456789012",
+    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+    "agent_name": "Sales Assistant",
+    "call": {
+      "call_id": "c1234567-abcd-1234-abcd-123456789012",
+      "client_reference_id": "lead-9821",
+      "from_number": "+14155551234",
+      "to_number": "+919876543210",
+      "direction": "outbound",
+      "transferred_at": "2026-05-06T14:32:11.000Z",
+      "transfer_target": "+14155559999"
+    },
+    "human_leg": {
+      "status": "answered",
+      "status_reason": "two_party_speech",
+      "started_at": "2026-05-06T14:32:11.000Z",
+      "ended_at": "2026-05-06T14:40:58.000Z",
+      "duration_seconds": 527,
+      "recording_url": "https://storage.googleapis.com/.../transfer-legs/.../s1234567.mp3?X-Goog-Algorithm=...",
+      "recording_expires_at": "2026-05-13T14:41:02.000Z",
+      "transcript": [
+        { "speaker": "1", "text": "Hello, this is Priya from the sales team.", "start_seconds": 18.4, "end_seconds": 21.0 },
+        { "speaker": "2", "text": "Hi, I was asking about the course fees.", "start_seconds": 21.6, "end_seconds": 24.2 }
+      ],
+      "transcript_truncated": false,
+      "credits_used": 2.7
+    }
+  }
+}
+```
+
+### Field reference
+
+| Field | Type | Description |
+|---|---|---|
+| `event` | string | Always `"call.transfer.completed"` |
+| `timestamp` | string (ISO 8601) | When Vocobase created the webhook event |
+| `data.session_id` | string (UUID) | The session whose call was transferred |
+| `data.agent_id` | string (UUID) | The agent that handed off the call. Same agent, and so the same endpoint routing, as `call.transferred` |
+| `data.agent_name` | string or null | Agent display name |
+| `data.call.call_id` | string (UUID) | Unique call identifier |
+| `data.call.client_reference_id` | string or null | Client-supplied correlation key from `POST /calls/start`, when provided |
+| `data.call.from_number` | string | Caller phone number (E.164) |
+| `data.call.to_number` | string | Destination phone number (E.164) |
+| `data.call.direction` | string | `outbound` or `inbound` |
+| `data.call.transferred_at` | string (ISO 8601) or null | When the hand-off was requested |
+| `data.call.transfer_target` | string or null | E.164 number the caller was transferred to |
+| `data.human_leg.status` | string | `answered`, `no_answer`, `busy`, `failed`, or `unknown`. See the table below. |
+| `data.human_leg.status_reason` | string or null | Why that status was chosen. A stable token, never free text. See [Status reasons](#status-reasons). |
+| `data.human_leg.started_at` | string (ISO 8601) or null | When the hand-off was requested (same as `call.transferred_at`). Ring time is included from here. |
+| `data.human_leg.ended_at` | string (ISO 8601) or null | When the network reported the call ended |
+| `data.human_leg.duration_seconds` | integer or null | Seconds from the hand-off to the end of the call — ringing included — capped at the length of the recording when one exists |
+| `data.human_leg.recording_url` | string or null | Presigned URL of the recording of the part **after** the hand-off (MP3). `null` when there is no recording for this leg. Valid for 7 days; mint a fresh one with `GET /calls/{call_id}/recording-url?leg=human` |
+| `data.human_leg.recording_expires_at` | string (ISO 8601) or null | When `recording_url` stops working |
+| `data.human_leg.transcript` | array or null | Diarized transcript of the part after the hand-off: `[{ speaker, text, start_seconds, end_seconds }]`. `speaker` is a string such as `"1"`, numbered in order of appearance; times are seconds from the hand-off. `null` when no transcript was made |
+| `data.human_leg.transcript_truncated` | boolean | `true` when the transcript was cut at 3000 segments |
+| `data.human_leg.credits_used` | number | Credits charged for this leg. Only `answered` legs are charged, per started minute of `duration_seconds`. `0` otherwise |
+
+| `status` | Meaning |
+|---|---|
+| `answered` | A person picked up and talked |
+| `no_answer` | It rang out, went to voicemail, or nobody spoke after the hand-off |
+| `busy` | The line was busy or the person was on another call |
+| `failed` | The bridge could not be made, or the number is not in service |
+| `unknown` | Vocobase could not tell. Treat it as "needs review" |
+
+### Status reasons
+
+| `status_reason` | Usually with | Meaning |
+|---|---|---|
+| `sip_<code>` | `no_answer`, `busy`, `failed` | The network answered the bridge with that SIP code (for example `sip_480`, `sip_486`, `sip_503`) |
+| `network_no_answer`, `network_busy`, `network_failed` | as named | The network's hang-up text said so |
+| `handoff_not_completed` | `failed` | The call ended before the caller was bridged to anyone |
+| `handoff_unconfirmed` | `unknown` | The network's report did not say whether the bridge happened |
+| `too_short_to_ring` | `no_answer` | The call ended within a few seconds of the hand-off |
+| `two_party_speech`, `long_speech` | `answered` | The transcript shows a conversation |
+| `voicemail_announcement`, `busy_announcement`, `failed_announcement` | as named | A voicemail greeting or a network announcement was heard |
+| `no_speech`, `no_speech_after_hold`, `little_speech_after_hold` | `no_answer` | Nothing, or almost nothing, was said after the hand-off |
+| `needs_review` | `unknown` | Some speech, but not clearly a conversation |
+| `no_recording`, `recording_unavailable`, `recording_disabled` | `unknown` | No audio to read: the number has no recording, the file could not be fetched, or recording is off for the agent |
+| `transcript_unavailable`, `processing_failed` | `unknown` | The audio could not be transcribed or processed |
+| `no_network_report` | `unknown` | The network never reported the end of the call |
+| `transfer_time_unknown` | `unknown` | The hand-off time is not known, so the human part cannot be located |
+
+<Note>
+  `duration_seconds` and `credits_used` run from the hand-off, so they include
+  the time the destination phone was ringing before it was answered. The
+  transcript's first words usually start a few seconds in for the same reason.
+</Note>
+
+<Note>
+  Transfers are tracked for webhook-mode lookups on carriers that report the
+  bridged leg and record the whole call. On other carriers, and for transfers to a
+  fixed number, this event is not emitted and `session.completed` remains the
+  only record of the call.
 </Note>
 
 ## Events: `whatsapp.message.*`

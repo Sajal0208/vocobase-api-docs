@@ -8444,6 +8444,89 @@
                           "properties": {
                             "session": {
                               "$ref": "#/components/schemas/CallSession"
+                            },
+                            "human_leg": {
+                              "type": "object",
+                              "nullable": true,
+                              "description": "The human side of a transferred call (opt-in per account; present only on calls that were transferred by a webhook-mode lookup). `recording_url` is freshly signed on every read and valid for 7 days. See the `call.transfer.completed` webhook for the full semantics.",
+                              "properties": {
+                                "status": {
+                                  "type": "string",
+                                  "enum": [
+                                    "pending",
+                                    "answered",
+                                    "no_answer",
+                                    "busy",
+                                    "failed",
+                                    "unknown"
+                                  ],
+                                  "description": "`pending` until the human side has ended and been assessed."
+                                },
+                                "status_reason": {
+                                  "type": "string",
+                                  "nullable": true,
+                                  "description": "Stable token saying why the status was chosen (for example `two_party_speech`, `voicemail_announcement`, `sip_480`, `needs_review`)."
+                                },
+                                "started_at": {
+                                  "type": "string",
+                                  "format": "date-time",
+                                  "nullable": true,
+                                  "description": "When the hand-off was requested. Ring time is included from here."
+                                },
+                                "ended_at": {
+                                  "type": "string",
+                                  "format": "date-time",
+                                  "nullable": true
+                                },
+                                "duration_seconds": {
+                                  "type": "integer",
+                                  "nullable": true,
+                                  "description": "Seconds from the hand-off to the end of the call, ringing included, capped at the recording length when one exists."
+                                },
+                                "recording_url": {
+                                  "type": "string",
+                                  "format": "uri",
+                                  "nullable": true,
+                                  "description": "Presigned URL of the recording of the part after the hand-off (MP3), valid for 7 days. `null` when there is no recording for this leg."
+                                },
+                                "recording_expires_at": {
+                                  "type": "string",
+                                  "format": "date-time",
+                                  "nullable": true
+                                },
+                                "transcript": {
+                                  "type": "array",
+                                  "nullable": true,
+                                  "items": {
+                                    "type": "object",
+                                    "properties": {
+                                      "speaker": {
+                                        "type": "string",
+                                        "description": "Diarized speaker label such as \"1\", numbered in order of appearance."
+                                      },
+                                      "text": {
+                                        "type": "string"
+                                      },
+                                      "start_seconds": {
+                                        "type": "number",
+                                        "description": "Seconds from the hand-off."
+                                      },
+                                      "end_seconds": {
+                                        "type": "number"
+                                      }
+                                    }
+                                  },
+                                  "description": "Diarized transcript of the part after the hand-off; `null` when none was made."
+                                },
+                                "transcript_truncated": {
+                                  "type": "boolean",
+                                  "description": "`true` when the transcript was cut at 3000 segments."
+                                },
+                                "credits_used": {
+                                  "type": "number",
+                                  "description": "Credits charged for this leg; only `answered` legs are charged."
+                                }
+                              }
                             }
                           }
                         }
@@ -8470,7 +8553,7 @@
       "get": {
         "operationId": "getCallRecordingUrl",
         "summary": "Get a fresh recording URL",
-        "description": "Mints a freshly signed download URL for the call's recording, valid for 7 days. Use this when the `recording_url` returned by `GET /calls/{id}` or by the `session.completed` webhook has expired.\n\nReturns 404 if the call has no recording, the call is not yet complete, or the recording file is no longer available.",
+        "description": "Mints a freshly signed download URL for the call's recording, valid for 7 days. Use this when the `recording_url` returned by `GET /calls/{id}` or by the `session.completed` webhook has expired.\n\nReturns 404 if the call has no recording, the call is not yet complete, or the recording file is no longer available.\n\nWith `?leg=human`, mints a fresh URL for the human-side recording of a transferred call (see `human_leg` on `GET /calls/{id}` and the `call.transfer.completed` webhook). Returns 404 `RECORDING_NOT_AVAILABLE` when the call has no human-leg recording.",
         "tags": [
           "Calls"
         ],
@@ -8484,6 +8567,18 @@
               "format": "uuid"
             },
             "description": "Call ID."
+          },
+          {
+            "name": "leg",
+            "in": "query",
+            "required": false,
+            "schema": {
+              "type": "string",
+              "enum": [
+                "human"
+              ]
+            },
+            "description": "`human` returns a fresh URL for the recording of the part after a transfer (the human side) instead of the call recording. Only for calls that carry `human_leg`."
           }
         ],
         "responses": {
@@ -8520,6 +8615,13 @@
                           "type": "string",
                           "format": "date-time",
                           "description": "ISO-8601 timestamp at which the URL expires."
+                        },
+                        "leg": {
+                          "type": "string",
+                          "enum": [
+                            "human"
+                          ],
+                          "description": "Present only when `?leg=human` was requested."
                         }
                       }
                     }
