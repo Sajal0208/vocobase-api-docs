@@ -134,7 +134,7 @@ Content-Type: application/json
 ## 5. Per-call extraction sets
 
 When `GET /api/v2/config` returns `capabilities.per_call_extraction_sets: true`, you can attach
-[extraction sets](/api-reference) to a single call instead of to the agent:
+[extraction sets](/api-reference/extraction-sets/list-extraction-sets) to a single call instead of to the agent:
 
 ```bash
 POST /api/v2/calls/start
@@ -161,7 +161,7 @@ Rules:
 - A key name already defined by the agent, an attached set or an earlier set in the list, or a call that would exceed 50 keys, is `409 EXTRACTION_KEY_CLASH`.
 - In every error case the call is **not placed**.
 - `limits` on `GET /api/v2/config` carries the enforced caps: `max_keys_per_call` (50), `max_key_description_chars` (3000) and `max_key_name_chars` (128).
-- Web sessions and inbound calls do not take per-call sets.
+- Only `POST /calls/start` takes per-call sets. They are not available on web sessions, inbound calls, the dashboard sandbox, or Vocobase campaigns.
 
 ## 6. Auto-export every extraction to Google Sheets
 

@@ -8026,7 +8026,7 @@
                       "format": "uuid"
                     },
                     "maxItems": 10,
-                    "description": "Optional. Extraction sets (see `/extraction-sets`) to apply to this call only, on top of the agent's own keys and attached sets. Keys are merged in this order (agent inline keys, agent-attached sets, campaign sets, then these) and appear in `session.extraction` like any other key. Max 10 distinct ids; duplicates are ignored. 404 `NOT_FOUND` if an id is not one of your sets; 409 `EXTRACTION_KEY_CLASH` if a key name is already defined by the agent or another set, or the call would exceed 50 keys. In every error case the call is not placed. Not available on web sessions or inbound calls. Only honoured once `GET /config` reports `capabilities.per_call_extraction_sets: true`; before that, pass nothing."
+                    "description": "Optional. Extraction sets (see `/extraction-sets`) to apply to this call only, on top of the agent's own keys and attached sets. Keys are merged in this order (agent inline keys, agent-attached sets, campaign sets, then these) and appear in `session.extraction` like any other key. Max 10 distinct ids; duplicates are ignored. 404 `NOT_FOUND` if an id is not one of your sets; 409 `EXTRACTION_KEY_CLASH` if a key name is already defined by the agent or another set, or the call would exceed 50 keys. In every error case the call is not placed. Not available on web sessions or inbound calls. Check that `GET /config` reports `capabilities.per_call_extraction_sets: true` before relying on this field."
                   }
                 }
               },
@@ -8192,7 +8192,7 @@
             }
           },
           "409": {
-            "description": "A key from `extraction_set_ids` clashes with a key already defined for this call (agent inline keys, an attached set, or an earlier id in the list), or the call would exceed 50 extraction keys. The call is not placed.",
+            "description": "A key from `extraction_set_ids` clashes with a key already defined for this call (agent inline keys, an attached set, or an earlier id in the list); the message names the key and both sets. Going over 50 extraction keys on the call also returns `EXTRACTION_KEY_CLASH` (\"Key name clash: This call would have 51 extraction keys; the maximum is 50\"). The call is not placed.",
             "content": {
               "application/json": {
                 "schema": {
@@ -8202,7 +8202,7 @@
                   "success": false,
                   "error": {
                     "code": "EXTRACTION_KEY_CLASH",
-                    "message": "Key name clash: will_renew"
+                    "message": "Key name clash: key 'will_renew' from set 'Renewals' is already defined by set 'Sales basics'"
                   }
                 }
               }
