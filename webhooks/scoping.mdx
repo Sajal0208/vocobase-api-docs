@@ -220,13 +220,15 @@ delivering nothing. Duplicates are de-duplicated rather than rejected.
 
 ### Event catalog
 
-Six event types, and this is the complete list.
+Seven event types, and this is the complete list. `available_events` on
+`GET /config/webhooks` shows the ones enabled for your account.
 
 | Event | Fired when |
 |---|---|
 | `session.completed` | A session finished and the post-call pipeline is done — transcript, recording, credits, variables, extraction |
 | `call.status.updated` | Telephony call status changed (ringing, answered, terminal disposition) |
 | `call.transferred` | The agent handed the call to a human or another number |
+| `call.transfer.completed` | The human side of a transferred call ended — picked up or not, with its recording and transcript. Opt-in per account; absent from `available_events` until enabled. See [Webhook payloads](/webhooks/payloads#event-calltransfercompleted) |
 | `whatsapp.message.sent` | An outbound WhatsApp message was accepted by the provider |
 | `whatsapp.message.failed` | An outbound WhatsApp message could not be sent |
 | `whatsapp.message.status_updated` | Delivery or read receipt for a WhatsApp message |
