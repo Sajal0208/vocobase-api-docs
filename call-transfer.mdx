@@ -337,7 +337,7 @@ V2 only exposes the boolean toggle. `user_idle_timeout_secs` and `max_idle_retri
 4. The `session.completed` webhook fires when the agent-handled portion ends, with `data.call.transferred: true`. See [`session.completed` payload](/webhooks/payloads#transferred-calls).
 5. When the human side of the call ends, a `call.transfer.completed` webhook reports whether the person picked up, with the recording and transcript of that conversation (webhook-mode transfers; opt-in per account). See [`call.transfer.completed` payload](/webhooks/payloads#event-calltransfercompleted).
 
-`duration_seconds` on `session.completed` reflects only the bot leg, and its `recording_url` is the bot-leg recording. The human side is reported by `call.transfer.completed`; its recording is also available from `GET /calls/{id}` (`human_leg`) and `GET /calls/{id}/recording-url?leg=human`.
+`duration_seconds` on `session.completed` reflects only the bot leg, and its `recording_url` is the bot-leg recording. The human side is reported by `call.transfer.completed`; its recording is also available from `GET /calls/{id}` (`human_leg`) and `GET /calls/{id}/recording-url?leg=human`. The whole call in one file (AI part, hand-off, human part) is `human_leg.full_recording_url`, or `GET /calls/{id}/recording-url?leg=full`.
 
 ---
 

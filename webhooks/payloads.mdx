@@ -792,6 +792,8 @@ than guessed — show those to a person.
       "duration_seconds": 527,
       "recording_url": "https://storage.googleapis.com/.../transfer-legs/.../s1234567.mp3?X-Goog-Algorithm=...",
       "recording_expires_at": "2026-05-13T14:41:02.000Z",
+      "full_recording_url": "https://storage.googleapis.com/.../transfer-legs/.../s1234567.full.mp3?X-Goog-Algorithm=...",
+      "full_recording_expires_at": "2026-05-13T14:41:02.000Z",
       "transcript": [
         { "speaker": "1", "text": "Hello, this is Priya from the sales team.", "start_seconds": 18.4, "end_seconds": 21.0 },
         { "speaker": "2", "text": "Hi, I was asking about the course fees.", "start_seconds": 21.6, "end_seconds": 24.2 }
@@ -826,6 +828,8 @@ than guessed — show those to a person.
 | `data.human_leg.duration_seconds` | integer or null | Seconds from the hand-off to the end of the call — ringing included — capped at the length of the recording when one exists |
 | `data.human_leg.recording_url` | string or null | Presigned URL of the recording of the part **after** the hand-off (MP3). `null` when there is no recording for this leg. Valid for 7 days; mint a fresh one with `GET /calls/{call_id}/recording-url?leg=human` |
 | `data.human_leg.recording_expires_at` | string (ISO 8601) or null | When `recording_url` stops working |
+| `data.human_leg.full_recording_url` | string or null | Presigned URL of the **whole call** as recorded by the network — the AI part, the hand-off and the human part in one MP3. `null` when it was not kept (a miss decided without audio, or recording off for the agent). Valid for 7 days; mint a fresh one with `GET /calls/{call_id}/recording-url?leg=full` |
+| `data.human_leg.full_recording_expires_at` | string (ISO 8601) or null | When `full_recording_url` stops working |
 | `data.human_leg.transcript` | array or null | Diarized transcript of the part after the hand-off: `[{ speaker, text, start_seconds, end_seconds }]`. `speaker` is a string such as `"1"`, numbered in order of appearance; times are seconds from the hand-off. `null` when no transcript was made |
 | `data.human_leg.transcript_truncated` | boolean | `true` when the transcript was cut at 3000 segments |
 | `data.human_leg.credits_used` | number | Credits charged for this leg. Only `answered` legs are charged, per started minute of `duration_seconds`. `0` otherwise |
