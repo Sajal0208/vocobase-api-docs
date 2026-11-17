@@ -310,7 +310,7 @@ It:
 3. Maps a currently-unmapped DID only when you explicitly supply `client_id`.
 4. Creates or updates the client WebSocket bot with a signed, connection-scoped endpoint.
 5. Sets VoiceLink inbound mode to WebSocket bot (`3`) while preserving every existing outbound routing field.
-6. Assigns the local number to the supplied Vocobase `agent_id`.
+6. Assigns the local number to the supplied Vocobase `agent_id`, or to the IVR flow in `ivr_flow_id`.
 
 ```bash
 curl -X POST https://api.vocobase.com/api/v2/voicelink/inbound-ready \
@@ -325,10 +325,10 @@ curl -X POST https://api.vocobase.com/api/v2/voicelink/inbound-ready \
   }'
 ```
 
-Provide either `did_id` or `did_number`. `agent_id` is required for a fully-ready DID. `client_id` is required only when VoiceLink has not mapped the DID yet. The endpoint never accepts a caller-supplied `websocket_url`; the backend always builds the signed endpoint from deployment configuration.
+Provide either `did_id` or `did_number`. `agent_id` (or `ivr_flow_id`, see [Answer with an IVR flow](#answer-with-an-ivr-flow)) is required for a fully-ready DID. `client_id` is required only when VoiceLink has not mapped the DID yet. The endpoint never accepts a caller-supplied `websocket_url`; the backend always builds the signed endpoint from deployment configuration.
 
 <Warning>
-  **Always pass `connection_id` when your account has more than one active VoiceLink connection, and always pass `agent_id`.**
+  **Always pass `connection_id` when your account has more than one active VoiceLink connection, and always pass `agent_id` (or `ivr_flow_id`).**
 
   The signed bot endpoint is scoped to a single connection, and inbound calls are resolved against that same connection only. If the same DID is imported on several connections, an inbound call arriving via connection A will not find an agent assigned on connection B — every call is rejected, and the rejection looks identical to a DID that was never set up.
 
@@ -346,6 +346,40 @@ The returned `steps` may include `verify_inbound_runtime` and `enable_inbound` i
 <Note>
   The backend places the signed token in Pipecat Cloud's base64-encoded `body` parameter, and the deployed bot reads the decoded value from its runner body. The token is a connection-scoped second factor in addition to the shared webhook authorization used by the call-metadata endpoint. It narrows a leaked credential from every VoiceLink DID to one connected VoiceLink account; it is not the endpoint's sole authentication boundary. Sync responses redact signed bot URLs. Do not copy a generated bot URL into logs, tickets, or another connection.
 </Note>
+
+### Answer with an IVR flow
+
+To have an [IVR flow](/ivr-flows) answer the DID instead of an agent, send `ivr_flow_id` in place of `agent_id`:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/voicelink/inbound-ready \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+    "did_id": 812,
+    "ivr_flow_id": "f1234567-abcd-1234-abcd-123456789012"
+  }'
+```
+
+The flow is checked before anything changes on VoiceLink:
+
+| Status | Code | When |
+|---|---|---|
+| `400` | `AGENT_OR_FLOW` | Both `agent_id` and `ivr_flow_id` were sent. Send one. |
+| `400` | `VALIDATION_ERROR` | `ivr_flow_id` is not a UUID. |
+| `404` | `NOT_FOUND` | No flow with this ID on your account. |
+| `409` | `FLOW_NOT_PUBLISHED` | The flow has no published version. |
+| `422` | `IVR_FLOW_NEEDS_AI_NODE` | The published version has no [AI agent block](/ivr-flow-reference#ai-agent). Only a flow that hands the call to an AI agent can answer inbound calls. |
+| `422` | `IVR_FLOW_NEEDS_LEAD` | The published version has a required Start field, or a Fetch right after Start. An inbound call has no lead data and nothing runs before it is answered. |
+
+Things to know:
+
+- `GET /phone-numbers` and the sync response show a number answered by a flow with `ivr_flow_id` and `ivr_flow_name`, and `agent: null`.
+- To answer with a flow, always use this endpoint. `PUT /phone-numbers/{id}` refuses `ivr_flow_id` (`400 VALIDATION_ERROR` on a VoiceLink number, `422 IVR_NEEDS_VOICELINK` on any other provider).
+- A call is answered only while the flow's published version can still take inbound calls and your balance covers the start of an IVR call; otherwise it is declined. Publishing a version that breaks this is refused while the number uses the flow, and the flow can't be deleted until you unbind the number.
+- [Inbound routing policies](/inbound-routing-policies) are not applied to a number answered by a flow.
+- The number also becomes the flow's caller ID on that connection: a call [pushed to the flow](/ivr-flows#push-a-lead) without `from` dials from it.
 
 ## Make a DID call-ready
 

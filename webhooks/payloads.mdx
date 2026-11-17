@@ -648,7 +648,7 @@ Use `call.transferred` as the cheap discriminator if your downstream automation 
 
 ### IVR Flows calls
 
-Calls placed with [`POST /ivr-flows/{flowId}/calls`](/ivr-flows) (and test calls from the IVR editor) carry an extra `ivr` block on `session.completed`. Every other field is unchanged. The lead you pushed is echoed as `variables`. `agent_id` and `agent_name` identify an internal agent that backs the flow; key your integration on `ivr.flow_id`.
+Calls run by an [IVR flow](/ivr-flows) (pushed with [`POST /ivr-flows/{flowId}/calls`](/ivr-flows), placed by a campaign, answered on one of your numbers, or test calls from the IVR editor) carry an extra `ivr` block on `session.completed`. Every other field is unchanged. The lead you pushed is echoed as `variables`. `agent_id` and `agent_name` identify an internal agent that backs the flow; key your integration on `ivr.flow_id`.
 
 ```json
 "ivr": {
@@ -659,7 +659,10 @@ Calls placed with [`POST /ivr-flows/{flowId}/calls`](/ivr-flows) (and test calls
   "failure": null,
   "keys": [ { "block": "confirm_menu", "key": "5", "at": 14200 } ],
   "path": [ "start", "fetch_loan", "intro", "confirm_menu", "end_wrong" ],
-  "fetches": [ { "block": "fetch_loan", "status": 200, "latency_ms": 412, "ok": true } ]
+  "fetches": [ { "block": "fetch_loan", "status": 200, "latency_ms": 412, "ok": true } ],
+  "handoff_at": null,
+  "handoff_agent_id": null,
+  "handoff_after_secs": null
 }
 ```
 
@@ -668,8 +671,11 @@ Calls placed with [`POST /ivr-flows/{flowId}/calls`](/ivr-flows) (and test calls
 | `ivr.flow_id` | string (UUID) | The IVR flow the call ran. |
 | `ivr.flow_version` | integer or null | Version of the flow the call ran. |
 | `ivr.is_test` | boolean | `true` for a test call placed from the dashboard on the unpublished draft. |
-| `ivr.outcome` | string or null | Outcome code of the End block the call reached. `null` when the call ended before an End block: the caller hung up, the call failed, or a safety limit ended it. |
-| `ivr.failure` | string or null | `null` on a normal call. `prefetch_failed`: a Fetch block that runs before dialing failed, so the number was never dialed. `max_steps` or `max_duration`: the call hit a safety limit and was ended. `dead_end`: the flow reached an exit with no arrow, so the call was ended. `runner_error`: the call was ended because of an error on our side. |
+| `ivr.outcome` | string or null | Outcome code of the End block the call reached, or `ai_handoff` when an AI agent block handed the call to an agent. `null` when the call ended before an End or AI agent block: the caller hung up, the call failed, or a safety limit ended it. |
+| `ivr.failure` | string or null | `null` on a normal call. `prefetch_failed`: a Fetch block that runs before dialing failed, so the number was never dialed. `max_steps` or `max_duration`: the call hit a safety limit and was ended. `dead_end`: the flow reached an exit with no arrow, so the call was ended. `runner_error`: the call was ended because of an error on our side. `ai_handoff_failed`: an AI agent block could not hand the call over (for example, the balance was too low to start a call on the agent), so the caller heard a short apology and the call ended. `ai_handoff_unsupported`: the call ran where a handoff is not possible and ended at the AI agent block. |
+| `ivr.handoff_at` | string (ISO 8601) or null | When the call was handed to an AI agent. `null` when it was not. |
+| `ivr.handoff_agent_id` | string (UUID) or null | The AI agent that took the call. `null` when it was not handed off. |
+| `ivr.handoff_after_secs` | integer or null | Seconds of the call before the handoff, the length billed as the IVR part. `null` when it was not handed off. |
 | `ivr.keys` | array | Keys pressed, in order. Each entry has `block` (the Menu block ID), `key` (`0`-`9`, `*`, `#`, or the digits entered on a collect menu) and `at` (integer, milliseconds from the start of the flow). On a menu marked masked, every digit is reported as `•`. |
 | `ivr.path` | array of strings | Block IDs the call visited, in order. |
 | `ivr.fetches` | array | One entry per Fetch block that ran: `block`, `status` (HTTP status, or `null` when no response arrived), `latency_ms`, `ok`, and `error` when `ok` is `false`. |
@@ -679,6 +685,14 @@ Calls placed with [`POST /ivr-flows/{flowId}/calls`](/ivr-flows) (and test calls
 The `ivr` block never carries Fetch URLs, headers, request bodies or the values your API returned.
 
 **Pre-dial failures.** When a pre-dial Fetch fails, the number is never dialed. The call ends the way any [failed session](#how-a-failed-session-surfaces) does: `call.status` is `failed`, `call.end_call_reason` is `NOT_CONNECTED`, `duration_seconds` and `credits_used` are `0`, and `transcript` is `null`. `ivr.failure` is `prefetch_failed`, `ivr.path` ends at the Fetch that failed, and `ivr.fetches` shows why.
+
+**Calls handed to an AI agent.** An AI agent block hands the same call to one of your agents, and the call still ends with one `session.completed`:
+
+- `ivr.outcome` is `ai_handoff`; `ivr.handoff_at`, `ivr.handoff_agent_id` and `ivr.handoff_after_secs` are set.
+- `agent_id` stays the flow's internal agent, and `agent_name` is the **flow's name**. The agent that took the call is `ivr.handoff_agent_id`.
+- `duration_seconds` is the whole call, IVR part included. `credits_used` is the IVR part and the AI part together (see [Billing](/credits#ivr-flow-calls-handed-to-an-ai-agent)).
+- `extraction` is produced by the AI agent's extraction settings.
+- The event is routed as one of the AI agent's events: [endpoints scoped](/webhooks/scoping) to that agent receive it, and its `include_account_endpoints` setting decides whether account-wide endpoints do too.
 
 ## Event: `call.transferred`
 
