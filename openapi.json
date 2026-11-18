@@ -4335,7 +4335,7 @@
                   "success": false,
                   "error": {
                     "code": "IVR_NEEDS_VOICELINK",
-                    "message": "An IVR flow can only call over VoiceLink. Pick VoiceLink numbers for this campaign."
+                    "message": "IVR flows answer only on VoiceLink numbers. This number is on another provider."
                   }
                 }
               }
@@ -9116,6 +9116,11 @@
                           "name": "amount_due",
                           "type": "money",
                           "required": true
+                        },
+                        {
+                          "name": "due_date",
+                          "type": "date",
+                          "required": false
                         }
                       ]
                     }
@@ -10382,7 +10387,7 @@
         "tags": [
           "Campaigns"
         ],
-        "description": "Creates an outbound campaign in `draft` status. Nothing dials until you add contacts and call `POST /campaigns/{id}/start`.\n\nSupply caller IDs with `phone_number_ids` (preferred — the campaign rotates through them in order) **or** a single legacy `provider`. Sending both fails unless they agree.\n\nTo run an IVR flow instead of an agent, send `ivr_flow_id` in place of `agent_id` (exactly one of the two). The flow must be published, and `phone_number_ids` is then required with every number on a VoiceLink connection. The response names the flow in `ivr_flow_id` / `ivr_flow_name` and has `agent_id` and `agent_name` `null`. Contacts fill the flow's Start fields only through a column map, which the API does not set, so use a flow whose Start fields are all optional. Campaign extraction sets are not available on an IVR flow campaign.",
+        "description": "Creates an outbound campaign in `draft` status. Nothing dials until you add contacts and call `POST /campaigns/{id}/start`.\n\nSupply caller IDs with `phone_number_ids` (preferred — the campaign rotates through them in order) **or** a single legacy `provider`. Sending both fails unless they agree.\n\nTo run an IVR flow instead of an agent, send `ivr_flow_id` in place of `agent_id` (exactly one of the two). The flow must be published, and `phone_number_ids` is then required with every number on a VoiceLink connection. The response names the flow in `ivr_flow_id` / `ivr_flow_name` and has `agent_id` and `agent_name` `null`. Each contact fills the flow's Start fields from the `metadata` keys of the same name (see `GET /ivr-flows` → `start_fields`); a contact with a missing required field or an invalid value is not called and is marked `failed`. Campaign extraction sets are not available on an IVR flow campaign.",
         "requestBody": {
           "required": true,
           "content": {
@@ -11430,7 +11435,7 @@
             "$ref": "#/components/responses/NotFound"
           },
           "409": {
-            "description": "`FLOW_NOT_PUBLISHED`: the campaign runs an IVR flow that has no published version.",
+            "description": "`FLOW_NOT_PUBLISHED`: the campaign runs an IVR flow that has no published version. Checked on `resume` only when the campaign is in `credit_exhausted`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -11465,7 +11470,7 @@
                     }
                   },
                   "pricing": {
-                    "summary": "No IVR price for the flow's voice model",
+                    "summary": "No IVR price for the flow's voice model (checked on `resume` only when the campaign is in `credit_exhausted`)",
                     "value": {
                       "success": false,
                       "error": {
@@ -23001,14 +23006,14 @@
               "null"
             ],
             "format": "uuid",
-            "description": "The IVR flow that answers this number, set through `POST /voicelink/inbound-ready`. `null` otherwise. Returned by the `/phone-numbers` endpoints."
+            "description": "The IVR flow that answers this number, set through `POST /voicelink/inbound-ready`. `null` otherwise. Returned wherever a phone number is returned (`/phone-numbers`, `/telephony/connections`)."
           },
           "ivr_flow_name": {
             "type": [
               "string",
               "null"
             ],
-            "description": "Name of that IVR flow. `null` otherwise. Returned by the `/phone-numbers` endpoints."
+            "description": "Name of that IVR flow. `null` otherwise. Returned wherever a phone number is returned (`/phone-numbers`, `/telephony/connections`)."
           },
           "created_at": {
             "type": "string",

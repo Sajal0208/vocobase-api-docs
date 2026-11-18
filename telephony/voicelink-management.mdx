@@ -378,6 +378,7 @@ Things to know:
 - `GET /phone-numbers` and the sync response show a number answered by a flow with `ivr_flow_id` and `ivr_flow_name`, and `agent: null`.
 - To answer with a flow, always use this endpoint. `PUT /phone-numbers/{id}` refuses `ivr_flow_id` (`400 VALIDATION_ERROR` on a VoiceLink number, `422 IVR_NEEDS_VOICELINK` on any other provider).
 - A call is answered only while the flow's published version can still take inbound calls and your balance covers the start of an IVR call; otherwise it is declined. Publishing a version that breaks this is refused while the number uses the flow, and the flow can't be deleted until you unbind the number.
+- To unbind the number from the flow, call `PUT /phone-numbers/{id}` with `agent_id: null` or with another agent's ID. A request that leaves out `agent_id` keeps the flow.
 - [Inbound routing policies](/inbound-routing-policies) are not applied to a number answered by a flow.
 - The number also becomes the flow's caller ID on that connection: a call [pushed to the flow](/ivr-flows#push-a-lead) without `from` dials from it.
 

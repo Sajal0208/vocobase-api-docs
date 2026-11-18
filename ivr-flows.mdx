@@ -212,7 +212,7 @@ The key space is shared with [`POST /calls/start`](/api-reference) on the same a
 
 - Pushes share the per-minute call quota of `POST /calls/start` (`429 RATE_LIMITED`, with a `Retry-After` header) and the account's concurrent call limit (`429 LIMIT_REACHED`). Back off and retry both.
 - IVR calls are billed per pulse of answered time at your account's price for the voice model of the flow's published version (Standard or Premium). Unanswered calls and pre-dial failures cost nothing. To start, a call needs enough balance for one minute at that price; otherwise it returns `403 FORBIDDEN`.
-- A call handed to an AI agent is billed in two parts: the time up to the handoff at the IVR price, and the rest of the call as a call on that agent, at the agent's rate. Each part is rounded up on its own, and your transaction history shows one `usage` row per part. The handoff itself needs enough balance to start a call on that agent; otherwise it fails with `ivr.failure: "ai_handoff_failed"`. See [Billing](/credits#ivr-flow-calls-handed-to-an-ai-agent).
+- A call handed to an AI agent is billed in two parts: the time up to the handoff at the IVR price, and the rest of the call as a call on that agent, at the agent's rate. Each part is rounded up on its own, and your transaction history shows one `usage` row per billed part (normally two). A part that cost nothing has no row. The handoff itself needs enough balance to start a call on that agent; otherwise it fails with `ivr.failure: "ai_handoff_failed"`. See [Billing](/credits#ivr-flow-calls-handed-to-an-ai-agent).
 
 ---
 
@@ -239,7 +239,7 @@ Every IVR call ends with the normal [`session.completed`](/webhooks/payloads) we
 | Field | Description |
 |---|---|
 | `outcome` | Outcome code of the End block the call reached, or `ai_handoff` when an AI agent block handed the call to an agent. `null` if the caller hung up first or the call failed. |
-| `failure` | `null` on a normal call. `prefetch_failed`: a pre-dial Fetch failed and the number was never dialed. `max_steps` or `max_duration`: the call hit a safety limit and was ended. `ai_handoff_failed`: an AI agent block could not hand the call over (for example, the balance was too low to start a call on the agent), so the caller heard a short apology and the call ended. `ai_handoff_unsupported`: the call ran where a handoff is not possible and ended at the AI agent block; contact Vocobase if you see it. |
+| `failure` | `null` on a normal call. `prefetch_failed`: a pre-dial Fetch failed and the number was never dialed. `max_steps` or `max_duration`: the call hit a safety limit and was ended. `dead_end`: the flow reached an exit with no arrow, so the call was ended. `runner_error`: the call was ended because of an error on our side. `ai_handoff_failed`: an AI agent block could not hand the call over (for example, the balance was too low to start a call on the agent), so the caller heard a short apology and the call ended. `ai_handoff_unsupported`: the call ran where a handoff is not possible and ended at the AI agent block; contact Vocobase if you see it. |
 | `handoff_at` | When the call was handed to the AI agent (ISO 8601). `null` when it was not. |
 | `handoff_agent_id` | The AI agent that took the call. `null` when it was not handed off. |
 | `handoff_after_secs` | Seconds of the call before the handoff: the length billed as the IVR part. `null` when it was not handed off. |
@@ -291,9 +291,9 @@ These come from the dashboard (publish, test call, delete) and from the endpoint
 | `422` | `AI_HANDOFF_DISABLED` | Publish, test call | AI agent blocks are switched off for now. Remove them to publish or test the flow. |
 | `422` | `IVR_FLOW_NEEDS_AI_NODE` | Publish, [inbound setup](/telephony/voicelink-management#make-a-did-inbound-ready) | Only a flow whose published version has an AI agent block can answer inbound calls. On publish: the flow answers a phone number, and the new version drops its last AI agent block. |
 | `422` | `IVR_FLOW_NEEDS_LEAD` | Publish, inbound setup | An inbound call has no lead data and is not dialed, so a flow that answers a number can't have required Start fields or a Fetch right after Start. |
-| `409` | `FLOW_IN_USE` | Delete flow | A phone number or a campaign that can still call (draft, running, paused, out of balance) uses the flow. Unbind the number or stop the campaign first. |
+| `409` | `FLOW_IN_USE` | Delete flow | A phone number or a campaign that can still call (draft, running, paused, out of balance) uses the flow. Unbind the number (`PUT /phone-numbers/{id}` with `agent_id: null` or another agent) or stop the campaign first. |
 | `422` | `FLOW_IN_USE` | Publish | A campaign that can still call uses the flow, and the new version adds a required Start field its contacts don't have. Make the field optional. |
-| `409` | `FLOW_NOT_PUBLISHED` | Campaign create, start or resume; inbound setup | The flow has no published version. |
+| `409` | `FLOW_NOT_PUBLISHED` | Campaign create, start or resume; inbound setup | The flow has no published version. Checked on `resume` only when the campaign is in `credit_exhausted`. |
 | `400` | `AGENT_OR_FLOW` | [Campaign create](/campaigns#run-an-ivr-flow), inbound setup | You sent both `agent_id` and `ivr_flow_id`. Send one. |
 | `422` | `IVR_NEEDS_VOICELINK` | Campaign create, start or resume; phone number update | An IVR flow calls over VoiceLink only. Pick numbers on a VoiceLink connection. |
 | `422` | `NOT_FOR_IVR_CAMPAIGN` | Campaign extraction sets | Extraction sets (and, in the dashboard, lead buckets) are not available on an IVR flow campaign. |

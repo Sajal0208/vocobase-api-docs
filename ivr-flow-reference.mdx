@@ -187,7 +187,7 @@ What happens at the block:
 - The agent takes the call as if it had placed it: its prompt, voice, knowledge base, tools, transfer settings, recording, call length limit and post-call extraction all apply. Its pre-call hooks run at this point, and voicemail detection is off (a person just pressed a key). On a call that came in on one of your numbers, the agent still runs its main configuration, not a separate inbound one.
 - The agent's prompt can use what the flow learned on this call: see [Variables the agent receives](#variables-the-agent-receives).
 - If the handoff can't happen, the caller hears a short apology ("Sorry, we could not connect you right now. Please try again later.", in Hindi for a Hindi flow, otherwise in English) and the call ends. The `session.completed` webhook then reports `ivr.failure: "ai_handoff_failed"`. This happens when the agent can no longer take calls, when your balance is below what a call on that agent needs to start, or on an error on our side.
-- While a published flow hands off to an agent, that agent can't be deleted or switched off (`409 AGENT_IN_USE_BY_IVR_FLOW`). Remove the block, or point it at another agent, and publish the flow first.
+- While a published flow hands off to an agent, that agent can't be deleted (`409 AGENT_IN_USE_BY_IVR_FLOW`). Remove the block, or point it at another agent, and publish the flow first.
 - A handed-off call reports `ivr.outcome: "ai_handoff"` and is billed in two parts: the IVR part at your IVR price and the rest at the agent's rate. See [Billing](/credits#ivr-flow-calls-handed-to-an-ai-agent).
 
 When the agent speaks none of the flow's language, the editor and publish show the warning "This agent speaks a different language than the flow." It does not block publishing.

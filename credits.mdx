@@ -75,7 +75,7 @@ When an [AI agent block](/ivr-flow-reference#ai-agent) hands a call to one of yo
 Each part is rounded up on its own. For example, a 90-second call handed off at 20 seconds bills the IVR part as one 30-second pulse (on a 30-second pulse) and the AI part, 70 seconds, as 75 seconds (five 15-second buckets) at the agent's rate.
 
 - `credits_used` on `session.completed` is the two parts together, and `duration_seconds` is the whole call.
-- `GET /billing/transactions` shows two `usage` rows for the call, with the same `metadata.session_id`. `metadata.part` is `ivr` or `ai`, and the descriptions start with `IVR part:` and `AI part:`. The dashboard's credit history labels them the same way.
+- `GET /billing/transactions` shows one `usage` row per billed part (normally two), with the same `metadata.session_id`. A part that cost nothing has no row. `metadata.part` is `ivr` or `ai`, and the descriptions start with `IVR part:` and `AI part:`. The dashboard's credit history labels them the same way.
 - The handoff needs enough balance to start a call on the agent. If it fails for that or any other reason, the caller hears a short apology, the call ends, and the whole call is billed as an IVR call.
 
 ---
