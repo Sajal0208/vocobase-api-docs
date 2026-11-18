@@ -158,7 +158,7 @@ A `202` means the call was accepted and queued, not that it was answered. Track 
 IVR calls are placed on your [VoiceLink](/telephony/voicelink-setup) connection unless you send `provider`. To call over [Plivo](/telephony/plivo-setup) or [Vobiz](/telephony/vobiz-setup), send `"provider": "plivo"` or `"provider": "vobiz"`.
 
 <Note>
-  IVR flows on Plivo and Vobiz are enabled per account. Until they are, a push with `provider: "plivo"` or `"vobiz"` returns `422 IVR_CARRIER_NOT_SUPPORTED` and nothing is dialed or charged. Contact Vocobase to turn them on. VoiceLink is always available.
+  Plivo and Vobiz IVR must be turned on by Vocobase; contact us to turn it on. Until then, a push with `provider: "plivo"` or `"vobiz"` returns `422 IVR_CARRIER_NOT_SUPPORTED` and nothing is dialed or charged. VoiceLink is always available.
 </Note>
 
 ### How to send each field type
@@ -282,7 +282,7 @@ Every IVR call ends with the normal [`session.completed`](/webhooks/payloads) we
 | `404` | `CONNECTION_NOT_FOUND` | The `connection_id` is not an active connection of the chosen provider on your account. |
 | `409` | `FLOW_NOT_PUBLISHED` | The flow has no published version. Publish it in the dashboard. |
 | `422` | `IVR_PRICING_NOT_CONFIGURED` | The account has no IVR price for the voice model of the flow's published version. Contact Vocobase. |
-| `422` | `IVR_CARRIER_NOT_SUPPORTED` | IVR flows can't call over this provider on your account yet. The message names the providers that work. Nothing was dialed or charged. |
+| `422` | `IVR_CARRIER_NOT_SUPPORTED` | IVR flows can't call over this provider yet. Plivo and Vobiz IVR must be turned on by Vocobase. The message names the providers that work. Nothing was dialed or charged. |
 | `422` | `AI_HANDOFF_DISABLED` | The flow has an AI agent block, and handing calls to AI agents is paused right now. Nothing was dialed or charged. Try again later. |
 | `429` | `RATE_LIMITED` | Per-minute call quota reached. Retry after `Retry-After` seconds. |
 | `429` | `LIMIT_REACHED` | Concurrent call limit reached. Retry after a short backoff. |
@@ -304,7 +304,7 @@ These come from the dashboard (publish, test call, delete) and from the endpoint
 | `422` | `FLOW_IN_USE` | Publish | A campaign that can still call uses the flow, and the new version adds a required Start field its contacts don't have. Make the field optional. |
 | `409` | `FLOW_NOT_PUBLISHED` | Campaign create, start or resume; inbound setup | The flow has no published version. Checked on `resume` only when the campaign is in `credit_exhausted`. |
 | `400` | `AGENT_OR_FLOW` | [Campaign create](/campaigns#run-an-ivr-flow), inbound setup | You sent both `agent_id` and `ivr_flow_id`. Send one. |
-| `422` | `IVR_CARRIER_NOT_SUPPORTED` | Campaign create, start or resume; phone number update; push; test call | The number or connection is on a carrier IVR flows can't call over on your account. IVR flows call over VoiceLink, and over Plivo and Vobiz once those are turned on for your account. The message names the carriers that work and the one the number is on, for example `IVR flows can call over VoiceLink and Plivo. This number is on Vobiz.` Before November 2026 this was `IVR_NEEDS_VOICELINK`. |
+| `422` | `IVR_CARRIER_NOT_SUPPORTED` | Campaign create, start or resume; phone number update; push; test call | The number or connection is on a carrier IVR flows can't call over yet. IVR flows call over VoiceLink, and over Plivo and Vobiz once Vocobase has turned those on; contact us to turn them on. The message names the carriers that work and the one the number is on, for example `IVR flows can call over VoiceLink and Plivo. This number is on Vobiz.` Before November 2026 this was `IVR_NEEDS_VOICELINK`. |
 | `422` | `NOT_FOR_IVR_CAMPAIGN` | Campaign extraction sets | Extraction sets (and, in the dashboard, lead buckets) are not available on an IVR flow campaign. |
 | `409` | `AGENT_IN_USE_BY_IVR_FLOW` | [Delete agent](/api-reference) | A published flow hands calls to this agent. The error lists those `flows`; remove the AI agent block and publish them first. |
 
