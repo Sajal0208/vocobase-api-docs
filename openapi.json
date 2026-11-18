@@ -9720,7 +9720,7 @@
                       "success": false,
                       "error": {
                         "code": "IVR_CARRIER_NOT_SUPPORTED",
-                        "message": "IVR flows cannot call over Vobiz on this account yet. They can call over VoiceLink and Plivo."
+                        "message": "IVR flows cannot call over Vobiz yet. They can call over VoiceLink and Plivo."
                       }
                     }
                   },
