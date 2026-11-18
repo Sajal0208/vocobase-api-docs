@@ -5,7 +5,7 @@ description: "Dial a list of contacts with one agent, with retries and live prog
 
 # Campaigns
 
-A campaign dials a list of contacts with one agent. You add contacts, start it, and Vocobase
+A campaign dials a list of contacts with one agent, or with one [IVR flow](#run-an-ivr-flow). You add contacts, start it, and Vocobase
 works through the list at the concurrency you set — retrying the ones that do not connect and
 reporting progress as it goes.
 
@@ -13,7 +13,7 @@ reporting progress as it goes.
 
 <Steps>
   <Step title="Create the campaign">
-    Pick the agent and the caller IDs to dial from. The campaign starts in `draft` and nothing dials yet.
+    Pick the agent (or an IVR flow) and the caller IDs to dial from. The campaign starts in `draft` and nothing dials yet.
   </Step>
   <Step title="Add contacts">
     Up to 10,000 per request. Numbers are canonicalised, so the same number written two ways
@@ -81,6 +81,30 @@ attempts comes from one of two fields:
 capping them — it stops a backlog of retries from starving fresh contacts, and retries may still
 borrow the whole pool once fresh contacts are exhausted. It is inert at its default of `0`.
 
+### Run an IVR flow
+
+A campaign can run a published [IVR flow](/ivr-flows) instead of an agent. Send `ivr_flow_id` in place of `agent_id`:
+
+```bash
+curl -X POST https://api.vocobase.com/api/v2/campaigns \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "name": "EMI reminders",
+    "ivr_flow_id": "f1234567-abcd-1234-abcd-123456789012",
+    "phone_number_ids": ["pn_1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f"]
+  }'
+```
+
+- **One of the two.** Send exactly one of `agent_id` and `ivr_flow_id`. Both is `400 AGENT_OR_FLOW`; neither is `400 VALIDATION_ERROR`.
+- **Published flows only.** A flow that is not on your account is `404 NOT_FOUND`; one with no published version is `409 FLOW_NOT_PUBLISHED`. Each call runs the flow's latest published version.
+- **VoiceLink numbers only.** An IVR flow calls over [VoiceLink](/telephony/voicelink-setup), so `phone_number_ids` is required and every number must be on a VoiceLink connection; otherwise `422 IVR_NEEDS_VOICELINK`. Leave out `provider`: sending it returns `400 VALIDATION_ERROR`. The numbers are checked again on `start` and `resume`.
+- **The response names the flow.** `ivr_flow_id` and `ivr_flow_name` are set, and `agent_id` and `agent_name` are `null`.
+- **Lead fields.** Each contact fills the flow's Start fields from its `metadata`: send one key per Start field, named exactly like the field (`"metadata": {"loan_id": "L-1042", "amount_due": 4500}`). Keys the flow does not declare are ignored. In the dashboard you can instead map file columns to fields. A contact with a missing required field or an invalid value is not called and is marked `failed`.
+- **Balance.** `start` needs enough balance for one minute at the flow's IVR price. An account with no IVR price for the flow's voice model gets `422 IVR_PRICING_NOT_CONFIGURED`.
+- **Results.** Each call sends the usual `session.completed`, with the [`ivr` block](/webhooks/payloads#ivr-flows-calls). An answered call that stays in the IVR counts as completed, even though nobody spoke, so it is not retried. A call that the flow [hands to an AI agent](/ivr-flow-reference#ai-agent) is treated like any agent call.
+- **Not available:** campaign extraction sets and lead buckets (`422 NOT_FOR_IVR_CAMPAIGN`). A call handed to an AI agent runs that agent's own extraction.
+
 ---
 
 ## Add contacts
@@ -144,7 +168,8 @@ Pausing lets in-flight calls finish and dispatches no new ones. Stopping is term
 still-queued contact is marked `skipped` and the campaign cannot be resumed.
 
 <Warning>
-  `start` requires enough balance for at least one 30-second call. `resume` only re-checks the
+  `start` requires enough balance for at least one 30-second call (on an IVR flow campaign, one
+  minute at the flow's IVR price). `resume` only re-checks the
   balance when the campaign is in `credit_exhausted` — resuming from `paused` runs no credit check.
   Both re-validate every caller ID. If the balance runs out mid-run the campaign moves to
   `credit_exhausted` on its own; top up and `resume`.
@@ -235,7 +260,8 @@ curl -X POST https://api.vocobase.com/api/v2/campaigns/CAMPAIGN_ID/extraction-se
 ```
 
 Rejected with `409 EXTRACTION_KEY_CLASH` if a key in the set collides with one the agent already
-produces — two sources writing the same field would silently shadow each other.
+produces — two sources writing the same field would silently shadow each other. A campaign that runs
+an IVR flow takes no extraction sets (`422 NOT_FOR_IVR_CAMPAIGN`).
 
 ---
 

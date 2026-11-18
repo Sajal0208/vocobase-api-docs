@@ -3203,7 +3203,7 @@
       "post": {
         "operationId": "makeVoiceLinkDidInboundReady",
         "summary": "Make a VoiceLink DID inbound-ready",
-        "description": "Runs the secure, idempotent inbound setup workflow for one purchased VoiceLink DID. The deployment must enable the inbound runtime and configure a public WSS URL plus signing secret. Vocobase imports and enables the local number, optionally maps a currently-unmapped DID to an explicit client, creates or updates the client bot with a signed connection-scoped endpoint, points inbound routing to that bot, preserves every existing outbound routing field, and assigns the local number to the requested agent. The request cannot override the WebSocket URL.",
+        "description": "Runs the secure, idempotent inbound setup workflow for one purchased VoiceLink DID. The deployment must enable the inbound runtime and configure a public WSS URL plus signing secret. Vocobase imports and enables the local number, optionally maps a currently-unmapped DID to an explicit client, creates or updates the client bot with a signed connection-scoped endpoint, points inbound routing to that bot, preserves every existing outbound routing field, and assigns the local number to the requested agent. The request cannot override the WebSocket URL.\n\nTo have an IVR flow answer the DID, send `ivr_flow_id` instead of `agent_id` (not both). The flow is checked before anything changes on VoiceLink: it must be on your account and published, its published version must have an AI agent block, and it may not have required Start fields or a Fetch right after Start, since an inbound call has no lead data.",
         "tags": [
           "VoiceLink Management"
         ],
@@ -3214,12 +3214,25 @@
               "schema": {
                 "$ref": "#/components/schemas/VoiceLinkInboundReadyRequest"
               },
-              "example": {
-                "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
-                "did_id": 812,
-                "client_id": 415,
-                "agent_id": "f4df9f8c-df95-46d8-bb0e-6f9f83fd4f55",
-                "bot_name": "Vocobase inbound +918011223344"
+              "examples": {
+                "agent": {
+                  "summary": "Answer with an agent",
+                  "value": {
+                    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                    "did_id": 812,
+                    "client_id": 415,
+                    "agent_id": "f4df9f8c-df95-46d8-bb0e-6f9f83fd4f55",
+                    "bot_name": "Vocobase inbound +918011223344"
+                  }
+                },
+                "ivr_flow": {
+                  "summary": "Answer with an IVR flow",
+                  "value": {
+                    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                    "did_id": 812,
+                    "ivr_flow_id": "f1234567-abcd-1234-abcd-123456789012"
+                  }
+                }
               }
             }
           }
@@ -3236,13 +3249,91 @@
             }
           },
           "400": {
-            "$ref": "#/components/responses/ValidationError"
+            "description": "`VALIDATION_ERROR` for a bad request field. `AGENT_OR_FLOW` when both `agent_id` and `ivr_flow_id` are sent.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "validation": {
+                    "summary": "Bad field",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "did_id or did_number is required"
+                      }
+                    }
+                  },
+                  "agent_or_flow": {
+                    "summary": "Both agent_id and ivr_flow_id",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AGENT_OR_FLOW",
+                        "message": "Give either agent_id or ivr_flow_id, not both"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`FLOW_NOT_PUBLISHED`: the IVR flow has no published version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "FLOW_NOT_PUBLISHED",
+                    "message": "Publish the IVR flow before it can answer calls"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "The IVR flow cannot answer inbound calls.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "needs_ai_node": {
+                    "summary": "No AI agent block",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "IVR_FLOW_NEEDS_AI_NODE",
+                        "message": "Only an IVR flow with an AI agent block can answer inbound calls. Add one and publish the flow."
+                      }
+                    }
+                  },
+                  "needs_lead": {
+                    "summary": "Required Start field or pre-dial Fetch",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "IVR_FLOW_NEEDS_LEAD",
+                        "message": "An inbound call has no lead data, so the Start block cannot require fields (loan_id). Make them optional."
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
@@ -4110,7 +4201,7 @@
       "put": {
         "operationId": "updatePhoneNumber",
         "summary": "Assign an agent to a DID",
-        "description": "Updates a phone number's agent assignment, inbound-routing flag, friendly name, or status. Active duplicate DIDs are allowed for outbound caller ID reuse, but only one active row per DID can have `inbound_enabled=true`. When inbound routing changes for Plivo or Vobiz, Vocobase first updates the carrier Application binding and then updates the local record. If carrier sync fails, the local assignment is not committed.",
+        "description": "Updates a phone number's agent assignment, inbound-routing flag, friendly name, or status. Active duplicate DIDs are allowed for outbound caller ID reuse, but only one active row per DID can have `inbound_enabled=true`. When inbound routing changes for Plivo or Vobiz, Vocobase first updates the carrier Application binding and then updates the local record. If carrier sync fails, the local assignment is not committed.\n\nAn IVR flow answers a number only through `POST /voicelink/inbound-ready` with `ivr_flow_id`. Sending `ivr_flow_id` here is refused: `400 VALIDATION_ERROR` on a VoiceLink number, `422 IVR_NEEDS_VOICELINK` on any other provider.",
         "tags": [
           "Phone Numbers"
         ],
@@ -4199,7 +4290,9 @@
                     "agent": {
                       "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                       "name": "Inbound Test Agent"
-                    }
+                    },
+                    "ivr_flow_id": null,
+                    "ivr_flow_name": null
                   }
                 }
               }
@@ -4231,6 +4324,26 @@
               }
             }
           },
+          "422": {
+            "description": "`IVR_NEEDS_VOICELINK`: `ivr_flow_id` was sent for a number that is not on VoiceLink.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "IVR_NEEDS_VOICELINK",
+                    "message": "IVR flows answer only on VoiceLink numbers. This number is on another provider."
+                  }
+                }
+              }
+            }
+          },
+          "500": {
+            "$ref": "#/components/responses/InternalError"
+          },
           "502": {
             "description": "Carrier Application sync failed. The local assignment was not committed.",
             "content": {
@@ -4260,9 +4373,6 @@
                 }
               }
             }
-          },
-          "500": {
-            "$ref": "#/components/responses/InternalError"
           }
         }
       },
@@ -5790,7 +5900,7 @@
       "delete": {
         "operationId": "deleteAgent",
         "summary": "Delete an agent",
-        "description": "Soft-deletes an agent and removes all linked document associations. Related knowledge-base cleanup is handled asynchronously.",
+        "description": "Soft-deletes an agent and removes all linked document associations. Related knowledge-base cleanup is handled asynchronously. Refused while a published IVR flow hands calls to the agent (`409 AGENT_IN_USE_BY_IVR_FLOW`).",
         "tags": [
           "Agents"
         ],
@@ -5842,6 +5952,67 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`AGENT_IN_USE_BY_IVR_FLOW`: a published IVR flow hands calls to this agent. `error.flows` lists them; remove the AI agent block and publish those flows first.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "properties": {
+                    "success": {
+                      "type": "boolean",
+                      "const": false
+                    },
+                    "error": {
+                      "type": "object",
+                      "required": [
+                        "code",
+                        "message",
+                        "flows"
+                      ],
+                      "properties": {
+                        "code": {
+                          "type": "string",
+                          "const": "AGENT_IN_USE_BY_IVR_FLOW"
+                        },
+                        "message": {
+                          "type": "string"
+                        },
+                        "flows": {
+                          "type": "array",
+                          "items": {
+                            "type": "object",
+                            "properties": {
+                              "id": {
+                                "type": "string",
+                                "format": "uuid"
+                              },
+                              "name": {
+                                "type": "string"
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "AGENT_IN_USE_BY_IVR_FLOW",
+                    "message": "This agent takes calls handed off by the IVR flow \"EMI reminder\". Remove its AI agent block and publish the flow first.",
+                    "flows": [
+                      {
+                        "id": "f1234567-abcd-1234-abcd-123456789012",
+                        "name": "EMI reminder"
+                      }
+                    ]
+                  }
+                }
+              }
+            }
           },
           "500": {
             "$ref": "#/components/responses/InternalError"
@@ -8920,7 +9091,7 @@
                     "data": {
                       "type": "array",
                       "items": {
-                        "$ref": "#/components/schemas/IvrFlowSummary"
+                        "$ref": "#/components/schemas/IvrFlowListItem"
                       }
                     }
                   }
@@ -8933,7 +9104,25 @@
                       "name": "EMI reminder",
                       "language": "hi",
                       "voice_model": "standard",
-                      "published_version": 3
+                      "published_version": 3,
+                      "has_ai_agent": false,
+                      "start_fields": [
+                        {
+                          "name": "loan_id",
+                          "type": "text",
+                          "required": true
+                        },
+                        {
+                          "name": "amount_due",
+                          "type": "money",
+                          "required": true
+                        },
+                        {
+                          "name": "due_date",
+                          "type": "date",
+                          "required": false
+                        }
+                      ]
                     }
                   ]
                 }
@@ -9374,7 +9563,7 @@
             }
           },
           "422": {
-            "description": "The account has no IVR price for the voice model of the flow's published version. Contact Vocobase.",
+            "description": "`IVR_PRICING_NOT_CONFIGURED`: the account has no IVR price for the voice model of the flow's published version; contact Vocobase. `AI_HANDOFF_DISABLED`: the flow has an AI agent block and handing calls to AI agents is paused right now; nothing was dialed or charged, try again later.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9388,6 +9577,16 @@
                       "error": {
                         "code": "IVR_PRICING_NOT_CONFIGURED",
                         "message": "IVR pricing is not configured for this voice model on this account. Contact Vocobase."
+                      }
+                    }
+                  },
+                  "handoff_paused": {
+                    "summary": "AI agent handoff paused",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AI_HANDOFF_DISABLED",
+                        "message": "AI agent blocks are switched off for now. Calls on a flow with one are paused until they are back on."
                       }
                     }
                   }
@@ -10198,7 +10397,7 @@
         "tags": [
           "Campaigns"
         ],
-        "description": "Creates an outbound campaign in `draft` status. Nothing dials until you add contacts and call `POST /campaigns/{id}/start`.\n\nSupply caller IDs with `phone_number_ids` (preferred — the campaign rotates through them in order) **or** a single legacy `provider`. Sending both fails unless they agree.",
+        "description": "Creates an outbound campaign in `draft` status. Nothing dials until you add contacts and call `POST /campaigns/{id}/start`.\n\nSupply caller IDs with `phone_number_ids` (preferred — the campaign rotates through them in order) **or** a single legacy `provider`. Sending both fails unless they agree.\n\nTo run an IVR flow instead of an agent, send `ivr_flow_id` in place of `agent_id` (exactly one of the two). The flow must be published, and `phone_number_ids` is then required with every number on a VoiceLink connection. The response names the flow in `ivr_flow_id` / `ivr_flow_name` and has `agent_id` and `agent_name` `null`. Each contact fills the flow's Start fields from the `metadata` keys of the same name (see `GET /ivr-flows` → `start_fields`); a contact with a missing required field or an invalid value is not called and is marked `failed`. Campaign extraction sets are not available on an IVR flow campaign.",
         "requestBody": {
           "required": true,
           "content": {
@@ -10206,8 +10405,7 @@
               "schema": {
                 "type": "object",
                 "required": [
-                  "name",
-                  "agent_id"
+                  "name"
                 ],
                 "properties": {
                   "name": {
@@ -10221,7 +10419,12 @@
                   "agent_id": {
                     "type": "string",
                     "format": "uuid",
-                    "description": "Required. Must be an active agent on your account."
+                    "description": "The agent that runs the calls. Must be an active agent on your account. Send exactly one of `agent_id` and `ivr_flow_id`."
+                  },
+                  "ivr_flow_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "An IVR flow on your account, with a published version, that runs the calls instead of an agent. Send exactly one of `agent_id` and `ivr_flow_id`. Requires `phone_number_ids` on a VoiceLink connection."
                   },
                   "type": {
                     "type": "string",
@@ -10237,7 +10440,7 @@
                       "type": "string",
                       "format": "uuid"
                     },
-                    "description": "Imported numbers to dial from. Each must be active, owned by you, and voice-capable."
+                    "description": "Imported numbers to dial from. Each must be active, owned by you, and voice-capable. Required with `ivr_flow_id`, and then every number must be on a VoiceLink connection."
                   },
                   "provider": {
                     "type": "string",
@@ -10279,18 +10482,33 @@
                   }
                 }
               },
-              "example": {
-                "name": "March renewals",
-                "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-                "phone_number_ids": [
-                  "pn_1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f"
-                ],
-                "concurrency_limit": 10,
-                "retry_count": 2,
-                "retry_delays_minutes": [
-                  30,
-                  240
-                ]
+              "examples": {
+                "agent": {
+                  "summary": "Agent campaign",
+                  "value": {
+                    "name": "March renewals",
+                    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "phone_number_ids": [
+                      "pn_1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f"
+                    ],
+                    "concurrency_limit": 10,
+                    "retry_count": 2,
+                    "retry_delays_minutes": [
+                      30,
+                      240
+                    ]
+                  }
+                },
+                "ivr_flow": {
+                  "summary": "IVR flow campaign",
+                  "value": {
+                    "name": "EMI reminders",
+                    "ivr_flow_id": "f1234567-abcd-1234-abcd-123456789012",
+                    "phone_number_ids": [
+                      "pn_1c2d3e4f-5a6b-7c8d-9e0f-1a2b3c4d5e6f"
+                    ]
+                  }
+                }
               }
             }
           }
@@ -10320,6 +10538,8 @@
                     "description": "Outbound renewal reminders",
                     "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                     "agent_name": "Renewals Agent",
+                    "ivr_flow_id": null,
+                    "ivr_flow_name": null,
                     "provider": null,
                     "type": "outbound",
                     "phone_numbers": [
@@ -10352,7 +10572,7 @@
             }
           },
           "400": {
-            "description": "`VALIDATION_ERROR` for a missing or malformed field, a provider that does not match the supplied numbers, or a number that is inactive or not voice-capable. `PROVIDER_NOT_CONFIGURED` when the account has no credentials for the chosen provider.",
+            "description": "`VALIDATION_ERROR` for a missing or malformed field (including neither `agent_id` nor `ivr_flow_id`), a provider that does not match the supplied numbers, or a number that is inactive or not voice-capable. `AGENT_OR_FLOW` when both `agent_id` and `ivr_flow_id` are sent. `PROVIDER_NOT_CONFIGURED` when the account has no credentials for the chosen provider.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10372,7 +10592,55 @@
             "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
+            "description": "`NOT_FOUND`: the agent, or the IVR flow, is not on your account.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "NOT_FOUND",
+                    "message": "IVR flow not found"
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "`FLOW_NOT_PUBLISHED`: the IVR flow has no published version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "FLOW_NOT_PUBLISHED",
+                    "message": "Publish the IVR flow before using it in a campaign"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`IVR_NEEDS_VOICELINK`: an IVR flow campaign without `phone_number_ids`, or with a number that is not on a VoiceLink connection.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "IVR_NEEDS_VOICELINK",
+                    "message": "An IVR flow campaign needs phone_number_ids on a VoiceLink connection"
+                  }
+                }
+              }
+            }
           },
           "429": {
             "$ref": "#/components/responses/RateLimitExceeded"
@@ -10474,6 +10742,8 @@
                         "description": "Outbound renewal reminders",
                         "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                         "agent_name": "Renewals Agent",
+                        "ivr_flow_id": null,
+                        "ivr_flow_name": null,
                         "provider": null,
                         "type": "outbound",
                         "phone_numbers": [
@@ -10567,6 +10837,8 @@
                     "description": "Outbound renewal reminders",
                     "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                     "agent_name": "Renewals Agent",
+                    "ivr_flow_id": null,
+                    "ivr_flow_name": null,
                     "provider": null,
                     "type": "outbound",
                     "phone_numbers": [
@@ -10782,7 +11054,7 @@
         "tags": [
           "Campaigns"
         ],
-        "description": "Moves a `draft` campaign to `running` and begins dialling.\n\nRe-validates the campaign's caller IDs first — a campaign whose numbers were deactivated while it sat in draft refuses to start rather than dispatching doomed calls. Also requires at least one contact and enough balance for one 30-second call.",
+        "description": "Moves a `draft` campaign to `running` and begins dialling.\n\nRe-validates the campaign's caller IDs first — a campaign whose numbers were deactivated while it sat in draft refuses to start rather than dispatching doomed calls. Also requires at least one contact and enough balance for one 30-second call (on an IVR flow campaign, one minute at the flow's IVR price).",
         "parameters": [
           {
             "name": "id",
@@ -10820,6 +11092,8 @@
                     "description": "Outbound renewal reminders",
                     "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                     "agent_name": "Renewals Agent",
+                    "ivr_flow_id": null,
+                    "ivr_flow_name": null,
                     "provider": null,
                     "type": "outbound",
                     "phone_numbers": [
@@ -10873,6 +11147,55 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`FLOW_NOT_PUBLISHED`: the campaign runs an IVR flow that has no published version.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "FLOW_NOT_PUBLISHED",
+                    "message": "Publish the IVR flow before starting this campaign"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "IVR flow campaigns only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "voicelink": {
+                    "summary": "A number is no longer on a VoiceLink connection",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "IVR_NEEDS_VOICELINK",
+                        "message": "Phone number +918065480085 is not a VoiceLink number. An IVR flow can only call over VoiceLink."
+                      }
+                    }
+                  },
+                  "pricing": {
+                    "summary": "No IVR price for the flow's voice model",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "IVR_PRICING_NOT_CONFIGURED",
+                        "message": "IVR pricing is not configured for this voice model on this account. Contact Vocobase."
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "429": {
             "$ref": "#/components/responses/RateLimitExceeded"
@@ -10955,6 +11278,8 @@
                     "description": "Outbound renewal reminders",
                     "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                     "agent_name": "Renewals Agent",
+                    "ivr_flow_id": null,
+                    "ivr_flow_name": null,
                     "provider": null,
                     "type": "outbound",
                     "phone_numbers": [
@@ -11025,7 +11350,7 @@
         "tags": [
           "Campaigns"
         ],
-        "description": "Moves a `paused` or `credit_exhausted` campaign back to `running`, re-validating caller IDs the same way `start` does. The balance is only re-checked when the campaign is in `credit_exhausted` — resuming from `paused` runs no credit check.",
+        "description": "Moves a `paused` or `credit_exhausted` campaign back to `running`, re-validating caller IDs the same way `start` does. The balance is only re-checked when the campaign is in `credit_exhausted` — resuming from `paused` runs no credit check. On an IVR flow campaign the balance needed is one minute at the flow's IVR price.",
         "parameters": [
           {
             "name": "id",
@@ -11063,6 +11388,8 @@
                     "description": "Outbound renewal reminders",
                     "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                     "agent_name": "Renewals Agent",
+                    "ivr_flow_id": null,
+                    "ivr_flow_name": null,
                     "provider": null,
                     "type": "outbound",
                     "phone_numbers": [
@@ -11116,6 +11443,55 @@
           },
           "404": {
             "$ref": "#/components/responses/NotFound"
+          },
+          "409": {
+            "description": "`FLOW_NOT_PUBLISHED`: the campaign runs an IVR flow that has no published version. Checked on `resume` only when the campaign is in `credit_exhausted`.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "FLOW_NOT_PUBLISHED",
+                    "message": "Publish the IVR flow before starting this campaign"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "IVR flow campaigns only.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "voicelink": {
+                    "summary": "A number is no longer on a VoiceLink connection",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "IVR_NEEDS_VOICELINK",
+                        "message": "Phone number +918065480085 is not a VoiceLink number. An IVR flow can only call over VoiceLink."
+                      }
+                    }
+                  },
+                  "pricing": {
+                    "summary": "No IVR price for the flow's voice model (checked on `resume` only when the campaign is in `credit_exhausted`)",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "IVR_PRICING_NOT_CONFIGURED",
+                        "message": "IVR pricing is not configured for this voice model on this account. Contact Vocobase."
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "429": {
             "$ref": "#/components/responses/RateLimitExceeded"
@@ -11198,6 +11574,8 @@
                     "description": "Outbound renewal reminders",
                     "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
                     "agent_name": "Renewals Agent",
+                    "ivr_flow_id": null,
+                    "ivr_flow_name": null,
                     "provider": null,
                     "type": "outbound",
                     "phone_numbers": [
@@ -18971,7 +19349,7 @@
         "tags": [
           "Extraction Sets"
         ],
-        "description": "Rejected if a key in the set clashes with one the campaign's agent already produces.\n\nRe-attaching an already-attached set returns `200` instead of `201`; nothing changes.",
+        "description": "Rejected if a key in the set clashes with one the campaign's agent already produces.\n\nRe-attaching an already-attached set returns `200` instead of `201`; nothing changes.\n\nNot available on a campaign that runs an IVR flow (`422 NOT_FOR_IVR_CAMPAIGN`).",
         "parameters": [
           {
             "name": "id",
@@ -19075,6 +19453,23 @@
                   "error": {
                     "code": "EXTRACTION_KEY_CLASH",
                     "message": "Key name clash: will_renew"
+                  }
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "`NOT_FOR_IVR_CAMPAIGN`: the campaign runs an IVR flow.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "example": {
+                  "success": false,
+                  "error": {
+                    "code": "NOT_FOR_IVR_CAMPAIGN",
+                    "message": "Extraction sets are not available on an IVR flow campaign"
                   }
                 }
               }
@@ -19505,7 +19900,10 @@
           "failure",
           "keys",
           "path",
-          "fetches"
+          "fetches",
+          "handoff_at",
+          "handoff_agent_id",
+          "handoff_after_secs"
         ],
         "properties": {
           "flow_id": {
@@ -19528,14 +19926,14 @@
               "string",
               "null"
             ],
-            "description": "Outcome code of the End block the call reached. `null` when the call ended before reaching an End block (caller hung up, pre-dial failure, safety limit)."
+            "description": "Outcome code of the End block the call reached, or `ai_handoff` when an AI agent block handed the call to one of your agents. `null` when the call ended before reaching an End or AI agent block (caller hung up, pre-dial failure, safety limit)."
           },
           "failure": {
             "type": [
               "string",
               "null"
             ],
-            "description": "`null` on a normal call. `prefetch_failed`: a Fetch block that runs before dialing failed, so the number was never dialed. `max_steps` / `max_duration`: the call hit a safety limit and was ended. `dead_end`: the flow reached an exit with no arrow. `runner_error`: the call was ended because of an error on our side."
+            "description": "`null` on a normal call. `prefetch_failed`: a Fetch block that runs before dialing failed, so the number was never dialed. `max_steps` / `max_duration`: the call hit a safety limit and was ended. `dead_end`: the flow reached an exit with no arrow. `runner_error`: the call was ended because of an error on our side. `ai_handoff_failed`: an AI agent block could not hand the call over (for example, the balance was too low to start a call on the agent), so the caller heard a short apology and the call ended. `ai_handoff_unsupported`: the call ran where a handoff is not possible and ended at the AI agent block."
           },
           "keys": {
             "type": "array",
@@ -19606,6 +20004,30 @@
                 }
               }
             }
+          },
+          "handoff_at": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "date-time",
+            "description": "When the call was handed to an AI agent. `null` when it was not."
+          },
+          "handoff_agent_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The AI agent that took the call. The top-level `agent_id` stays the flow's internal agent. `null` when the call was not handed off."
+          },
+          "handoff_after_secs": {
+            "type": [
+              "integer",
+              "null"
+            ],
+            "minimum": 0,
+            "description": "Seconds of the call before the handoff: the length billed as the IVR part. `null` when the call was not handed off."
           }
         }
       },
@@ -20715,7 +21137,7 @@
                     "$ref": "#/components/schemas/IvrWebhookBlock"
                   }
                 ],
-                "description": "Present only for calls placed on an IVR flow. See the IVR Flows guide."
+                "description": "Present only for calls run by an IVR flow. See the IVR Flows guide. On a call the flow handed to an AI agent, `agent_id` stays the flow's internal agent, `agent_name` is the flow's name, `extraction` comes from the AI agent, and `credits_used` is the IVR part and the AI part together."
               },
               "hold": {
                 "oneOf": [
@@ -22586,7 +23008,22 @@
                 "type": "string"
               }
             },
-            "description": "Assigned agent, or null when unassigned. The DID receives inbound calls only when `inbound_enabled` is true."
+            "description": "Assigned agent, or null when unassigned. The DID receives inbound calls only when `inbound_enabled` is true. `null` when the number is answered by an IVR flow (see `ivr_flow_id`)."
+          },
+          "ivr_flow_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The IVR flow that answers this number, set through `POST /voicelink/inbound-ready`. `null` otherwise. Returned wherever a phone number is returned (`/phone-numbers`, `/telephony/connections`)."
+          },
+          "ivr_flow_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of that IVR flow. `null` otherwise. Returned wherever a phone number is returned (`/phone-numbers`, `/telephony/connections`)."
           },
           "created_at": {
             "type": "string",
@@ -23115,7 +23552,12 @@
           "agent_id": {
             "type": "string",
             "format": "uuid",
-            "description": "Vocobase agent ID assigned to inbound calls on this DID. Ownership is enforced."
+            "description": "Vocobase agent ID assigned to inbound calls on this DID. Ownership is enforced. Send this or `ivr_flow_id`, not both."
+          },
+          "ivr_flow_id": {
+            "type": "string",
+            "format": "uuid",
+            "description": "An IVR flow on your account that answers inbound calls on this DID instead of an agent. Its published version must have an AI agent block and no required Start fields or Fetch right after Start. Send this or `agent_id`, not both."
           },
           "bot_name": {
             "type": "string",
@@ -23361,7 +23803,23 @@
               "name": {
                 "type": "string"
               }
-            }
+            },
+            "description": "`null` when the number is answered by an IVR flow (see `ivr_flow_id`)."
+          },
+          "ivr_flow_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The IVR flow that answers this number, set through `POST /voicelink/inbound-ready`. `null` otherwise."
+          },
+          "ivr_flow_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of that IVR flow. `null` otherwise."
           },
           "created_at": {
             "type": "string",
@@ -23836,12 +24294,34 @@
             "nullable": true
           },
           "agent_id": {
-            "type": "string",
-            "format": "uuid"
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The campaign's agent. `null` on a campaign that runs an IVR flow."
           },
           "agent_name": {
-            "type": "string",
-            "nullable": true
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "`null` on a campaign that runs an IVR flow."
+          },
+          "ivr_flow_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "format": "uuid",
+            "description": "The IVR flow the campaign runs. `null` on an agent campaign."
+          },
+          "ivr_flow_name": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Name of the IVR flow the campaign runs. `null` on an agent campaign."
           },
           "provider": {
             "type": "string",
@@ -24552,6 +25032,33 @@
             "carrier_hold"
           ]
         }
+      },
+      "IvrFlowListItem": {
+        "allOf": [
+          {
+            "$ref": "#/components/schemas/IvrFlowSummary"
+          },
+          {
+            "type": "object",
+            "required": [
+              "has_ai_agent",
+              "start_fields"
+            ],
+            "properties": {
+              "has_ai_agent": {
+                "type": "boolean",
+                "description": "`true` when the published version has an AI agent block, which hands the call to one of your AI agents. Only such a flow can answer inbound calls."
+              },
+              "start_fields": {
+                "type": "array",
+                "items": {
+                  "$ref": "#/components/schemas/IvrLeadField"
+                },
+                "description": "Lead fields of the published version (its Start block)."
+              }
+            }
+          }
+        ]
       }
     },
     "responses": {

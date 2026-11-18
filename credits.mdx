@@ -59,6 +59,27 @@ This means you can negotiate a custom rate at the Account level, then optionally
 
 ---
 
+## How IVR flow calls are billed
+
+[IVR flow](/ivr-flows) calls are billed per **pulse** of answered time at your account's IVR price for the flow's voice model (Standard or Premium). The pulse length and the price are set for your account and shown in the dashboard next to each model. Unanswered calls, and calls stopped by a Fetch that runs before dialing, cost nothing.
+
+### IVR flow calls handed to an AI agent
+
+When an [AI agent block](/ivr-flow-reference#ai-agent) hands a call to one of your agents, the call is billed in two parts:
+
+| Part | Length | Price |
+|---|---|---|
+| **IVR part** | From the start of the call to the handoff (`ivr.handoff_after_secs` in the webhook) | Your IVR price for the flow's voice model, per pulse |
+| **AI part** | The rest of the call, including the moment the agent takes to start | Exactly like a call on that agent: its tier, its rate and any overrides that apply to it. A per-call start charge, if one applies to the agent, is added here; the IVR part has none |
+
+Each part is rounded up on its own. For example, a 90-second call handed off at 20 seconds bills the IVR part as one 30-second pulse (on a 30-second pulse) and the AI part, 70 seconds, as 75 seconds (five 15-second buckets) at the agent's rate.
+
+- `credits_used` on `session.completed` is the two parts together, and `duration_seconds` is the whole call.
+- `GET /billing/transactions` shows one `usage` row per billed part (normally two), with the same `metadata.session_id`. A part that cost nothing has no row. `metadata.part` is `ivr` or `ai`, and the descriptions start with `IVR part:` and `AI part:`. The dashboard's credit history labels them the same way.
+- The handoff needs enough balance to start a call on the agent. If it fails for that or any other reason, the caller hears a short apology, the call ends, and the whole call is billed as an IVR call.
+
+---
+
 ## How chat is billed
 
 Chat messages cost **₹0.035 per message**. Each user message and each agent response is counted.

@@ -7,7 +7,7 @@ description: "Build a keypad IVR in the dashboard, push leads to it over the API
 
 <Tip>New to IVR flows, or not a developer? Start with [IVR Flows: a simple guide](/ivr-flows-guide).</Tip>
 
-An IVR flow is a scripted phone call driven by the keypad. You draw it once in the dashboard: what to say, which keys the caller can press and where each key leads, and which of your APIs to call along the way. Then you push leads to it over the API, one call per lead. When a call ends, the `session.completed` webhook tells you which path the caller took, every key they pressed and the outcome the call reached.
+An IVR flow is a scripted phone call driven by the keypad. You draw it once in the dashboard: what to say, which keys the caller can press and where each key leads, and which of your APIs to call along the way. A path can also hand the same call to one of your AI agents. Then you push leads to it over the API, one call per lead, run it as a [campaign](/campaigns#run-an-ivr-flow), or let it answer calls to one of your numbers. When a call ends, the `session.completed` webhook tells you which path the caller took, every key they pressed and the outcome the call reached.
 
 For every field of the flow JSON, see [IVR Flow JSON Reference](/ivr-flow-reference).
 
@@ -43,6 +43,7 @@ Flows are built and published in the dashboard under **IVR Flows**. A flow is a 
 | **Menu** | Speaks a prompt and waits for keys. A *single* menu takes one key and follows the exit wired to it; a *collect* menu takes several digits (for example a date of birth or a PIN) and can be marked masked. | each key wired, or `done`; plus `no_input` and `invalid` |
 | **Fetch** | Calls your HTTPS API (`GET` or `POST`) and reads typed fields from the JSON response, for use in later blocks. | `success`, `failed` |
 | **End** | Optionally speaks a closing line, then hangs up with an outcome code you choose (for example `paid`, `info_wrong`). | none |
+| **AI agent** | Optionally speaks a line, then hands the same call to one of your AI agents, which talks with the caller from there. The agent's prompt receives what the flow learned as `{{ivr_lead_<field>}}`, `{{ivr_<block>_<field>}}`, `{{ivr_<menu>_choice}}`, `{{call_from}}` and `{{call_to}}`. See [AI agent](/ivr-flow-reference#ai-agent). | none |
 
 Each flow speaks with one of two voice models, **Standard** or **Premium**, chosen in the dashboard when you build it. The model sets the per-pulse price of the flow's calls, and the API returns it as `voice_model`: the model of the flow's published version, which is what calls speak with and are billed at. A draft you are still editing may use a different model; it takes effect when you publish it. Flows on the previous Premium voices were moved to Standard when Premium moved to its new voices, so `voice_model` reads `standard` for them. They keep the same voice and are billed at your Standard price, which is your previous Premium price unless your account already had a Standard price.
 
@@ -53,6 +54,7 @@ A few rules worth knowing before you design:
 - **Pre-dial Fetch.** Fetch blocks that follow Start directly run *before* the number is dialed. If one fails, the number is never dialed and the call ends as failed (see [Read the result](#read-the-result)), so a caller never hears a half-filled script.
 - **Publishing** freezes the current draft as a new numbered version. Pushed calls always run the latest published version; editing the draft does not affect them until you publish again.
 - Use **Test call** in the editor to ring your own phone on the unpublished draft. Test calls are billed like any IVR call and are marked `is_test: true` in the webhook.
+- **AI agent blocks** must point at an active voice agent on your account when you publish or place a test call. An agent that speaks none of the flow's language only gets a warning (`AI_AGENT_LANGUAGE`), shown in the editor and on publish; it never blocks. See [Errors when you build, publish or reuse a flow](#errors-when-you-build-publish-or-reuse-a-flow).
 
 ---
 
@@ -69,12 +71,24 @@ curl https://api.vocobase.com/api/v2/ivr-flows \
 {
   "success": true,
   "data": [
-    { "id": "f1234567-abcd-1234-abcd-123456789012", "name": "EMI reminder", "language": "hi", "voice_model": "standard", "published_version": 3 }
+    {
+      "id": "f1234567-abcd-1234-abcd-123456789012",
+      "name": "EMI reminder",
+      "language": "hi",
+      "voice_model": "standard",
+      "published_version": 3,
+      "has_ai_agent": false,
+      "start_fields": [
+        { "name": "loan_id", "type": "text", "required": true },
+        { "name": "amount_due", "type": "money", "required": true },
+        { "name": "due_date", "type": "date", "required": false }
+      ]
+    }
   ]
 }
 ```
 
-Only flows with a published version are listed. Read one flow to see the lead fields its published version expects:
+Only flows with a published version are listed. `has_ai_agent` is `true` when the published version has an AI agent block (only such a flow can answer inbound calls), and `start_fields` lists the lead fields of the published version. Read one flow to see the lead fields its published version expects:
 
 ```bash
 curl https://api.vocobase.com/api/v2/ivr-flows/f1234567-abcd-1234-abcd-123456789012 \
@@ -135,7 +149,7 @@ A `202` means the call was accepted and queued, not that it was answered. Track 
 | Field | Type | Description |
 |---|---|---|
 | `to` | `string` | **Required.** Destination number in E.164 format. |
-| `from` | `string` | Caller ID in E.164 format. Must be an active number on the VoiceLink connection used; an unknown number returns `400`. Defaults to the connection's default number. |
+| `from` | `string` | Caller ID in E.164 format. Must be an active number on the VoiceLink connection used; an unknown number returns `400`. Defaults to the connection's number that answers this flow's inbound calls, if there is one, else the connection's default number. |
 | `connection_id` | `string` | VoiceLink connection to use. Required only when the account has more than one active VoiceLink connection. |
 | `data` | `object` | Lead values keyed by the flow's field names. |
 | `client_reference_id` | `string` (≤128 chars) | Your idempotency key. See [Retries and idempotency](#retries-and-idempotency). |
@@ -198,6 +212,7 @@ The key space is shared with [`POST /calls/start`](/api-reference) on the same a
 
 - Pushes share the per-minute call quota of `POST /calls/start` (`429 RATE_LIMITED`, with a `Retry-After` header) and the account's concurrent call limit (`429 LIMIT_REACHED`). Back off and retry both.
 - IVR calls are billed per pulse of answered time at your account's price for the voice model of the flow's published version (Standard or Premium). Unanswered calls and pre-dial failures cost nothing. To start, a call needs enough balance for one minute at that price; otherwise it returns `403 FORBIDDEN`.
+- A call handed to an AI agent is billed in two parts: the time up to the handoff at the IVR price, and the rest of the call as a call on that agent, at the agent's rate. Each part is rounded up on its own, and your transaction history shows one `usage` row per billed part (normally two). A part that cost nothing has no row. The handoff itself needs enough balance to start a call on that agent; otherwise it fails with `ivr.failure: "ai_handoff_failed"`. See [Billing](/credits#ivr-flow-calls-handed-to-an-ai-agent).
 
 ---
 
@@ -214,14 +229,20 @@ Every IVR call ends with the normal [`session.completed`](/webhooks/payloads) we
   "failure": null,
   "keys": [ { "block": "confirm_menu", "key": "5", "at": 14200 } ],
   "path": [ "start", "fetch_loan", "intro", "confirm_menu", "end_wrong" ],
-  "fetches": [ { "block": "fetch_loan", "status": 200, "latency_ms": 412, "ok": true } ]
+  "fetches": [ { "block": "fetch_loan", "status": 200, "latency_ms": 412, "ok": true } ],
+  "handoff_at": null,
+  "handoff_agent_id": null,
+  "handoff_after_secs": null
 }
 ```
 
 | Field | Description |
 |---|---|
-| `outcome` | Outcome code of the End block the call reached. `null` if the caller hung up first or the call failed. |
-| `failure` | `null` on a normal call. `prefetch_failed`: a pre-dial Fetch failed and the number was never dialed. `max_steps` or `max_duration`: the call hit a safety limit and was ended. |
+| `outcome` | Outcome code of the End block the call reached, or `ai_handoff` when an AI agent block handed the call to an agent. `null` if the caller hung up first or the call failed. |
+| `failure` | `null` on a normal call. `prefetch_failed`: a pre-dial Fetch failed and the number was never dialed. `max_steps` or `max_duration`: the call hit a safety limit and was ended. `dead_end`: the flow reached an exit with no arrow, so the call was ended. `runner_error`: the call was ended because of an error on our side. `ai_handoff_failed`: an AI agent block could not hand the call over (for example, the balance was too low to start a call on the agent), so the caller heard a short apology and the call ended. `ai_handoff_unsupported`: the call ran where a handoff is not possible and ended at the AI agent block; contact Vocobase if you see it. |
+| `handoff_at` | When the call was handed to the AI agent (ISO 8601). `null` when it was not. |
+| `handoff_agent_id` | The AI agent that took the call. `null` when it was not handed off. |
+| `handoff_after_secs` | Seconds of the call before the handoff: the length billed as the IVR part. `null` when it was not handed off. |
 | `keys` | Keys pressed, in order: the Menu block, the key (or the digits entered on a collect menu) and `at`, in milliseconds from the start of the flow. On a masked menu every digit is reported as `•`. |
 | `path` | Block IDs the call visited, in order. |
 | `fetches` | One entry per Fetch that ran: HTTP `status` (`null` if no response), `latency_ms`, `ok`, and an `error` code when it failed. URLs, headers, bodies and fetched values are never included. |
@@ -229,6 +250,15 @@ Every IVR call ends with the normal [`session.completed`](/webhooks/payloads) we
 **Pre-dial failures.** When a pre-dial Fetch fails, the call ends without dialing: `call.status` is `failed`, `call.end_call_reason` is `NOT_CONNECTED`, `duration_seconds` and `credits_used` are `0`, and `ivr.failure` is `prefetch_failed`. `ivr.fetches` shows which Fetch failed and why.
 
 `agent_id` and `agent_name` on an IVR call's webhook identify an internal agent that backs the flow. Key your integration on `ivr.flow_id` instead. Full field reference: [Webhook payloads → IVR Flows calls](/webhooks/payloads#ivr-flows-calls).
+
+**Handed-off calls.** When an AI agent block hands the call over, it is still one call with one `session.completed` webhook:
+
+- `ivr.outcome` is `ai_handoff`, and `ivr.handoff_at`, `ivr.handoff_agent_id` and `ivr.handoff_after_secs` say when and to whom.
+- `agent_id` stays the flow's internal agent and `agent_name` is the flow's name. The AI agent is `ivr.handoff_agent_id`.
+- `duration_seconds` is the whole call, and `credits_used` is the sum of the IVR part and the AI part.
+- `extraction` comes from the AI agent's extraction settings, and the event is routed as one of the AI agent's events (its [scoped endpoints](/webhooks/scoping) receive it).
+- After the handoff, `call.status.updated` and `call.transferred` also carry the flow's name as `agent_name` and go to the AI agent's scoped endpoints. See [Calls handed to an AI agent](/webhooks/payloads#ivr-flows-calls).
+- If you score calls with scorecards, the call is scored with the AI agent's scorecard, not the flow's.
 
 ---
 
@@ -247,7 +277,29 @@ Every IVR call ends with the normal [`session.completed`](/webhooks/payloads) we
 | `404` | `CONNECTION_NOT_FOUND` | The `connection_id` is not an active VoiceLink connection on your account. |
 | `409` | `FLOW_NOT_PUBLISHED` | The flow has no published version. Publish it in the dashboard. |
 | `422` | `IVR_PRICING_NOT_CONFIGURED` | The account has no IVR price for the voice model of the flow's published version. Contact Vocobase. |
+| `422` | `AI_HANDOFF_DISABLED` | The flow has an AI agent block, and handing calls to AI agents is paused right now. Nothing was dialed or charged. Try again later. |
 | `429` | `RATE_LIMITED` | Per-minute call quota reached. Retry after `Retry-After` seconds. |
 | `429` | `LIMIT_REACHED` | Concurrent call limit reached. Retry after a short backoff. |
 | `502` | `INTERNAL_ERROR` | The telephony provider refused the dial. Retry after a minute or two. |
 | `503` | `SERVICE_UNAVAILABLE` | The call could not be queued and nothing was dialed. Retry. |
+
+### Errors when you build, publish or reuse a flow
+
+These come from the dashboard (publish, test call, delete) and from the endpoints that put a flow on a campaign or a phone number.
+
+| HTTP Status | Code | Where | Description |
+|---|---|---|---|
+| `422` | `GRAPH_INVALID` | Publish, test call | The flow breaks a [rule](/ivr-flow-reference#rules-every-flow-must-pass). Each problem is listed with its block. For AI agent blocks: `AI_AGENT_MISSING` (no agent picked), `AI_AGENT_NOT_FOUND` (the agent is missing, switched off or not a voice agent on your account), `AI_VAR_CLASH` (two values would reach the agent under one name), `RESERVED_NAME` (a single menu named `lead` or `call` in a flow with an AI agent block). |
+| none | `AI_AGENT_LANGUAGE` | Editor, publish, test call | A warning, never an error: the agent speaks none of the flow's language. Publishing goes ahead. |
+| `422` | `AI_HANDOFF_DISABLED` | Publish, test call, push | AI agent blocks are switched off for now. Remove them to publish or test the flow; a [push](#push-a-lead) to a flow that has one is refused until they are back on. |
+| `422` | `IVR_FLOW_NEEDS_AI_NODE` | Publish, [inbound setup](/telephony/voicelink-management#make-a-did-inbound-ready) | Only a flow whose published version has an AI agent block can answer inbound calls. On publish: the flow answers a phone number, and the new version drops its last AI agent block. |
+| `422` | `IVR_FLOW_NEEDS_LEAD` | Publish, inbound setup | An inbound call has no lead data and is not dialed, so a flow that answers a number can't have required Start fields or a Fetch right after Start. |
+| `409` | `FLOW_IN_USE` | Delete flow | A phone number or a campaign that can still call (draft, running, paused, out of balance) uses the flow. Unbind the number (`PUT /phone-numbers/{id}` with `agent_id: null` or another agent) or stop the campaign first. |
+| `422` | `FLOW_IN_USE` | Publish | A campaign that can still call uses the flow, and the new version adds a required Start field its contacts don't have. Make the field optional. |
+| `409` | `FLOW_NOT_PUBLISHED` | Campaign create, start or resume; inbound setup | The flow has no published version. Checked on `resume` only when the campaign is in `credit_exhausted`. |
+| `400` | `AGENT_OR_FLOW` | [Campaign create](/campaigns#run-an-ivr-flow), inbound setup | You sent both `agent_id` and `ivr_flow_id`. Send one. |
+| `422` | `IVR_NEEDS_VOICELINK` | Campaign create, start or resume; phone number update | An IVR flow calls over VoiceLink only. Pick numbers on a VoiceLink connection. |
+| `422` | `NOT_FOR_IVR_CAMPAIGN` | Campaign extraction sets | Extraction sets (and, in the dashboard, lead buckets) are not available on an IVR flow campaign. |
+| `409` | `AGENT_IN_USE_BY_IVR_FLOW` | [Delete agent](/api-reference) | A published flow hands calls to this agent. The error lists those `flows`; remove the AI agent block and publish them first. |
+
+A handoff that fails during a live call is never an HTTP error to you: the caller hears a short apology, the call ends, and the webhook reports `ivr.failure: "ai_handoff_failed"`.
