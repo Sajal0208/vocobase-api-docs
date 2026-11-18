@@ -149,12 +149,17 @@ A `202` means the call was accepted and queued, not that it was answered. Track 
 | Field | Type | Description |
 |---|---|---|
 | `to` | `string` | **Required.** Destination number in E.164 format. |
-| `from` | `string` | Caller ID in E.164 format. Must be an active number on the VoiceLink connection used; an unknown number returns `400`. Defaults to the connection's number that answers this flow's inbound calls, if there is one, else the connection's default number. |
-| `connection_id` | `string` | VoiceLink connection to use. Required only when the account has more than one active VoiceLink connection. |
+| `from` | `string` | Caller ID in E.164 format. Must be an active number on the connection used; an unknown number returns `400`. Defaults to the connection's number that answers this flow's inbound calls, if there is one, else the connection's default number. |
+| `provider` | `string` | Carrier to call over: `voicelink` (default), `plivo` or `vobiz`. Lowercase, as in `POST /calls/start`. |
+| `connection_id` | `string` | Connection of that provider to use. Required only when the account has more than one active connection of that provider. |
 | `data` | `object` | Lead values keyed by the flow's field names. |
 | `client_reference_id` | `string` (≤128 chars) | Your idempotency key. See [Retries and idempotency](#retries-and-idempotency). |
 
-IVR calls are placed on your [VoiceLink](/telephony/voicelink-setup) connection.
+IVR calls are placed on your [VoiceLink](/telephony/voicelink-setup) connection unless you send `provider`. To call over [Plivo](/telephony/plivo-setup) or [Vobiz](/telephony/vobiz-setup), send `"provider": "plivo"` or `"provider": "vobiz"`.
+
+<Note>
+  IVR flows on Plivo and Vobiz are enabled per account. Until they are, a push with `provider: "plivo"` or `"vobiz"` returns `422 IVR_CARRIER_NOT_SUPPORTED` and nothing is dialed or charged. Contact Vocobase to turn them on. VoiceLink is always available.
+</Note>
 
 ### How to send each field type
 
@@ -266,17 +271,18 @@ Every IVR call ends with the normal [`session.completed`](/webhooks/payloads) we
 
 | HTTP Status | Code | Description |
 |---|---|---|
-| `400` | `VALIDATION_ERROR` | Bad `to`, `from`, `connection_id` or `client_reference_id`, or `data` does not match the flow (then with a `fields` list). Fix the request; do not retry as is. |
-| `400` | `CONNECTION_AMBIGUOUS` | The account has several active VoiceLink connections. Pass `connection_id`. |
-| `400` | `PROVIDER_NOT_CONFIGURED` | No active VoiceLink connection, or it has no default phone number. |
+| `400` | `VALIDATION_ERROR` | Bad `to`, `from`, `provider`, `connection_id` or `client_reference_id`, or `data` does not match the flow (then with a `fields` list). Fix the request; do not retry as is. |
+| `400` | `CONNECTION_AMBIGUOUS` | The account has several active connections of the chosen provider. Pass `connection_id`. |
+| `400` | `PROVIDER_NOT_CONFIGURED` | No active connection of the chosen provider, or it has no default phone number. |
 | `401` | `UNAUTHORIZED` | Missing or invalid API key. |
 | `402` | `TELEPHONY_CREDIT_EXHAUSTED` | The telephony account is out of balance. Retry once it is topped up. |
 | `403` | `IVR_FLOWS_DISABLED` | IVR Flows is not enabled on this account. Contact Vocobase. |
 | `403` | `FORBIDDEN` | Not enough balance to start the call. |
 | `404` | `NOT_FOUND` | No flow with this ID on your account. |
-| `404` | `CONNECTION_NOT_FOUND` | The `connection_id` is not an active VoiceLink connection on your account. |
+| `404` | `CONNECTION_NOT_FOUND` | The `connection_id` is not an active connection of the chosen provider on your account. |
 | `409` | `FLOW_NOT_PUBLISHED` | The flow has no published version. Publish it in the dashboard. |
 | `422` | `IVR_PRICING_NOT_CONFIGURED` | The account has no IVR price for the voice model of the flow's published version. Contact Vocobase. |
+| `422` | `IVR_CARRIER_NOT_SUPPORTED` | IVR flows can't call over this provider on your account yet. The message names the providers that work. Nothing was dialed or charged. |
 | `422` | `AI_HANDOFF_DISABLED` | The flow has an AI agent block, and handing calls to AI agents is paused right now. Nothing was dialed or charged. Try again later. |
 | `429` | `RATE_LIMITED` | Per-minute call quota reached. Retry after `Retry-After` seconds. |
 | `429` | `LIMIT_REACHED` | Concurrent call limit reached. Retry after a short backoff. |
@@ -292,13 +298,13 @@ These come from the dashboard (publish, test call, delete) and from the endpoint
 | `422` | `GRAPH_INVALID` | Publish, test call | The flow breaks a [rule](/ivr-flow-reference#rules-every-flow-must-pass). Each problem is listed with its block. For AI agent blocks: `AI_AGENT_MISSING` (no agent picked), `AI_AGENT_NOT_FOUND` (the agent is missing, switched off or not a voice agent on your account), `AI_VAR_CLASH` (two values would reach the agent under one name), `RESERVED_NAME` (a single menu named `lead` or `call` in a flow with an AI agent block). |
 | none | `AI_AGENT_LANGUAGE` | Editor, publish, test call | A warning, never an error: the agent speaks none of the flow's language. Publishing goes ahead. |
 | `422` | `AI_HANDOFF_DISABLED` | Publish, test call, push | AI agent blocks are switched off for now. Remove them to publish or test the flow; a [push](#push-a-lead) to a flow that has one is refused until they are back on. |
-| `422` | `IVR_FLOW_NEEDS_AI_NODE` | Publish, [inbound setup](/telephony/voicelink-management#make-a-did-inbound-ready) | Only a flow whose published version has an AI agent block can answer inbound calls. On publish: the flow answers a phone number, and the new version drops its last AI agent block. |
+| `422` | `IVR_FLOW_NEEDS_AI_NODE` | Publish, inbound setup ([VoiceLink](/telephony/voicelink-management#make-a-did-inbound-ready), [Plivo or Vobiz](/inbound-calls#answer-with-an-ivr-flow)) | Only a flow whose published version has an AI agent block can answer inbound calls. On publish: the flow answers a phone number, and the new version drops its last AI agent block. |
 | `422` | `IVR_FLOW_NEEDS_LEAD` | Publish, inbound setup | An inbound call has no lead data and is not dialed, so a flow that answers a number can't have required Start fields or a Fetch right after Start. |
 | `409` | `FLOW_IN_USE` | Delete flow | A phone number or a campaign that can still call (draft, running, paused, out of balance) uses the flow. Unbind the number (`PUT /phone-numbers/{id}` with `agent_id: null` or another agent) or stop the campaign first. |
 | `422` | `FLOW_IN_USE` | Publish | A campaign that can still call uses the flow, and the new version adds a required Start field its contacts don't have. Make the field optional. |
 | `409` | `FLOW_NOT_PUBLISHED` | Campaign create, start or resume; inbound setup | The flow has no published version. Checked on `resume` only when the campaign is in `credit_exhausted`. |
 | `400` | `AGENT_OR_FLOW` | [Campaign create](/campaigns#run-an-ivr-flow), inbound setup | You sent both `agent_id` and `ivr_flow_id`. Send one. |
-| `422` | `IVR_NEEDS_VOICELINK` | Campaign create, start or resume; phone number update | An IVR flow calls over VoiceLink only. Pick numbers on a VoiceLink connection. |
+| `422` | `IVR_CARRIER_NOT_SUPPORTED` | Campaign create, start or resume; phone number update; push; test call | The number or connection is on a carrier IVR flows can't call over on your account. IVR flows call over VoiceLink, and over Plivo and Vobiz once those are turned on for your account. The message names the carriers that work and the one the number is on, for example `IVR flows can call over VoiceLink and Plivo. This number is on Vobiz.` Before November 2026 this was `IVR_NEEDS_VOICELINK`. |
 | `422` | `NOT_FOR_IVR_CAMPAIGN` | Campaign extraction sets | Extraction sets (and, in the dashboard, lead buckets) are not available on an IVR flow campaign. |
 | `409` | `AGENT_IN_USE_BY_IVR_FLOW` | [Delete agent](/api-reference) | A published flow hands calls to this agent. The error lists those `flows`; remove the AI agent block and publish them first. |
 
