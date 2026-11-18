@@ -147,6 +147,31 @@ Vocobase manages the carrier connection and media path for Plivo. Accounts only 
 
 If your account has more than one active Plivo connection, also pass `connection_id` — omitting it returns `CONNECTION_AMBIGUOUS`. See [Bring Your Own Phone](/telephony/byop-setup#start-a-call) for the full request and response shape.
 
+## Answer with an IVR flow
+
+A Plivo number can be answered by an [IVR flow](/ivr-flows) instead of an agent: the caller hears your keypad menu, and an AI agent block then hands the same call to the agent you picked. Send `ivr_flow_id` to `PUT /api/v2/phone-numbers/{id}`:
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/phone-numbers/f1a2c3d4-1111-2222-3333-444455556666 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{ "ivr_flow_id": "f1234567-abcd-1234-abcd-123456789012" }'
+```
+
+The same rules apply as on VoiceLink:
+
+- The flow's published version needs an [AI agent block](/ivr-flow-reference#ai-agent) (`422 IVR_FLOW_NEEDS_AI_NODE`).
+- It can't have required Start fields or a Fetch right after Start, since an inbound call has no lead data (`422 IVR_FLOW_NEEDS_LEAD`).
+- Binding the flow turns inbound on for the number. To unbind it, send `agent_id: null` or another agent's ID.
+
+IVR flows can also call out over Plivo: pass `"provider": "plivo"` when you [push a lead](/ivr-flows#push-a-lead), or pick Plivo numbers for an [IVR flow campaign](/campaigns#run-an-ivr-flow).
+
+<Note>
+  IVR flows on Plivo are enabled per account. Until they are, binding a flow, pushing a lead or running a campaign on Plivo returns `422 IVR_CARRIER_NOT_SUPPORTED`. Contact Vocobase to turn them on.
+</Note>
+
+See [Answer with an IVR flow](/inbound-calls#answer-with-an-ivr-flow) for the response and every error code.
+
 ## Optional: voicemail detection
 
 For Plivo outbound calls, supported accounts can enable carrier-side voicemail detection per agent. Set `voicemail_detection_enabled` to control detection for that agent. If `voicemail_message` is present and Plivo detects voicemail, Vocobase redirects the call to speak that message and then hang up. If no message is configured, the detected voicemail call is ended without playback.

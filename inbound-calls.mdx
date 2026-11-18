@@ -60,7 +60,7 @@ Everything between the two — agent configuration, knowledge base, troubleshoot
 applies either way.
 
 <Tip>
-  **On VoiceLink, a number can also be answered by an IVR flow.** The caller first hears your keypad menu ("for sales press 1, for support press 2"), and an [AI agent block](/ivr-flow-reference#ai-agent) then hands the same call to the agent you picked for that key. The agent uses its inbound configuration, if it has one, exactly as on a call straight to it. Set it up with [`POST /voicelink/inbound-ready`](/telephony/voicelink-management#answer-with-an-ivr-flow) and `ivr_flow_id` instead of `agent_id`. The flow's published version must have an AI agent block and no required Start fields or Fetch right after Start, since an inbound call has no lead data.
+  **On VoiceLink, Plivo and Vobiz, a number can also be answered by an IVR flow.** The caller first hears your keypad menu ("for sales press 1, for support press 2"), and an [AI agent block](/ivr-flow-reference#ai-agent) then hands the same call to the agent you picked for that key. The agent uses its inbound configuration, if it has one, exactly as on a call straight to it. On VoiceLink, set it up with [`POST /voicelink/inbound-ready`](/telephony/voicelink-management#answer-with-an-ivr-flow) and `ivr_flow_id` instead of `agent_id`; on Plivo and Vobiz, with [`PUT /phone-numbers/{id}`](#answer-with-an-ivr-flow) and `ivr_flow_id`. The flow's published version must have an AI agent block and no required Start fields or Fetch right after Start, since an inbound call has no lead data. Plivo and Vobiz numbers can answer with a flow once IVR flows on those are turned on for your account.
 </Tip>
 
 <Note>
@@ -705,6 +705,65 @@ Save the returned `data.id` as `AGENT_ID`.
 <Tip>
   See the per-provider setup guides for credential configuration — [Plivo Setup](/telephony/plivo-setup), [Vobiz Setup](/telephony/vobiz-setup), and [Tata Smartflo Setup](/telephony/tata-smartflo-setup). For multiple named connections, use [Telephony Connections](/telephony/connections).
 </Tip>
+
+### Answer with an IVR flow
+
+A Plivo or Vobiz number can be answered by an [IVR flow](/ivr-flows) instead of an agent. Send `ivr_flow_id` in place of `agent_id` to `PUT /api/v2/phone-numbers/:id`:
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/phone-numbers/f1a2c3d4-1111-2222-3333-444455556666 \
+  -H "Authorization: Bearer rg_live_abc123def456ghi789jkl012" \
+  -H "Content-Type: application/json" \
+  -d '{ "ivr_flow_id": "f1234567-abcd-1234-abcd-123456789012" }'
+```
+
+```json
+{
+  "success": true,
+  "data": {
+    "id": "f1a2c3d4-1111-2222-3333-444455556666",
+    "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+    "connection_name": "Vobiz India - Support",
+    "phone_number": "+918065480085",
+    "provider": "VOBIZ",
+    "friendly_name": null,
+    "status": "ACTIVE",
+    "is_default": false,
+    "inbound_enabled": true,
+    "agent": null,
+    "ivr_flow_id": "f1234567-abcd-1234-abcd-123456789012",
+    "ivr_flow_name": "Sales and support menu"
+  }
+}
+```
+
+Binding a flow turns inbound on for the number; you don't need to send `inbound_enabled`. The flow must pass the same checks as on [VoiceLink](/telephony/voicelink-management#answer-with-an-ivr-flow):
+
+- Its published version has an [AI agent block](/ivr-flow-reference#ai-agent). Only a flow that hands the call to an AI agent can answer inbound calls.
+- It has no required Start fields and no Fetch right after Start. An inbound call has no lead data and nothing runs before it is answered.
+
+| Status | Code | When |
+|---|---|---|
+| `400` | `AGENT_OR_FLOW` | Both `agent_id` and `ivr_flow_id` were sent. Send one. |
+| `400` | `VALIDATION_ERROR` | `ivr_flow_id` is not a UUID, or the number is on VoiceLink (use [`POST /voicelink/inbound-ready`](/telephony/voicelink-management#answer-with-an-ivr-flow) there). |
+| `404` | `NOT_FOUND` | No phone number or no flow with this ID on your account. |
+| `409` | `FLOW_NOT_PUBLISHED` | The flow has no published version. |
+| `422` | `IVR_CARRIER_NOT_SUPPORTED` | The number is on a carrier IVR flows can't use on your account. The message names the carriers that work and the one the number is on. |
+| `422` | `IVR_FLOW_NEEDS_AI_NODE` | The published version has no AI agent block. |
+| `422` | `IVR_FLOW_NEEDS_LEAD` | The published version has a required Start field, or a Fetch right after Start. |
+| `502` | `PLIVO_SYNC_FAILED` / `VOBIZ_SYNC_FAILED` | The carrier-side assignment failed. Retry after checking the credentials and DID ownership. |
+
+<Note>
+  IVR flows on Plivo and Vobiz are enabled per account. Until they are, binding a flow to a Plivo or Vobiz number returns `422 IVR_CARRIER_NOT_SUPPORTED`. Contact Vocobase to turn them on. Tata Smartflo and Twilio numbers can't be answered by a flow.
+</Note>
+
+Things to know:
+
+- `GET /phone-numbers` shows a number answered by a flow with `ivr_flow_id` and `ivr_flow_name`, and `agent: null`.
+- The caller first hears the flow; an AI agent block then hands the same call to the agent you picked. The agent uses its [inbound configuration](#give-one-agent-a-separate-inbound-configuration), if it has one, exactly as on a call straight to it. `{{call.from}}` in the flow is the caller's number.
+- A call is answered only while the flow's published version can still take inbound calls, your balance covers the start of an IVR call, and IVR flows on the number's carrier are on for your account; otherwise it is declined. Publishing a version that breaks this is refused while the number uses the flow, and the flow can't be deleted until you unbind the number.
+- To unbind the number from the flow, send `agent_id: null` or another agent's ID. A request that leaves out `agent_id` keeps the flow.
+- [Inbound routing policies](/inbound-routing-policies) are not applied to a number answered by a flow.
 
 ### Troubleshooting V2 inbound
 
