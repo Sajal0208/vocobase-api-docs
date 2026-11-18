@@ -344,6 +344,8 @@ A flow can answer calls to one of your VoiceLink numbers, as long as its publish
 
 An inbound call has no lead data and nothing runs before it is answered, so the flow can't have required lead fields or a Fetch right after Start. The `{{call.from}}` fill-in is the caller's number.
 
+When the flow hands an inbound call to an AI agent, the agent answers it the way it answers a call to your number directly: if the agent has a [separate inbound configuration](/inbound-calls#give-one-agent-a-separate-inbound-configuration), its inbound prompt and inbound transfer settings are used.
+
 Set it up in the dashboard under **Telephony**, or over the API with [`POST /voicelink/inbound-ready`](/telephony/voicelink-management#make-a-did-inbound-ready) and `ivr_flow_id`. A call is answered only when your balance covers the start of an IVR call.
 
 ---
@@ -378,6 +380,8 @@ On a Collect digits menu with **Mask (PINs)** switched on, the digits are hidden
 The outcome is the label you typed on the End block. Pick clear ones, because you will count them: `paid`, `promised_to_pay`, `wrong_number`, `slot_booked`.
 
 If a call has no outcome, the person hung up before an End, or the call failed.
+
+`ai_handoff`, `ai_handoff_failed` and `ai_handoff_unsupported` are reserved for calls that reach an AI agent block, so you can't type them on an End block.
 
 ### Getting results in your own system
 

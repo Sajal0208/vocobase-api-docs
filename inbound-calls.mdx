@@ -60,7 +60,7 @@ Everything between the two — agent configuration, knowledge base, troubleshoot
 applies either way.
 
 <Tip>
-  **On VoiceLink, a number can also be answered by an IVR flow.** The caller first hears your keypad menu ("for sales press 1, for support press 2"), and an [AI agent block](/ivr-flow-reference#ai-agent) then hands the same call to the agent you picked for that key. Set it up with [`POST /voicelink/inbound-ready`](/telephony/voicelink-management#answer-with-an-ivr-flow) and `ivr_flow_id` instead of `agent_id`. The flow's published version must have an AI agent block and no required Start fields or Fetch right after Start, since an inbound call has no lead data.
+  **On VoiceLink, a number can also be answered by an IVR flow.** The caller first hears your keypad menu ("for sales press 1, for support press 2"), and an [AI agent block](/ivr-flow-reference#ai-agent) then hands the same call to the agent you picked for that key. The agent uses its inbound configuration, if it has one, exactly as on a call straight to it. Set it up with [`POST /voicelink/inbound-ready`](/telephony/voicelink-management#answer-with-an-ivr-flow) and `ivr_flow_id` instead of `agent_id`. The flow's published version must have an AI agent block and no required Start fields or Fetch right after Start, since an inbound call has no lead data.
 </Tip>
 
 <Note>

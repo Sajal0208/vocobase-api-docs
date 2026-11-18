@@ -257,6 +257,8 @@ Every IVR call ends with the normal [`session.completed`](/webhooks/payloads) we
 - `agent_id` stays the flow's internal agent and `agent_name` is the flow's name. The AI agent is `ivr.handoff_agent_id`.
 - `duration_seconds` is the whole call, and `credits_used` is the sum of the IVR part and the AI part.
 - `extraction` comes from the AI agent's extraction settings, and the event is routed as one of the AI agent's events (its [scoped endpoints](/webhooks/scoping) receive it).
+- After the handoff, `call.status.updated` and `call.transferred` also carry the flow's name as `agent_name` and go to the AI agent's scoped endpoints. See [Calls handed to an AI agent](/webhooks/payloads#ivr-flows-calls).
+- If you score calls with scorecards, the call is scored with the AI agent's scorecard, not the flow's.
 
 ---
 
@@ -275,6 +277,7 @@ Every IVR call ends with the normal [`session.completed`](/webhooks/payloads) we
 | `404` | `CONNECTION_NOT_FOUND` | The `connection_id` is not an active VoiceLink connection on your account. |
 | `409` | `FLOW_NOT_PUBLISHED` | The flow has no published version. Publish it in the dashboard. |
 | `422` | `IVR_PRICING_NOT_CONFIGURED` | The account has no IVR price for the voice model of the flow's published version. Contact Vocobase. |
+| `422` | `AI_HANDOFF_DISABLED` | The flow has an AI agent block, and handing calls to AI agents is paused right now. Nothing was dialed or charged. Try again later. |
 | `429` | `RATE_LIMITED` | Per-minute call quota reached. Retry after `Retry-After` seconds. |
 | `429` | `LIMIT_REACHED` | Concurrent call limit reached. Retry after a short backoff. |
 | `502` | `INTERNAL_ERROR` | The telephony provider refused the dial. Retry after a minute or two. |
@@ -288,7 +291,7 @@ These come from the dashboard (publish, test call, delete) and from the endpoint
 |---|---|---|---|
 | `422` | `GRAPH_INVALID` | Publish, test call | The flow breaks a [rule](/ivr-flow-reference#rules-every-flow-must-pass). Each problem is listed with its block. For AI agent blocks: `AI_AGENT_MISSING` (no agent picked), `AI_AGENT_NOT_FOUND` (the agent is missing, switched off or not a voice agent on your account), `AI_VAR_CLASH` (two values would reach the agent under one name), `RESERVED_NAME` (a single menu named `lead` or `call` in a flow with an AI agent block). |
 | none | `AI_AGENT_LANGUAGE` | Editor, publish, test call | A warning, never an error: the agent speaks none of the flow's language. Publishing goes ahead. |
-| `422` | `AI_HANDOFF_DISABLED` | Publish, test call | AI agent blocks are switched off for now. Remove them to publish or test the flow. |
+| `422` | `AI_HANDOFF_DISABLED` | Publish, test call, push | AI agent blocks are switched off for now. Remove them to publish or test the flow; a [push](#push-a-lead) to a flow that has one is refused until they are back on. |
 | `422` | `IVR_FLOW_NEEDS_AI_NODE` | Publish, [inbound setup](/telephony/voicelink-management#make-a-did-inbound-ready) | Only a flow whose published version has an AI agent block can answer inbound calls. On publish: the flow answers a phone number, and the new version drops its last AI agent block. |
 | `422` | `IVR_FLOW_NEEDS_LEAD` | Publish, inbound setup | An inbound call has no lead data and is not dialed, so a flow that answers a number can't have required Start fields or a Fetch right after Start. |
 | `409` | `FLOW_IN_USE` | Delete flow | A phone number or a campaign that can still call (draft, running, paused, out of balance) uses the flow. Unbind the number (`PUT /phone-numbers/{id}` with `agent_id: null` or another agent) or stop the campaign first. |

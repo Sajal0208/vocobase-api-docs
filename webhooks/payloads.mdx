@@ -200,8 +200,8 @@ Sent whenever Vocobase learns that a telephony call moved to a new meaningful ca
 | `timestamp` | string (ISO 8601) | When Vocobase created the webhook event |
 | `data.call_id` | string (UUID) | Unique Vocobase call identifier |
 | `data.session_id` | string (UUID) or null | Associated session identifier. Normally present for calls started through `POST /calls/start`. |
-| `data.agent_id` | string (UUID) | The agent assigned to the call |
-| `data.agent_name` | string or null | Agent display name |
+| `data.agent_id` | string (UUID) | The agent assigned to the call. On an [IVR flow](/ivr-flows) call this is an internal agent that backs the flow; once the flow hands the call to an AI agent, find that agent in `ivr.handoff_agent_id` on `session.completed` (see [Calls handed to an AI agent](#ivr-flows-calls)). |
+| `data.agent_name` | string or null | Agent display name. The flow's name on an IVR call handed to an AI agent. |
 | `data.client_reference_id` | string or null | Client-supplied correlation key from `POST /calls/start`, when provided |
 | `data.direction` | string | `outbound` or `inbound` |
 | `data.from_number` | string | Caller phone number |
@@ -694,6 +694,8 @@ The `ivr` block never carries Fetch URLs, headers, request bodies or the values 
 - `extraction` is produced by the AI agent's extraction settings.
 - The event is routed as one of the AI agent's events: [endpoints scoped](/webhooks/scoping) to that agent receive it, and its `include_account_endpoints` setting decides whether account-wide endpoints do too.
 
+Once the call is handed off, `call.status.updated` and `call.transferred` (when the agent transfers the caller to a person) follow the same rules: `agent_id` stays the flow's internal agent, `agent_name` is the flow's name, and the event goes to the AI agent's scoped endpoints. Updates sent before the handoff are unchanged.
+
 ## Event: `call.transferred`
 
 Fired the moment a live call is handed off to a human, from the transfer route
@@ -734,8 +736,8 @@ Emitted for phone calls only. Browser WebRTC sessions cannot be transferred.
 | `event` | string | Always `"call.transferred"` |
 | `timestamp` | string (ISO 8601) | When Vocobase created the webhook event |
 | `data.session_id` | string (UUID) | The session whose call was transferred |
-| `data.agent_id` | string (UUID) | The agent that handed off the call |
-| `data.agent_name` | string or null | Agent display name |
+| `data.agent_id` | string (UUID) | The agent that handed off the call. On an [IVR flow](/ivr-flows) call handed to an AI agent, this is the flow's internal agent; the AI agent that transferred the caller is `ivr.handoff_agent_id` on `session.completed`, and this event goes to that AI agent's scoped endpoints. |
+| `data.agent_name` | string or null | Agent display name. The flow's name on an IVR call handed to an AI agent. |
 | `data.call.call_id` | string (UUID) | Unique call identifier |
 | `data.call.client_reference_id` | string or null | Client-supplied correlation key from `POST /calls/start`, when provided |
 | `data.call.from_number` | string | Caller phone number (E.164) |

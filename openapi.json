@@ -9563,7 +9563,7 @@
             }
           },
           "422": {
-            "description": "The account has no IVR price for the voice model of the flow's published version. Contact Vocobase.",
+            "description": "`IVR_PRICING_NOT_CONFIGURED`: the account has no IVR price for the voice model of the flow's published version; contact Vocobase. `AI_HANDOFF_DISABLED`: the flow has an AI agent block and handing calls to AI agents is paused right now; nothing was dialed or charged, try again later.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9577,6 +9577,16 @@
                       "error": {
                         "code": "IVR_PRICING_NOT_CONFIGURED",
                         "message": "IVR pricing is not configured for this voice model on this account. Contact Vocobase."
+                      }
+                    }
+                  },
+                  "handoff_paused": {
+                    "summary": "AI agent handoff paused",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AI_HANDOFF_DISABLED",
+                        "message": "AI agent blocks are switched off for now. Calls on a flow with one are paused until they are back on."
                       }
                     }
                   }
@@ -24284,25 +24294,33 @@
             "nullable": true
           },
           "agent_id": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "uuid",
-            "nullable": true,
             "description": "The campaign's agent. `null` on a campaign that runs an IVR flow."
           },
           "agent_name": {
-            "type": "string",
-            "nullable": true,
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "`null` on a campaign that runs an IVR flow."
           },
           "ivr_flow_id": {
-            "type": "string",
+            "type": [
+              "string",
+              "null"
+            ],
             "format": "uuid",
-            "nullable": true,
             "description": "The IVR flow the campaign runs. `null` on an agent campaign."
           },
           "ivr_flow_name": {
-            "type": "string",
-            "nullable": true,
+            "type": [
+              "string",
+              "null"
+            ],
             "description": "Name of the IVR flow the campaign runs. `null` on an agent campaign."
           },
           "provider": {
