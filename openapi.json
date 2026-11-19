@@ -4201,7 +4201,7 @@
       "put": {
         "operationId": "updatePhoneNumber",
         "summary": "Assign an agent to a DID",
-        "description": "Updates a phone number's agent assignment, inbound-routing flag, friendly name, or status. Active duplicate DIDs are allowed for outbound caller ID reuse, but only one active row per DID can have `inbound_enabled=true`. When inbound routing changes for Plivo or Vobiz, Vocobase first updates the carrier Application binding and then updates the local record. If carrier sync fails, the local assignment is not committed.\n\nTo have an IVR flow answer a Plivo or Vobiz number, send `ivr_flow_id` in place of `agent_id`. The flow must be published, its published version must have an AI agent block, and it can't have required Start fields or a Fetch right after Start. Binding the flow turns inbound on for the number, unless you also send `inbound_enabled: false` (an `INACTIVE` number stays off unless you also send `status: \"ACTIVE\"`); the response has `agent: null` and names the flow in `ivr_flow_id` / `ivr_flow_name`. To unbind, send `agent_id: null` or another agent; a request without `agent_id` keeps the flow. A VoiceLink number is bound to a flow through `POST /voicelink/inbound-ready` with `ivr_flow_id`, never here (`400 VALIDATION_ERROR`); any other carrier is `422 IVR_CARRIER_NOT_SUPPORTED`.",
+        "description": "Updates a phone number's agent assignment, inbound-routing flag, friendly name, or status. Active duplicate DIDs are allowed for outbound caller ID reuse, but only one active row per DID can have `inbound_enabled=true`. When inbound routing changes for Plivo or Vobiz, Vocobase first updates the carrier Application binding and then updates the local record. If carrier sync fails, the local assignment is not committed.\n\nTo have an IVR flow answer a Plivo or Vobiz number, send `ivr_flow_id` in place of `agent_id`. The flow must be published, its published version must have an AI agent block, and it can't have required Start fields or a Fetch right after Start. Binding the flow turns inbound on for the number, unless you also send `inbound_enabled: false` (an `INACTIVE` number stays off unless you also send `status: \"ACTIVE\"`); the response has `agent: null` and names the flow in `ivr_flow_id` / `ivr_flow_name`. To unbind, send `agent_id: null` or another agent; a request without `agent_id` keeps the flow. A VoiceLink number is bound to a flow through `POST /voicelink/inbound-ready` with `ivr_flow_id`, never here (`400 VALIDATION_ERROR`); any other carrier is `422 IVR_NEEDS_VOICELINK`.",
         "tags": [
           "Phone Numbers"
         ],
@@ -4235,7 +4235,7 @@
                   "ivr_flow_id": {
                     "type": "string",
                     "format": "uuid",
-                    "description": "Plivo and Vobiz numbers only: the IVR flow that answers this number, instead of an agent. Send it without `agent_id` (both is `400 AGENT_OR_FLOW`). Turns inbound on, unless you also send `inbound_enabled: false` or the number is `INACTIVE`. If IVR flows can't use the number's carrier right now, the API answers `422 IVR_CARRIER_NOT_SUPPORTED`."
+                    "description": "Plivo and Vobiz numbers only: the IVR flow that answers this number, instead of an agent. Send it without `agent_id` (both is `400 AGENT_OR_FLOW`). Turns inbound on, unless you also send `inbound_enabled: false` or the number is `INACTIVE`. If IVR flows can't use the number's carrier right now, the API answers `422 IVR_NEEDS_VOICELINK`."
                   },
                   "inbound_enabled": {
                     "type": "boolean",
@@ -4434,7 +4434,7 @@
             }
           },
           "422": {
-            "description": "IVR flow binding only. `IVR_CARRIER_NOT_SUPPORTED`: the number is on a carrier IVR flows can't use right now; the message names the carriers that work and the one the number is on. `IVR_FLOW_NEEDS_AI_NODE`: the published version has no AI agent block. `IVR_FLOW_NEEDS_LEAD`: the published version has a required Start field, or a Fetch right after Start.",
+            "description": "IVR flow binding only. `IVR_NEEDS_VOICELINK`: the number is on a carrier IVR flows can't use right now; the message names the carriers that work and the one the number is on. `IVR_FLOW_NEEDS_AI_NODE`: the published version has no AI agent block. `IVR_FLOW_NEEDS_LEAD`: the published version has a required Start field, or a Fetch right after Start.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4446,7 +4446,7 @@
                     "value": {
                       "success": false,
                       "error": {
-                        "code": "IVR_CARRIER_NOT_SUPPORTED",
+                        "code": "IVR_NEEDS_VOICELINK",
                         "message": "IVR flows can call over VoiceLink and Plivo. This number is on Vobiz."
                       }
                     }
@@ -9412,7 +9412,7 @@
       "post": {
         "operationId": "startIvrCall",
         "summary": "Push a lead (place an IVR call)",
-        "description": "Places one outbound call that runs the published version of the flow, with `data` as the lead. Calls go out on your VoiceLink connection, or on your Plivo or Vobiz connection when you send `provider`. If IVR flows can't use that carrier right now, the API answers `422 IVR_CARRIER_NOT_SUPPORTED`. The call is placed asynchronously: a 202 means it was accepted, not that it was answered. When the flow has Fetch blocks right after Start, they run before dialing; if one fails the number is never dialed and the call ends as `failed` with `ivr.failure = \"prefetch_failed\"` on `session.completed`. Track the call with `call.status.updated` webhooks or `GET /calls/{id}`, and read the result from the `ivr` block of `session.completed`.\n\nRate limited per account with the same per-minute call quota as `POST /calls/start`, and counted against the same concurrent call limit. A call needs enough balance for one minute at your IVR price for the voice model of the flow's published version (Standard or Premium) to start; it is billed per pulse of answered time at that price.",
+        "description": "Places one outbound call that runs the published version of the flow, with `data` as the lead. Calls go out on your VoiceLink connection, or on your Plivo or Vobiz connection when you send `provider`. If IVR flows can't use that carrier right now, the API answers `422 IVR_NEEDS_VOICELINK`. The call is placed asynchronously: a 202 means it was accepted, not that it was answered. When the flow has Fetch blocks right after Start, they run before dialing; if one fails the number is never dialed and the call ends as `failed` with `ivr.failure = \"prefetch_failed\"` on `session.completed`. Track the call with `call.status.updated` webhooks or `GET /calls/{id}`, and read the result from the `ivr` block of `session.completed`.\n\nRate limited per account with the same per-minute call quota as `POST /calls/start`, and counted against the same concurrent call limit. A call needs enough balance for one minute at your IVR price for the voice model of the flow's published version (Standard or Premium) to start; it is billed per pulse of answered time at that price.",
         "tags": [
           "IVR Flows"
         ],
@@ -9707,7 +9707,7 @@
             }
           },
           "422": {
-            "description": "`IVR_CARRIER_NOT_SUPPORTED`: IVR flows can't call over the chosen provider right now; the message names the providers that work; nothing was dialed or charged. `IVR_PRICING_NOT_CONFIGURED`: the account has no IVR price for the voice model of the flow's published version; contact Vocobase. `AI_HANDOFF_DISABLED`: the flow has an AI agent block and handing calls to AI agents is paused right now; nothing was dialed or charged, try again later.",
+            "description": "`IVR_NEEDS_VOICELINK`: IVR flows can't call over the chosen provider right now; the message names the providers that work; nothing was dialed or charged. `IVR_PRICING_NOT_CONFIGURED`: the account has no IVR price for the voice model of the flow's published version; contact Vocobase. `AI_HANDOFF_DISABLED`: the flow has an AI agent block and handing calls to AI agents is paused right now; nothing was dialed or charged, try again later.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9719,7 +9719,7 @@
                     "value": {
                       "success": false,
                       "error": {
-                        "code": "IVR_CARRIER_NOT_SUPPORTED",
+                        "code": "IVR_NEEDS_VOICELINK",
                         "message": "IVR flows cannot call over Vobiz yet. They can call over VoiceLink and Plivo."
                       }
                     }
@@ -10551,7 +10551,7 @@
         "tags": [
           "Campaigns"
         ],
-        "description": "Creates an outbound campaign in `draft` status. Nothing dials until you add contacts and call `POST /campaigns/{id}/start`.\n\nSupply caller IDs with `phone_number_ids` (preferred — the campaign rotates through them in order) **or** a single legacy `provider`. Sending both fails unless they agree.\n\nTo run an IVR flow instead of an agent, send `ivr_flow_id` in place of `agent_id` (exactly one of the two). The flow must be published, and `phone_number_ids` is then required with every number on a VoiceLink, Plivo or Vobiz connection (`422 IVR_CARRIER_NOT_SUPPORTED` otherwise). If IVR flows can't use that carrier right now, the API answers `422 IVR_CARRIER_NOT_SUPPORTED`. The response names the flow in `ivr_flow_id` / `ivr_flow_name` and has `agent_id` and `agent_name` `null`. Each contact fills the flow's Start fields from the `metadata` keys of the same name (see `GET /ivr-flows` → `start_fields`); a contact with a missing required field or an invalid value is not called and is marked `failed`. Campaign extraction sets are not available on an IVR flow campaign.",
+        "description": "Creates an outbound campaign in `draft` status. Nothing dials until you add contacts and call `POST /campaigns/{id}/start`.\n\nSupply caller IDs with `phone_number_ids` (preferred — the campaign rotates through them in order) **or** a single legacy `provider`. Sending both fails unless they agree.\n\nTo run an IVR flow instead of an agent, send `ivr_flow_id` in place of `agent_id` (exactly one of the two). The flow must be published, and `phone_number_ids` is then required with every number on a VoiceLink, Plivo or Vobiz connection (`422 IVR_NEEDS_VOICELINK` otherwise). If IVR flows can't use that carrier right now, the API answers `422 IVR_NEEDS_VOICELINK`. The response names the flow in `ivr_flow_id` / `ivr_flow_name` and has `agent_id` and `agent_name` `null`. Each contact fills the flow's Start fields from the `metadata` keys of the same name (see `GET /ivr-flows` → `start_fields`); a contact with a missing required field or an invalid value is not called and is marked `failed`. Campaign extraction sets are not available on an IVR flow campaign.",
         "requestBody": {
           "required": true,
           "content": {
@@ -10594,7 +10594,7 @@
                       "type": "string",
                       "format": "uuid"
                     },
-                    "description": "Imported numbers to dial from. Each must be active, owned by you, and voice-capable. Required with `ivr_flow_id`, and then every number must be on a VoiceLink, Plivo or Vobiz connection. If IVR flows can't use that carrier right now, the API answers `422 IVR_CARRIER_NOT_SUPPORTED`."
+                    "description": "Imported numbers to dial from. Each must be active, owned by you, and voice-capable. Required with `ivr_flow_id`, and then every number must be on a VoiceLink, Plivo or Vobiz connection. If IVR flows can't use that carrier right now, the API answers `422 IVR_NEEDS_VOICELINK`."
                   },
                   "provider": {
                     "type": "string",
@@ -10780,7 +10780,7 @@
             }
           },
           "422": {
-            "description": "`IVR_CARRIER_NOT_SUPPORTED`: an IVR flow campaign without `phone_number_ids`, or with a number on a carrier IVR flows can't use right now. The message names the carriers that work and the one the number is on.",
+            "description": "`IVR_NEEDS_VOICELINK`: an IVR flow campaign without `phone_number_ids`, or with a number on a carrier IVR flows can't use right now. The message names the carriers that work and the one the number is on.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10789,7 +10789,7 @@
                 "example": {
                   "success": false,
                   "error": {
-                    "code": "IVR_CARRIER_NOT_SUPPORTED",
+                    "code": "IVR_NEEDS_VOICELINK",
                     "message": "Phone number +918065480085: IVR flows can call over VoiceLink and Plivo. This number is on Vobiz."
                   }
                 }
@@ -11332,7 +11332,7 @@
                     "value": {
                       "success": false,
                       "error": {
-                        "code": "IVR_CARRIER_NOT_SUPPORTED",
+                        "code": "IVR_NEEDS_VOICELINK",
                         "message": "Phone number +918065480085: IVR flows can call over VoiceLink and Plivo. This number is on Vobiz."
                       }
                     }
@@ -11628,7 +11628,7 @@
                     "value": {
                       "success": false,
                       "error": {
-                        "code": "IVR_CARRIER_NOT_SUPPORTED",
+                        "code": "IVR_NEEDS_VOICELINK",
                         "message": "Phone number +918065480085: IVR flows can call over VoiceLink and Plivo. This number is on Vobiz."
                       }
                     }
@@ -19870,7 +19870,7 @@
               "vobiz"
             ],
             "default": "voicelink",
-            "description": "Carrier to call over, lowercase as in `POST /calls/start`. Defaults to `voicelink`. `connection_id` and `from` must be on this provider. If IVR flows can't use that carrier right now, the API answers `422 IVR_CARRIER_NOT_SUPPORTED`.",
+            "description": "Carrier to call over, lowercase as in `POST /calls/start`. Defaults to `voicelink`. `connection_id` and `from` must be on this provider. If IVR flows can't use that carrier right now, the API answers `422 IVR_NEEDS_VOICELINK`.",
             "example": "voicelink"
           },
           "connection_id": {

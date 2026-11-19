@@ -167,7 +167,7 @@ The same rules apply as on VoiceLink:
 IVR flows can also call out over Vobiz: pass `"provider": "vobiz"` when you [push a lead](/ivr-flows#push-a-lead), or pick Vobiz numbers for an [IVR flow campaign](/campaigns#run-an-ivr-flow).
 
 <Note>
-  If IVR flows can't use Vobiz at the moment, binding a flow, pushing a lead or running a campaign on Vobiz returns `422 IVR_CARRIER_NOT_SUPPORTED`, and the message names the carriers that work.
+  If IVR flows can't use Vobiz at the moment, binding a flow, pushing a lead or running a campaign on Vobiz returns `422 IVR_NEEDS_VOICELINK`, and the message names the carriers that work.
 </Note>
 
 See [Answer with an IVR flow](/inbound-calls#answer-with-an-ivr-flow) for the response and every error code.

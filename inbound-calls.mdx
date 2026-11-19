@@ -749,13 +749,13 @@ Binding a flow turns inbound on for the number unless you also send `inbound_ena
 | `404` | `NOT_FOUND` | No phone number or no flow with this ID on your account. |
 | `409` | `FLOW_NOT_PUBLISHED` | The flow has no published version. |
 | `409` | `VALIDATION_ERROR` | The number already takes inbound calls on another connection. |
-| `422` | `IVR_CARRIER_NOT_SUPPORTED` | The number is on a carrier IVR flows can't use right now. The message names the carriers that work and the one the number is on. Before November 2026 this code was `IVR_NEEDS_VOICELINK`. |
+| `422` | `IVR_NEEDS_VOICELINK` | The number is on a carrier IVR flows can't use right now. The message names the carriers that work and the one the number is on. |
 | `422` | `IVR_FLOW_NEEDS_AI_NODE` | The published version has no AI agent block. |
 | `422` | `IVR_FLOW_NEEDS_LEAD` | The published version has a required Start field, or a Fetch right after Start. |
 | `502` | `PLIVO_SYNC_FAILED` / `VOBIZ_SYNC_FAILED` | The carrier-side assignment failed. Retry after checking the credentials and DID ownership. |
 
 <Note>
-  Tata Smartflo and Twilio numbers can't be answered by a flow (`422 IVR_CARRIER_NOT_SUPPORTED`).
+  Tata Smartflo and Twilio numbers can't be answered by a flow (`422 IVR_NEEDS_VOICELINK`).
 </Note>
 
 Things to know:
