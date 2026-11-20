@@ -1,0 +1,80 @@
+---
+title: "Voice Activity Detection & Turn Timing"
+description: "Tune how your agent hears the caller start and stop talking, and how long it waits before replying"
+---
+
+# Voice Activity Detection & Turn Timing
+
+Every call runs voice activity detection (VAD): it listens to the caller's audio
+and decides when they start talking and when they stop. That decision drives
+everything else in the conversation: when the agent stops speaking to listen,
+and when it decides the caller has finished and replies.
+
+The platform defaults work well for most calls. `vad_config` lets you change
+them per agent, for example when callers are often in noisy places, or when the
+agent keeps cutting people off mid-sentence.
+
+<Warning>
+These settings change how every call on the agent sounds. Bad values make calls
+worse: the agent may talk over callers, stop talking at every cough, or leave
+long, awkward silences. Change one value at a time, make a few test calls, and
+leave `vad_config` unset unless you are fixing a specific problem.
+</Warning>
+
+---
+
+## The fields
+
+| Field | Range | Default | What it does |
+|-------|-------|---------|--------------|
+| `confidence` | 0 – 1 | 0.5 | How sure the detector must be that a sound is speech. Raise it to ignore more background noise; too high and soft-spoken callers are missed. |
+| `min_volume` | 0 – 1 | 0.5 | How loud a sound must be to count as speech. Raise it to ignore distant voices or a TV in the room; too high and quiet callers are missed. |
+| `start_secs` | 0 – 10 s | 0.2 | How long the caller must speak before they count as talking (and the agent stops to listen). Raise it so short noises ("mm", a cough) do not interrupt the agent; too high and the agent keeps talking over the caller. |
+| `stop_secs` | 0 – 10 s | 0.2 | How much silence counts as the caller having stopped talking. |
+| `user_speech_timeout` | 0 – 10 s | 0.6 | How long the agent waits after the caller goes quiet before it replies. Raise it for callers who pause mid-sentence; too high and every reply feels slow. |
+| `user_turn_stop_timeout` | 0 – 10 s | 1.0 | The longest the agent waits for turn detection to decide the caller is done before it ends their turn anyway. |
+
+The defaults shown are the usual platform values. A `null` value always means
+"use the platform default", so if the platform values are retuned, agents
+without an override follow them automatically.
+
+---
+
+## Setting it
+
+Send `vad_config` on `POST /agent` or `PUT /agent/{id}`. Every key is optional.
+
+```bash
+curl -X PUT https://api.vocobase.com/api/v2/agent/{agent_id} \
+  -H "Authorization: Bearer rg_live_..." \
+  -H "Content-Type: application/json" \
+  -d '{ "vad_config": { "user_speech_timeout": 0.9, "confidence": 0.6 } }'
+```
+
+On update:
+
+- A key you send with a number is set.
+- A key you send as `null` goes back to the platform default.
+- A key you leave out is not changed.
+- `"vad_config": null` resets all six keys to the platform default.
+
+Unknown keys, values outside the ranges above, and anything that is not a
+number or `null` are rejected with `400 VALIDATION_ERROR`. The inbound side of
+an agent has its own copy, set with `PUT /agent/{id}/inbound/config`.
+
+## Reading it
+
+Every agent response (`GET /agent/{id}`, `GET /agent/all`, create and update)
+includes `vad_config` with all six keys. `null` means that key uses the
+platform default.
+
+```json
+"vad_config": {
+  "confidence": 0.6,
+  "min_volume": null,
+  "start_secs": null,
+  "stop_secs": null,
+  "user_speech_timeout": 0.9,
+  "user_turn_stop_timeout": null
+}
+```
