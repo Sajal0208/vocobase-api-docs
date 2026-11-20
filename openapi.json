@@ -5374,6 +5374,70 @@
                     "minimum": 0,
                     "maximum": 1,
                     "description": "Mixing volume for `background_audio_id`. Range 0.0-1.0. When `null`, the bot applies a default of 0.3."
+                  },
+                  "vad_config": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "confidence": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 1,
+                        "description": "How sure voice activity detection must be that a sound is speech before it counts. Higher ignores more noise but can miss soft speakers. Range 0-1. Platform default 0.5."
+                      },
+                      "min_volume": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 1,
+                        "description": "Minimum loudness for a sound to count as speech. Higher ignores background chatter but can miss quiet callers. Range 0-1. Platform default 0.5."
+                      },
+                      "start_secs": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 10,
+                        "description": "Seconds of speech needed before the caller is treated as talking (and the agent stops to listen). Range 0-10 s. Platform default 0.2 s."
+                      },
+                      "stop_secs": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 10,
+                        "description": "Seconds of silence needed before the caller is treated as having stopped talking. Range 0-10 s. Platform default 0.2 s."
+                      },
+                      "user_speech_timeout": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 10,
+                        "description": "Seconds the agent waits after the caller goes quiet before ending their turn and replying. Higher is more patient, lower replies faster. Range 0-10 s. Platform default 0.6 s."
+                      },
+                      "user_turn_stop_timeout": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 10,
+                        "description": "Longest the agent waits for turn detection to decide the caller is done before it ends the turn anyway. Range 0-10 s. Platform default 1.0 s."
+                      }
+                    },
+                    "description": "Per-agent voice activity detection (VAD) and turn timing. Every key is optional; omit a key or pass `null` to use the platform default. Unknown keys and out-of-range values return `400 VALIDATION_ERROR`. Bad values make calls worse (the agent talks over callers or waits too long), so leave this unset unless you are tuning a specific problem."
                   }
                 }
               }
@@ -5839,6 +5903,70 @@
                     "minimum": 0,
                     "maximum": 1,
                     "description": "Mixing volume override for `background_audio_id`. Range 0.0-1.0. Pass `null` to use the default (0.3)."
+                  },
+                  "vad_config": {
+                    "type": [
+                      "object",
+                      "null"
+                    ],
+                    "additionalProperties": false,
+                    "properties": {
+                      "confidence": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 1,
+                        "description": "How sure voice activity detection must be that a sound is speech before it counts. Higher ignores more noise but can miss soft speakers. Range 0-1. Platform default 0.5."
+                      },
+                      "min_volume": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 1,
+                        "description": "Minimum loudness for a sound to count as speech. Higher ignores background chatter but can miss quiet callers. Range 0-1. Platform default 0.5."
+                      },
+                      "start_secs": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 10,
+                        "description": "Seconds of speech needed before the caller is treated as talking (and the agent stops to listen). Range 0-10 s. Platform default 0.2 s."
+                      },
+                      "stop_secs": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 10,
+                        "description": "Seconds of silence needed before the caller is treated as having stopped talking. Range 0-10 s. Platform default 0.2 s."
+                      },
+                      "user_speech_timeout": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 10,
+                        "description": "Seconds the agent waits after the caller goes quiet before ending their turn and replying. Higher is more patient, lower replies faster. Range 0-10 s. Platform default 0.6 s."
+                      },
+                      "user_turn_stop_timeout": {
+                        "type": [
+                          "number",
+                          "null"
+                        ],
+                        "minimum": 0,
+                        "maximum": 10,
+                        "description": "Longest the agent waits for turn detection to decide the caller is done before it ends the turn anyway. Range 0-10 s. Platform default 1.0 s."
+                      }
+                    },
+                    "description": "Change per-agent VAD and turn timing. Only the keys you send are changed: a number sets the override, `null` resets that key to the platform default, and a key you leave out is unchanged. Pass `\"vad_config\": null` to reset all six. Unknown keys and out-of-range values return `400 VALIDATION_ERROR`."
                   }
                 },
                 "minProperties": 1
@@ -21891,6 +22019,75 @@
             "minimum": 0,
             "maximum": 1,
             "description": "Mixing volume for `background_audio_id`. Range 0.0-1.0. When `null`, the bot applies a default of 0.3."
+          },
+          "vad_config": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "confidence": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1,
+                "description": "How sure voice activity detection must be that a sound is speech before it counts. Higher ignores more noise but can miss soft speakers. Range 0-1. Platform default 0.5."
+              },
+              "min_volume": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 1,
+                "description": "Minimum loudness for a sound to count as speech. Higher ignores background chatter but can miss quiet callers. Range 0-1. Platform default 0.5."
+              },
+              "start_secs": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 10,
+                "description": "Seconds of speech needed before the caller is treated as talking (and the agent stops to listen). Range 0-10 s. Platform default 0.2 s."
+              },
+              "stop_secs": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 10,
+                "description": "Seconds of silence needed before the caller is treated as having stopped talking. Range 0-10 s. Platform default 0.2 s."
+              },
+              "user_speech_timeout": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 10,
+                "description": "Seconds the agent waits after the caller goes quiet before ending their turn and replying. Higher is more patient, lower replies faster. Range 0-10 s. Platform default 0.6 s."
+              },
+              "user_turn_stop_timeout": {
+                "type": [
+                  "number",
+                  "null"
+                ],
+                "minimum": 0,
+                "maximum": 10,
+                "description": "Longest the agent waits for turn detection to decide the caller is done before it ends the turn anyway. Range 0-10 s. Platform default 1.0 s."
+              }
+            },
+            "required": [
+              "confidence",
+              "min_volume",
+              "start_secs",
+              "stop_secs",
+              "user_speech_timeout",
+              "user_turn_stop_timeout"
+            ],
+            "description": "Per-agent VAD and turn timing overrides. Always contains all six keys; `null` means the platform default is used."
           },
           "document_count": {
             "type": "integer",
