@@ -152,7 +152,7 @@ Good to know:
 - If the handoff fails, for example because your balance is too low for an agent call, the person hears "Sorry, we could not connect you right now. Please try again later." and the call ends. On the Calls page it shows as `failed: AI handoff failed`.
 - If the agent speaks none of the flow's language, the editor warns you ("This agent speaks a different language than the flow."). You can still publish.
 - While a published flow hands calls to an agent, that agent can't be deleted. Remove the block and publish first.
-- A flow with an AI agent block can also answer calls to your own VoiceLink number. See [Inbound calls answered by a flow](#inbound-calls-answered-by-a-flow).
+- A flow with an AI agent block can also answer calls to your own VoiceLink, Plivo or Vobiz number. See [Inbound calls answered by a flow](#inbound-calls-answered-by-a-flow).
 - The IVR part and the AI part of the call are billed separately. See [How am I billed?](#how-am-i-billed)
 
 For every detail, see [AI agent](/ivr-flow-reference#ai-agent) in the JSON reference.
@@ -210,7 +210,7 @@ For every detail, see [AI agent](/ivr-flow-reference#ai-agent) in the JSON refer
   <Step title="Make a test call">
     Click **Test call** and fill in:
 
-    - **Call from**: the number the call comes from. These are your numbers on [VoiceLink](/telephony/voicelink-setup), your telephony provider.
+    - **Call from**: the number the call comes from. These are your numbers on [VoiceLink](/telephony/voicelink-setup), [Plivo](/telephony/plivo-setup) or [Vobiz](/telephony/vobiz-setup).
     - **Your phone number**: in international format, like `+919876543210`.
     - **Lead data**: sample values for the Start fields. Fields marked \* are required.
 
@@ -334,19 +334,19 @@ All the details, field formats and error codes are in [IVR Flows](/ivr-flows).
 
 ### Calling a list with a campaign
 
-A [campaign](/campaigns) can run a published flow instead of an AI agent. When you create the campaign, pick the flow, and pick numbers on your VoiceLink connection to call from: a flow calls over VoiceLink only. In the dashboard, you match the columns of your contact file to the flow's lead fields. A contact that misses a required lead field is not called and is marked failed.
+A [campaign](/campaigns) can run a published flow instead of an AI agent. When you create the campaign, pick the flow, and pick numbers to call from on your VoiceLink, Plivo or Vobiz connections. In the dashboard, you match the columns of your contact file to the flow's lead fields. A contact that misses a required lead field is not called and is marked failed.
 
 On a flow campaign, lead buckets and campaign extraction sets are not available. When a call is handed to an AI agent, that agent's own extraction runs.
 
 ### Inbound calls answered by a flow
 
-A flow can answer calls to one of your VoiceLink numbers, as long as its published version has an **AI agent** block. A typical inbound flow: "For sales press 1, for support press 2", and each key leads to a different AI agent.
+A flow can answer calls to one of your VoiceLink, Plivo or Vobiz numbers, as long as its published version has an **AI agent** block. A typical inbound flow: "For sales press 1, for support press 2", and each key leads to a different AI agent.
 
 An inbound call has no lead data and nothing runs before it is answered, so the flow can't have required lead fields or a Fetch right after Start. The `{{call.from}}` fill-in is the caller's number.
 
 When the flow hands an inbound call to an AI agent, the agent answers it the way it answers a call to your number directly: if the agent has a [separate inbound configuration](/inbound-calls#give-one-agent-a-separate-inbound-configuration), its inbound prompt and inbound transfer settings are used.
 
-Set it up in the dashboard under **Telephony**, or over the API with [`POST /voicelink/inbound-ready`](/telephony/voicelink-management#make-a-did-inbound-ready) and `ivr_flow_id`. A call is answered only when your balance covers the start of an IVR call.
+Set it up in the dashboard under **Telephony**. Over the API, a VoiceLink number uses [`POST /voicelink/inbound-ready`](/telephony/voicelink-management#make-a-did-inbound-ready) with `ivr_flow_id`, and a Plivo or Vobiz number uses `PUT /phone-numbers/{id}` with `ivr_flow_id` (see [Answer with an IVR flow](/inbound-calls#answer-with-an-ivr-flow)). A call is answered only when your balance covers the start of an IVR call.
 
 ---
 
@@ -481,7 +481,7 @@ If a call reaches the call length limit or the block limit, it hangs up with no 
 ### Why didn't my phone ring?
 
 - **The Call from number is not set up with your telephony provider.** The editor says "This number isn't set up with your telephony provider. Pick another number." Pick another number in **Call from**.
-- **There is no number to call from.** The test call window says "Add a number in Telephony first." Add a VoiceLink number in **Telephony**.
+- **There is no number to call from.** The test call window says "Add a number in Telephony first." Add a VoiceLink, Plivo or Vobiz number in **Telephony**.
 - **A Fetch that runs before dialing failed.** The number is not dialed. Open **Calls** and click the call to see which Fetch failed and why.
 - **Your telephony account is out of balance.** Top it up with your provider, then try again.
 - **Your Vocobase balance is too low.** A call needs enough credits for one minute at your IVR price before it starts.

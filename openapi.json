@@ -4201,7 +4201,7 @@
       "put": {
         "operationId": "updatePhoneNumber",
         "summary": "Assign an agent to a DID",
-        "description": "Updates a phone number's agent assignment, inbound-routing flag, friendly name, or status. Active duplicate DIDs are allowed for outbound caller ID reuse, but only one active row per DID can have `inbound_enabled=true`. When inbound routing changes for Plivo or Vobiz, Vocobase first updates the carrier Application binding and then updates the local record. If carrier sync fails, the local assignment is not committed.\n\nAn IVR flow answers a number only through `POST /voicelink/inbound-ready` with `ivr_flow_id`. Sending `ivr_flow_id` here is refused: `400 VALIDATION_ERROR` on a VoiceLink number, `422 IVR_NEEDS_VOICELINK` on any other provider.",
+        "description": "Updates a phone number's agent assignment, inbound-routing flag, friendly name, or status. Active duplicate DIDs are allowed for outbound caller ID reuse, but only one active row per DID can have `inbound_enabled=true`. When inbound routing changes for Plivo or Vobiz, Vocobase first updates the carrier Application binding and then updates the local record. If carrier sync fails, the local assignment is not committed.\n\nTo have an IVR flow answer a Plivo or Vobiz number, send `ivr_flow_id` in place of `agent_id`. The flow must be published, its published version must have an AI agent block, and it can't have required Start fields or a Fetch right after Start. Binding the flow turns inbound on for the number, unless you also send `inbound_enabled: false` (an `INACTIVE` number stays off unless you also send `status: \"ACTIVE\"`); the response has `agent: null` and names the flow in `ivr_flow_id` / `ivr_flow_name`. To unbind, send `agent_id: null` or another agent; a request without `agent_id` keeps the flow. A VoiceLink number is bound to a flow through `POST /voicelink/inbound-ready` with `ivr_flow_id`, never here (`400 VALIDATION_ERROR`); any other carrier is `422 IVR_NEEDS_VOICELINK`.",
         "tags": [
           "Phone Numbers"
         ],
@@ -4232,6 +4232,11 @@
                     "format": "uuid",
                     "description": "Agent ID to assign. Use `null` or an empty string to clear assignment. If `inbound_enabled` is omitted, the number's current inbound setting is preserved — assigning an agent does not enable inbound routing on its own. Clearing the agent, or setting status to anything other than ACTIVE, always disables inbound routing."
                   },
+                  "ivr_flow_id": {
+                    "type": "string",
+                    "format": "uuid",
+                    "description": "Plivo and Vobiz numbers only: the IVR flow that answers this number, instead of an agent. Send it without `agent_id` (both is `400 AGENT_OR_FLOW`). Turns inbound on, unless you also send `inbound_enabled: false` or the number is `INACTIVE`. If IVR flows can't use the number's carrier right now, the API answers `422 IVR_NEEDS_VOICELINK`."
+                  },
                   "inbound_enabled": {
                     "type": "boolean",
                     "description": "Whether this DID should receive inbound calls for the assigned agent. Set `false` to keep the row available for outbound caller ID use only."
@@ -4253,9 +4258,20 @@
                 },
                 "minProperties": 1
               },
-              "example": {
-                "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-                "inbound_enabled": true
+              "examples": {
+                "agent": {
+                  "summary": "Assign an agent and turn inbound on",
+                  "value": {
+                    "agent_id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                    "inbound_enabled": true
+                  }
+                },
+                "ivr_flow": {
+                  "summary": "Answer a Plivo or Vobiz number with an IVR flow",
+                  "value": {
+                    "ivr_flow_id": "f1234567-abcd-1234-abcd-123456789012"
+                  }
+                }
               }
             }
           }
@@ -4277,38 +4293,99 @@
                     }
                   }
                 },
-                "example": {
-                  "success": true,
-                  "data": {
-                    "id": "f1a2c3d4-1111-2222-3333-444455556666",
-                    "phone_number": "+918065480085",
-                    "provider": "VOBIZ",
-                    "friendly_name": null,
-                    "status": "ACTIVE",
-                    "is_default": false,
-                    "inbound_enabled": true,
-                    "agent": {
-                      "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
-                      "name": "Inbound Test Agent"
-                    },
-                    "ivr_flow_id": null,
-                    "ivr_flow_name": null
+                "examples": {
+                  "agent": {
+                    "summary": "Agent assigned",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "id": "f1a2c3d4-1111-2222-3333-444455556666",
+                        "phone_number": "+918065480085",
+                        "provider": "VOBIZ",
+                        "friendly_name": null,
+                        "status": "ACTIVE",
+                        "is_default": false,
+                        "inbound_enabled": true,
+                        "agent": {
+                          "id": "a1b2c3d4-e5f6-7890-abcd-ef1234567890",
+                          "name": "Inbound Test Agent"
+                        },
+                        "ivr_flow_id": null,
+                        "ivr_flow_name": null
+                      }
+                    }
+                  },
+                  "ivr_flow": {
+                    "summary": "Answered by an IVR flow",
+                    "value": {
+                      "success": true,
+                      "data": {
+                        "id": "f1a2c3d4-1111-2222-3333-444455556666",
+                        "connection_id": "9b7f1c44-c87f-4f0c-9124-3c802a9c1a20",
+                        "connection_name": "Vobiz India - Support",
+                        "phone_number": "+918065480085",
+                        "provider": "VOBIZ",
+                        "friendly_name": null,
+                        "status": "ACTIVE",
+                        "is_default": false,
+                        "inbound_enabled": true,
+                        "agent": null,
+                        "ivr_flow_id": "f1234567-abcd-1234-abcd-123456789012",
+                        "ivr_flow_name": "Sales and support menu"
+                      }
+                    }
                   }
                 }
               }
             }
           },
           "400": {
-            "$ref": "#/components/responses/ValidationError"
+            "description": "Validation error. `AGENT_OR_FLOW`: both `agent_id` and `ivr_flow_id` were sent. `VALIDATION_ERROR`: a bad field, an `ivr_flow_id` that is not a UUID, or `ivr_flow_id` on a VoiceLink number (use `POST /voicelink/inbound-ready`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "agent_or_flow": {
+                    "summary": "Both agent_id and ivr_flow_id",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "AGENT_OR_FLOW",
+                        "message": "Give exactly one of agent_id or ivr_flow_id"
+                      }
+                    }
+                  },
+                  "voicelink_flow": {
+                    "summary": "ivr_flow_id on a VoiceLink number",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "An IVR flow answers a number through POST /api/v2/voicelink/inbound-ready with ivr_flow_id."
+                      }
+                    }
+                  },
+                  "agent_id": {
+                    "summary": "Bad agent_id",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "agent_id must be a valid UUID or null"
+                      }
+                    }
+                  }
+                }
+              }
+            }
           },
           "401": {
             "$ref": "#/components/responses/Unauthorized"
           },
           "404": {
-            "$ref": "#/components/responses/NotFound"
-          },
-          "409": {
-            "description": "The DID is already enabled for inbound routing on another active row.",
+            "description": "No phone number with this ID on your account, or no IVR flow with the `ivr_flow_id`.",
             "content": {
               "application/json": {
                 "schema": {
@@ -4317,25 +4394,82 @@
                 "example": {
                   "success": false,
                   "error": {
-                    "code": "VALIDATION_ERROR",
-                    "message": "Phone number +918065480085 is already enabled for inbound routing on connection 9b7f1c44-c87f-4f0c-9124-3c802a9c1a20. Disable inbound routing there before assigning it to another inbound agent."
+                    "code": "NOT_FOUND",
+                    "message": "phone number not found"
+                  }
+                }
+              }
+            }
+          },
+          "409": {
+            "description": "The DID is already enabled for inbound routing on another active row (`VALIDATION_ERROR`), or the IVR flow has no published version (`FLOW_NOT_PUBLISHED`).",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ErrorResponse"
+                },
+                "examples": {
+                  "inbound_conflict": {
+                    "summary": "DID already inbound elsewhere",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "Phone number +918065480085 is already enabled for inbound routing on connection 9b7f1c44-c87f-4f0c-9124-3c802a9c1a20. Disable inbound routing there before assigning it to another inbound agent."
+                      }
+                    }
+                  },
+                  "flow_not_published": {
+                    "summary": "Flow not published",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "FLOW_NOT_PUBLISHED",
+                        "message": "Publish the IVR flow before it can answer calls"
+                      }
+                    }
                   }
                 }
               }
             }
           },
           "422": {
-            "description": "`IVR_NEEDS_VOICELINK`: `ivr_flow_id` was sent for a number that is not on VoiceLink.",
+            "description": "IVR flow binding only. `IVR_NEEDS_VOICELINK`: the number is on a carrier IVR flows can't use right now; the message names the carriers that work and the one the number is on. `IVR_FLOW_NEEDS_AI_NODE`: the published version has no AI agent block. `IVR_FLOW_NEEDS_LEAD`: the published version has a required Start field, or a Fetch right after Start.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
-                "example": {
-                  "success": false,
-                  "error": {
-                    "code": "IVR_NEEDS_VOICELINK",
-                    "message": "IVR flows answer only on VoiceLink numbers. This number is on another provider."
+                "examples": {
+                  "carrier": {
+                    "summary": "Carrier not enabled for IVR flows",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "IVR_NEEDS_VOICELINK",
+                        "message": "IVR flows can call over VoiceLink and Plivo. This number is on Vobiz."
+                      }
+                    }
+                  },
+                  "needs_ai_node": {
+                    "summary": "No AI agent block",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "IVR_FLOW_NEEDS_AI_NODE",
+                        "message": "Only an IVR flow with an AI agent block can answer inbound calls. Add one and publish the flow."
+                      }
+                    }
+                  },
+                  "needs_lead": {
+                    "summary": "Required Start field",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "IVR_FLOW_NEEDS_LEAD",
+                        "message": "An inbound call has no lead data, so the Start block cannot require fields (loan_id). Make them optional."
+                      }
+                    }
                   }
                 }
               }
@@ -9406,7 +9540,7 @@
       "post": {
         "operationId": "startIvrCall",
         "summary": "Push a lead (place an IVR call)",
-        "description": "Places one outbound call that runs the published version of the flow, with `data` as the lead. Calls go out on your VoiceLink connection. The call is placed asynchronously: a 202 means it was accepted, not that it was answered. When the flow has Fetch blocks right after Start, they run before dialing; if one fails the number is never dialed and the call ends as `failed` with `ivr.failure = \"prefetch_failed\"` on `session.completed`. Track the call with `call.status.updated` webhooks or `GET /calls/{id}`, and read the result from the `ivr` block of `session.completed`.\n\nRate limited per account with the same per-minute call quota as `POST /calls/start`, and counted against the same concurrent call limit. A call needs enough balance for one minute at your IVR price for the voice model of the flow's published version (Standard or Premium) to start; it is billed per pulse of answered time at that price.",
+        "description": "Places one outbound call that runs the published version of the flow, with `data` as the lead. Calls go out on your VoiceLink connection, or on your Plivo or Vobiz connection when you send `provider`. If IVR flows can't use that carrier right now, the API answers `422 IVR_NEEDS_VOICELINK`. The call is placed asynchronously: a 202 means it was accepted, not that it was answered. When the flow has Fetch blocks right after Start, they run before dialing; if one fails the number is never dialed and the call ends as `failed` with `ivr.failure = \"prefetch_failed\"` on `session.completed`. Track the call with `call.status.updated` webhooks or `GET /calls/{id}`, and read the result from the `ivr` block of `session.completed`.\n\nRate limited per account with the same per-minute call quota as `POST /calls/start`, and counted against the same concurrent call limit. A call needs enough balance for one minute at your IVR price for the voice model of the flow's published version (Standard or Premium) to start; it is billed per pulse of answered time at that price.",
         "tags": [
           "IVR Flows"
         ],
@@ -9507,7 +9641,7 @@
             }
           },
           "400": {
-            "description": "Invalid request, lead data that does not match the flow, or VoiceLink not set up. Lead problems carry a `fields` list.",
+            "description": "Invalid request, lead data that does not match the flow, or the chosen provider not set up. Lead problems carry a `fields` list.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9561,12 +9695,12 @@
                       "success": false,
                       "error": {
                         "code": "VALIDATION_ERROR",
-                        "message": "from +917969008446 is not an active phone number on the selected VoiceLink connection"
+                        "message": "from +917969008446 is not an active phone number on the selected Plivo connection"
                       }
                     }
                   },
                   "connection_ambiguous": {
-                    "summary": "Several VoiceLink connections",
+                    "summary": "Several connections of the chosen provider",
                     "value": {
                       "success": false,
                       "error": {
@@ -9576,12 +9710,22 @@
                     }
                   },
                   "provider_not_configured": {
-                    "summary": "VoiceLink not configured",
+                    "summary": "Provider not configured",
                     "value": {
                       "success": false,
                       "error": {
                         "code": "PROVIDER_NOT_CONFIGURED",
                         "message": "VoiceLink telephony is not configured for this account, or the connection has no default phone number."
+                      }
+                    }
+                  },
+                  "provider": {
+                    "summary": "Unknown provider",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "VALIDATION_ERROR",
+                        "message": "provider must be one of: voicelink, plivo, vobiz"
                       }
                     }
                   }
@@ -9647,7 +9791,7 @@
             }
           },
           "404": {
-            "description": "No flow with this ID on your account, or the `connection_id` was not found.",
+            "description": "No flow with this ID on your account, or the `connection_id` is not an active connection of the chosen provider.",
             "content": {
               "application/json": {
                 "schema": {
@@ -9691,13 +9835,23 @@
             }
           },
           "422": {
-            "description": "`IVR_PRICING_NOT_CONFIGURED`: the account has no IVR price for the voice model of the flow's published version; contact Vocobase. `AI_HANDOFF_DISABLED`: the flow has an AI agent block and handing calls to AI agents is paused right now; nothing was dialed or charged, try again later.",
+            "description": "`IVR_NEEDS_VOICELINK`: IVR flows can't call over the chosen provider right now; the message names the providers that work; nothing was dialed or charged. `IVR_PRICING_NOT_CONFIGURED`: the account has no IVR price for the voice model of the flow's published version; contact Vocobase. `AI_HANDOFF_DISABLED`: the flow has an AI agent block and handing calls to AI agents is paused right now; nothing was dialed or charged, try again later.",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "examples": {
+                  "carrier": {
+                    "summary": "Provider not enabled for IVR flows",
+                    "value": {
+                      "success": false,
+                      "error": {
+                        "code": "IVR_NEEDS_VOICELINK",
+                        "message": "IVR flows cannot call over Vobiz yet. They can call over VoiceLink and Plivo."
+                      }
+                    }
+                  },
                   "pricing": {
                     "summary": "IVR pricing missing",
                     "value": {
@@ -10525,7 +10679,7 @@
         "tags": [
           "Campaigns"
         ],
-        "description": "Creates an outbound campaign in `draft` status. Nothing dials until you add contacts and call `POST /campaigns/{id}/start`.\n\nSupply caller IDs with `phone_number_ids` (preferred — the campaign rotates through them in order) **or** a single legacy `provider`. Sending both fails unless they agree.\n\nTo run an IVR flow instead of an agent, send `ivr_flow_id` in place of `agent_id` (exactly one of the two). The flow must be published, and `phone_number_ids` is then required with every number on a VoiceLink connection. The response names the flow in `ivr_flow_id` / `ivr_flow_name` and has `agent_id` and `agent_name` `null`. Each contact fills the flow's Start fields from the `metadata` keys of the same name (see `GET /ivr-flows` → `start_fields`); a contact with a missing required field or an invalid value is not called and is marked `failed`. Campaign extraction sets are not available on an IVR flow campaign.",
+        "description": "Creates an outbound campaign in `draft` status. Nothing dials until you add contacts and call `POST /campaigns/{id}/start`.\n\nSupply caller IDs with `phone_number_ids` (preferred — the campaign rotates through them in order) **or** a single legacy `provider`. Sending both fails unless they agree.\n\nTo run an IVR flow instead of an agent, send `ivr_flow_id` in place of `agent_id` (exactly one of the two). The flow must be published, and `phone_number_ids` is then required with every number on a VoiceLink, Plivo or Vobiz connection (`422 IVR_NEEDS_VOICELINK` otherwise). If IVR flows can't use that carrier right now, the API answers `422 IVR_NEEDS_VOICELINK`. The response names the flow in `ivr_flow_id` / `ivr_flow_name` and has `agent_id` and `agent_name` `null`. Each contact fills the flow's Start fields from the `metadata` keys of the same name (see `GET /ivr-flows` → `start_fields`); a contact with a missing required field or an invalid value is not called and is marked `failed`. Campaign extraction sets are not available on an IVR flow campaign.",
         "requestBody": {
           "required": true,
           "content": {
@@ -10552,7 +10706,7 @@
                   "ivr_flow_id": {
                     "type": "string",
                     "format": "uuid",
-                    "description": "An IVR flow on your account, with a published version, that runs the calls instead of an agent. Send exactly one of `agent_id` and `ivr_flow_id`. Requires `phone_number_ids` on a VoiceLink connection."
+                    "description": "An IVR flow on your account, with a published version, that runs the calls instead of an agent. Send exactly one of `agent_id` and `ivr_flow_id`. Requires `phone_number_ids` on VoiceLink, Plivo or Vobiz connections."
                   },
                   "type": {
                     "type": "string",
@@ -10568,7 +10722,7 @@
                       "type": "string",
                       "format": "uuid"
                     },
-                    "description": "Imported numbers to dial from. Each must be active, owned by you, and voice-capable. Required with `ivr_flow_id`, and then every number must be on a VoiceLink connection."
+                    "description": "Imported numbers to dial from. Each must be active, owned by you, and voice-capable. Required with `ivr_flow_id`, and then every number must be on a VoiceLink, Plivo or Vobiz connection. If IVR flows can't use that carrier right now, the API answers `422 IVR_NEEDS_VOICELINK`."
                   },
                   "provider": {
                     "type": "string",
@@ -10754,7 +10908,7 @@
             }
           },
           "422": {
-            "description": "`IVR_NEEDS_VOICELINK`: an IVR flow campaign without `phone_number_ids`, or with a number that is not on a VoiceLink connection.",
+            "description": "`IVR_NEEDS_VOICELINK`: an IVR flow campaign without `phone_number_ids`, or with a number on a carrier IVR flows can't use right now. The message names the carriers that work and the one the number is on.",
             "content": {
               "application/json": {
                 "schema": {
@@ -10764,7 +10918,7 @@
                   "success": false,
                   "error": {
                     "code": "IVR_NEEDS_VOICELINK",
-                    "message": "An IVR flow campaign needs phone_number_ids on a VoiceLink connection"
+                    "message": "Phone number +918065480085: IVR flows can call over VoiceLink and Plivo. This number is on Vobiz."
                   }
                 }
               }
@@ -11301,13 +11455,13 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "examples": {
-                  "voicelink": {
-                    "summary": "A number is no longer on a VoiceLink connection",
+                  "carrier": {
+                    "summary": "A number is on a carrier IVR flows can't use yet",
                     "value": {
                       "success": false,
                       "error": {
                         "code": "IVR_NEEDS_VOICELINK",
-                        "message": "Phone number +918065480085 is not a VoiceLink number. An IVR flow can only call over VoiceLink."
+                        "message": "Phone number +918065480085: IVR flows can call over VoiceLink and Plivo. This number is on Vobiz."
                       }
                     }
                   },
@@ -11597,13 +11751,13 @@
                   "$ref": "#/components/schemas/ErrorResponse"
                 },
                 "examples": {
-                  "voicelink": {
-                    "summary": "A number is no longer on a VoiceLink connection",
+                  "carrier": {
+                    "summary": "A number is on a carrier IVR flows can't use yet",
                     "value": {
                       "success": false,
                       "error": {
                         "code": "IVR_NEEDS_VOICELINK",
-                        "message": "Phone number +918065480085 is not a VoiceLink number. An IVR flow can only call over VoiceLink."
+                        "message": "Phone number +918065480085: IVR flows can call over VoiceLink and Plivo. This number is on Vobiz."
                       }
                     }
                   },
@@ -19833,13 +19987,24 @@
           },
           "from": {
             "type": "string",
-            "description": "Optional caller ID in E.164 format. Must be an active phone number on the selected VoiceLink connection; an unknown number returns 400 `VALIDATION_ERROR`. When omitted, the connection default is used.",
+            "description": "Optional caller ID in E.164 format. Must be an active phone number on the selected connection; an unknown number returns 400 `VALIDATION_ERROR`. When omitted, the connection's number that answers this flow's inbound calls is used, if there is one, else the connection default.",
             "example": "+917969008446"
+          },
+          "provider": {
+            "type": "string",
+            "enum": [
+              "voicelink",
+              "plivo",
+              "vobiz"
+            ],
+            "default": "voicelink",
+            "description": "Carrier to call over, lowercase as in `POST /calls/start`. Defaults to `voicelink`. `connection_id` and `from` must be on this provider. If IVR flows can't use that carrier right now, the API answers `422 IVR_NEEDS_VOICELINK`.",
+            "example": "voicelink"
           },
           "connection_id": {
             "type": "string",
             "format": "uuid",
-            "description": "VoiceLink connection to place the call on. Required when the account has more than one active VoiceLink connection."
+            "description": "Connection of the chosen `provider` to place the call on. Required when the account has more than one active connection of that provider."
           },
           "data": {
             "type": "object",
@@ -23213,7 +23378,7 @@
               "null"
             ],
             "format": "uuid",
-            "description": "The IVR flow that answers this number, set through `POST /voicelink/inbound-ready`. `null` otherwise. Returned wherever a phone number is returned (`/phone-numbers`, `/telephony/connections`)."
+            "description": "The IVR flow that answers this number, set through `POST /voicelink/inbound-ready` (VoiceLink) or `PUT /phone-numbers/{id}` (Plivo, Vobiz). `null` otherwise. Returned wherever a phone number is returned (`/phone-numbers`, `/telephony/connections`)."
           },
           "ivr_flow_name": {
             "type": [
