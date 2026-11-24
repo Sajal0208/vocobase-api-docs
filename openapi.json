@@ -8476,7 +8476,8 @@
                       "null"
                     ],
                     "description": "Optional. Replaces the agent's greeting (`intro_message`) for this call only; the agent is not changed. Rendered like the agent's greeting: the same `{{name}}` placeholders, filled from `variables` and from pre-call hook outputs. If it renders to nothing at call time (every placeholder in it empty), the call opens with the agent's greeting instead. At most 500 characters, counted in UTF-16 code units as the agent greeting's own limit is (an emoji counts as 2). Absent, `null` or blank: the agent's greeting is used, as before. A value that is not a string, or is longer, returns 400 `VALIDATION_ERROR` and no call is placed, even when `client_reference_id` matches an earlier call. The callee cannot interrupt the opening line, so keep it short. The response's `greeting_override_applied` says whether the call carries it. Check that `GET /config` reports `capabilities.per_call_greeting: true` before relying on this field.",
-                    "example": "Hi {{callee_name}}, this is Priya from Acme again. Is now a good time to continue?"
+                    "example": "Hi {{callee_name}}, this is Priya from Acme again. Is now a good time to continue?",
+                    "maxLength": 500
                   }
                 }
               },
@@ -8562,7 +8563,7 @@
                         },
                         "greeting_override_applied": {
                           "type": "boolean",
-                          "description": "`true` when this call carries the `greeting` you passed, `false` when it uses the agent's greeting."
+                          "description": "`true` when the call accepted and stored the `greeting` you passed, `false` when it uses the agent's greeting. A stored greeting is spoken unless the agent is an IVR flow or the greeting renders to nothing at call time."
                         }
                       }
                     }
