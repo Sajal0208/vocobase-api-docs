@@ -64,6 +64,33 @@ Content-Type: application/json
 
 The `session.completed` webhook echoes the same `variables` map for your own audit. See [Webhook Payloads](/webhooks/payloads) for the full payload shape.
 
+## 5. Replace the greeting for one call
+
+Pass `greeting` to `POST /api/v2/calls/start` to open this call with a different first line. The agent's own greeting is not changed, and no other call is affected.
+
+```bash
+POST /api/v2/calls/start
+Authorization: Bearer rg_live_...
+Content-Type: application/json
+
+{
+  "agent_id": "...",
+  "to_number": "+919876543210",
+  "provider": "twilio",
+  "variables": {
+    "callee_name": "Sajal"
+  },
+  "greeting": "Hi {{callee_name}}, this is Priya from Acme again. Is now a good time to continue?"
+}
+```
+
+- **Rendered like the agent's greeting.** The same `{{name}}` placeholders, filled from `variables` and from pre-call hook outputs. If it renders to nothing at call time (every placeholder in it empty), the call opens with the agent's greeting instead.
+- **At most 500 characters**, the agent greeting's own limit, counted in UTF-16 code units (an emoji counts as 2). A value that is not a string, or is longer, returns `400 VALIDATION_ERROR` and no call is placed. Absent, `null` or blank: the agent's greeting is used.
+- **Keep it short.** The callee cannot interrupt the opening line.
+- **Check the response.** `greeting_override_applied: true` means the call accepted and stored your greeting. It is spoken unless the agent is an IVR flow, or the greeting renders to nothing at call time (then the agent's own greeting plays). A replay of an earlier `client_reference_id` reports what the original call used.
+- **Read it back** on `GET /api/v2/calls/{id}` as `session.greeting_override`: the text as stored (trimmed), before `{{name}}` rendering, or `null`.
+- **Feature check.** `GET /api/v2/config` reports `capabilities.per_call_greeting: true` where `greeting` is supported.
+
 ## Behavior
 
 - **Missing values render as empty strings.** A prompt that says `Hi {{callee_name}}!` produces `Hi !` if `callee_name` is omitted. The platform never errors on missing variables.
