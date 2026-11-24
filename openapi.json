@@ -8488,7 +8488,8 @@
                 "variables": {
                   "callee_name": "Sajal",
                   "mobile_number": "+919876543210"
-                }
+                },
+                "client_reference_id": "lead-88231-attempt-2"
               }
             }
           }
@@ -22965,7 +22966,7 @@
               "string",
               "null"
             ],
-            "description": "The `greeting` passed to `POST /calls/start` for this call, as sent (before `{{name}}` rendering). `null` when none was passed."
+            "description": "The `greeting` passed to `POST /calls/start` for this call, as stored (trimmed, before `{{name}}` rendering). `null` when none was passed."
           },
           "hold": {
             "oneOf": [
